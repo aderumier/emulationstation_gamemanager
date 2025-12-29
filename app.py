@@ -2082,7 +2082,8 @@ def fix_over_escaped_xml_entities(text):
 # Task storage and management
 tasks = {}  # task_id -> task_info
 task_queue = []
-current_task_id = 0
+current_task_id = 0  # Deprecated: kept for backward compatibility, use running_tasks_by_system instead
+running_tasks_by_system = {}  # Maps system_name -> task_id for per-system concurrency control
 
 def load_existing_tasks_from_logs():
     """Load existing tasks from log files on server startup"""
@@ -2392,9 +2393,10 @@ class Task:
         if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias', 'import_roms']:
             self.grid_refresh_needed = True
         
-        # Clear current task and start next queued task
+        # Clear current task for this system and start next queued task
         global current_task_id
-        current_task_id = 0
+        system_name = get_system_name_from_task_data(self.data)
+        clear_running_task_for_system(system_name)
         process_next_queued_task()
 
     
@@ -2591,18 +2593,60 @@ def create_media_filename(rompath_or_romfile, media_extension):
     # Add the media extension
     return f"{rom_filename}{media_extension}"
 
-def is_task_running():
-    """Check if any task is currently running"""
-    global current_task_id
-    if current_task_id and current_task_id in tasks:
-        return tasks[current_task_id].status == TASK_STATUS_RUNNING
+def get_system_name_from_task_data(task_data):
+    """Extract system_name from task_data, return None if not found or not applicable"""
+    if not task_data:
+        return None
+    return task_data.get('system_name')
+
+def is_task_running_for_system(system_name):
+    """Check if a task is currently running for a specific system"""
+    global running_tasks_by_system
+    if not system_name:
+        return False
+    task_id = running_tasks_by_system.get(system_name)
+    if task_id and task_id in tasks:
+        return tasks[task_id].status == TASK_STATUS_RUNNING
     return False
 
-def can_start_task(task_type):
-    """Check if a new task can be started"""
-    if is_task_running():
-        current_task_type = tasks[current_task_id].type if current_task_id else 'unknown'
-        return False, f"Another task ({current_task_type}) is already running"
+def set_running_task_for_system(system_name, task_id):
+    """Set the running task for a system"""
+    global running_tasks_by_system, current_task_id
+    if system_name:
+        running_tasks_by_system[system_name] = task_id
+    # Keep current_task_id for backward compatibility (set to latest task)
+    current_task_id = task_id
+
+def clear_running_task_for_system(system_name):
+    """Clear the running task for a system"""
+    global running_tasks_by_system, current_task_id
+    if system_name and system_name in running_tasks_by_system:
+        del running_tasks_by_system[system_name]
+    # Update current_task_id to latest running task if any
+    if running_tasks_by_system:
+        current_task_id = list(running_tasks_by_system.values())[-1]
+    else:
+        current_task_id = 0
+
+def is_task_running(system_name=None):
+    """Check if any task is currently running. If system_name is provided, check only for that system."""
+    if system_name:
+        return is_task_running_for_system(system_name)
+    # Check if any system has a running task
+    global running_tasks_by_system
+    for sys_name, task_id in running_tasks_by_system.items():
+        if task_id and task_id in tasks:
+            if tasks[task_id].status == TASK_STATUS_RUNNING:
+                return True
+    return False
+
+def can_start_task(task_type, task_data=None):
+    """Check if a new task can be started for a specific system"""
+    system_name = get_system_name_from_task_data(task_data)
+    if system_name and is_task_running_for_system(system_name):
+        running_task_id = running_tasks_by_system.get(system_name)
+        current_task_type = tasks[running_task_id].type if running_task_id and running_task_id in tasks else 'unknown'
+        return False, f"Another task ({current_task_type}) is already running for system {system_name}"
     return True, None
 
 def queue_task(task_type, task_data=None):
@@ -2689,46 +2733,61 @@ def add_task_to_queue(task_type, task_data, username=None):
         task = create_task(task_type, task_data)
     task.status = TASK_STATUS_QUEUED
     
+    # Extract system_name from task_data
+    system_name = get_system_name_from_task_data(task_data)
+    
     # Add to queue
     task_info = {
         'task_id': task.id,
         'type': task_type,
         'data': task_data,
+        'system_name': system_name,
         'timestamp': time.time()
     }
     task_queue.append(task_info)
-    print(f"DEBUG: Added {task_type} task to queue. Position: {len(task_queue)}")
+    print(f"DEBUG: Added {task_type} task to queue for system '{system_name}'. Position: {len(task_queue)}")
     
-    # Only process if no task is currently running
-    if not is_task_running():
-        print(f"DEBUG: No task running, processing next queued task")
+    # Try to process immediately if no task is running for this system
+    if not is_task_running_for_system(system_name):
+        print(f"DEBUG: No task running for system '{system_name}', processing next queued task")
         process_next_queued_task()
     else:
-        print(f"DEBUG: Task already running, queued task will wait")
+        print(f"DEBUG: Task already running for system '{system_name}', queued task will wait")
     
     return task
 
 def process_next_queued_task():
-    """Process the next task in the queue"""
+    """Process the next available task in the queue (allows parallel execution for different systems)"""
     global current_task_id, task_queue
     
     # Clean up any stuck tasks first
     cleanup_stuck_tasks()
     
-    # Don't start a new task if one is already running
-    if is_task_running():
-        print(f"DEBUG: Task already running, not starting next queued task")
-        return
-    
     if not task_queue:
         print(f"DEBUG: No tasks in queue")
         return
     
-    next_task = task_queue.pop(0)
+    # Find the first task in queue that can run (no task running for its system)
+    next_task = None
+    task_index = -1
+    for i, queued_task in enumerate(task_queue):
+        system_name = queued_task.get('system_name') or get_system_name_from_task_data(queued_task.get('data', {}))
+        if not is_task_running_for_system(system_name):
+            next_task = queued_task
+            task_index = i
+            break
+    
+    if not next_task:
+        print(f"DEBUG: All queued tasks are blocked by running tasks for their systems")
+        return
+    
+    # Remove the selected task from queue
+    task_queue.pop(task_index)
     task_type = next_task['type']
     task_data = next_task.get('data', {})
+    system_name = next_task.get('system_name') or get_system_name_from_task_data(task_data)
     
-    print(f"DEBUG: Processing next queued task: {task_type}")
+    print(f"DEBUG: Processing next queued task: {task_type} for system '{system_name}'")
     
     # Start the next task based on its type
     if task_type == 'media_scan':
@@ -2739,12 +2798,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('media_scan', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start media scan in background thread
             thread = threading.Thread(target=run_media_scan_task, args=(system_name,))
@@ -2758,12 +2817,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('image_download', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start image download in background thread
             thread = threading.Thread(target=run_image_download_task, args=(system_name, task_data))
@@ -2777,12 +2836,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('rom_scan', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start ROM scan in background thread
             thread = threading.Thread(target=run_rom_scan_task, args=(system_name,))
@@ -2797,12 +2856,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('clean_missing_medias', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start clean missing medias in background thread
             thread = threading.Thread(target=run_clean_missing_medias_task, args=(system_name, media_field))
@@ -2818,12 +2877,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('search_image_similarity', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start image similarity search in background thread
             thread = threading.Thread(target=run_image_similarity_search_task, args=(system_name, media_field, source_game_path, task.id))
@@ -2840,12 +2899,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('delete_similar_images', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start delete similar images in background thread
             thread = threading.Thread(target=run_delete_similar_images_task, args=(system_name, media_field, source_game_path, task.id, similarity_threshold))
@@ -2860,12 +2919,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('youtube_download', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start YouTube download in background thread
             thread = threading.Thread(target=run_youtube_download_task, args=(task.id, data))
@@ -2889,12 +2948,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('template_box_generation', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start template box generation in background thread
             background_image_field = task_data.get('background_image_field')
@@ -2918,12 +2977,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('logo_generation', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start logo generation in background thread
             thread = threading.Thread(target=run_logo_generation_task, args=(system_name, selected_games, color, font_size, font, bold, italic, underline, uppercase, max_chars_per_line))
@@ -2947,12 +3006,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('3dbox_generation', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start 3D box generation in background thread
             use_marquee_field = task_data.get('use_marquee_field', False)
@@ -2981,12 +3040,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('igdb_scraping', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start IGDB scraping in background thread
             thread = threading.Thread(target=run_igdb_scraper_task, args=(system_name, task.id, selected_games, overwrite_text_fields, overwrite_media_fields, selected_fields))
@@ -3015,12 +3074,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('screenscraper_scraping', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start ScreenScraper scraping in background thread
             thread = threading.Thread(target=run_screenscraper_task, args=(system_name, task.id, selected_games, selected_fields, overwrite_text_fields, overwrite_media_fields, search_by_name))
@@ -3044,12 +3103,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('steam_scraping', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start Steam scraping in background thread
             thread = threading.Thread(target=run_steam_task, args=(system_name, task.id, selected_games, overwrite_media_fields, overwrite_text_fields, selected_text_fields))
@@ -3066,12 +3125,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('steamgriddb_scraping', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start SteamGridDB scraping in background thread
             thread = threading.Thread(target=run_steamgriddb_task, args=(system_name, task.id, selected_games, overwrite_media_fields))
@@ -3088,12 +3147,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('emumovies_scraping', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start EmuMovies scraping in background thread
             thread = threading.Thread(target=run_emumovies_task, args=(system_name, task.id, selected_games, selected_fields, overwrite_media_fields))
@@ -3112,12 +3171,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('youtube_download_batch', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start YouTube download batch in background thread
             thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index))
@@ -3140,12 +3199,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('mobygames', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start MobyGames scraping in background thread
             thread = threading.Thread(target=run_mobygames_task, args=(system_name, task.id, selected_games, selected_text_fields, selected_media_fields, overwrite_text_fields, overwrite_media_fields))
@@ -3172,13 +3231,13 @@ def process_next_queued_task():
             print(f"🔧 DEBUG: Using task_id: {task_id}")
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
                 print(f"🔧 DEBUG: Started existing task {task_id}")
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('datscrapper', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
                 print(f"🔧 DEBUG: Created and started new task {task.id}")
             # Start DAT Scrapper in background thread
@@ -3206,12 +3265,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('launchbox_scraping', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start LaunchBox scraping in background thread
             thread = threading.Thread(target=run_launchbox_scraper_task, args=(system_name, task.id, selected_games, selected_fields, overwrite_text_fields, force_download, enable_partial_match_modal))
@@ -3226,12 +3285,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('resize_medias', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start resize medias in background thread
             thread = threading.Thread(target=run_resize_medias_task, args=(system_name, media_field, task.id))
@@ -3247,12 +3306,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('reencode_medias', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start reencode medias in background thread
             thread = threading.Thread(target=run_reencode_medias_task, args=(system_name, media_field, selected_games, task.id, task_data))
@@ -3269,12 +3328,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('import_medias', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start import medias in background thread
             thread = threading.Thread(target=run_import_medias_task, args=(system_name, source_directory, target_field, overwrite_existing, task.id))
@@ -3289,12 +3348,12 @@ def process_next_queued_task():
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('import_roms', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start import ROMs in background thread
             thread = threading.Thread(target=run_import_roms_task, args=(system_name, source_directory, task.id))
@@ -3326,13 +3385,13 @@ def process_next_queued_task():
             print(f"🔧 DEBUG: Using task_id: {task_id}")
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
                 print(f"🔧 DEBUG: Started existing task {task_id}")
             else:
                 # Fallback: create new task if existing one not found
                 task = create_task('custom_scrapper', task_data)
-                current_task_id = task.id
+                set_running_task_for_system(system_name, task.id)
                 task.start()
                 print(f"🔧 DEBUG: Created and started new task {task.id}")
             # Start Custom Scrapper in background thread
@@ -8600,9 +8659,14 @@ def scrap_mobygames_system(system_name):
         username = current_user.username if current_user.is_authenticated else 'anonymous'
         task = add_task_to_queue('mobygames', task_data, username)
         
-        # Set current task and start it
-        current_task_id = task.id
-        task.start()
+        # Note: add_task_to_queue() handles task starting via process_next_queued_task()
+        # Only start directly if not already started
+        if task.status == TASK_STATUS_QUEUED:
+            # Task will be started by process_next_queued_task()
+            pass
+        else:
+            # Task was started immediately, set running task for system
+            set_running_task_for_system(system_name, task.id)
         
         return jsonify({
             'success': True, 
@@ -8653,9 +8717,14 @@ def scrap_datscrapper_system(system_name):
         username = current_user.username if current_user.is_authenticated else 'anonymous'
         task = add_task_to_queue('datscrapper', task_data, username)
         
-        # Set current task and start it
-        current_task_id = task.id
-        task.start()
+        # Note: add_task_to_queue() handles task starting via process_next_queued_task()
+        # Only start directly if not already started
+        if task.status == TASK_STATUS_QUEUED:
+            # Task will be started by process_next_queued_task()
+            pass
+        else:
+            # Task was started immediately, set running task for system
+            set_running_task_for_system(system_name, task.id)
         
         return jsonify({
             'success': True, 
@@ -8770,9 +8839,14 @@ def scrap_custom_system(system_name):
         username = current_user.username if current_user.is_authenticated else 'anonymous'
         task = add_task_to_queue('custom_scrapper', task_data, username)
         
-        # Set current task and start it
-        current_task_id = task.id
-        task.start()
+        # Note: add_task_to_queue() handles task starting via process_next_queued_task()
+        # Only start directly if not already started
+        if task.status == TASK_STATUS_QUEUED:
+            # Task will be started by process_next_queued_task()
+            pass
+        else:
+            # Task was started immediately, set running task for system
+            set_running_task_for_system(system_name, task.id)
         
         return jsonify({
             'success': True, 
@@ -16452,7 +16526,7 @@ def apply_manual_crop():
         }
         
         task = create_task('manual_crop', task_data)
-        current_task_id = task.id
+        set_running_task_for_system(system_name, task.id)
         task.start()
         
         # Start manual crop in background thread
@@ -16527,7 +16601,7 @@ def apply_image_crop():
         }
         
         task = create_task('image_crop', task_data)
-        current_task_id = task.id
+        set_running_task_for_system(system_name, task.id)
         task.start()
         
         # Start image crop in background thread
@@ -20074,9 +20148,11 @@ def stop_task_endpoint(task_id):
             # For YouTube batch download, just set the stop event - the task will handle completion itself
             task.update_progress("🛑 Stop requested - task will complete gracefully")
         
-        # If this was the current running task, clear it
-        if current_task_id == task_id:
-            current_task_id = 0
+        # Clear running task for this system if it matches
+        task = tasks.get(task_id)
+        if task:
+            system_name = get_system_name_from_task_data(task.data)
+            clear_running_task_for_system(system_name)
         
         # Clean up any stuck tasks
         cleanup_stuck_tasks()
