@@ -1303,6 +1303,149 @@ class BoxGenerator:
                             
                             spine_logo_to_use = spine_logo_path
                             is_generated_text_logo = False  # Track if this is a generated text logo that's already been resized
+                            
+                            # If we have a logo path and keep_aspect_ratio is enabled, it might be a generated text logo
+                            # that was created elsewhere (e.g., preview logo). We should treat it as a generated text logo
+                            # if keep_aspect_ratio is enabled, since it needs special handling.
+                            # Note: When a spine image is provided, has_text_logo might be False even though we have a preview logo
+                            logging.info(f"3D Box Spine: Checking for preview text logo - has_text_logo={has_text_logo}, has_logo={has_logo}, keep_aspect_ratio={keep_aspect_ratio}, spine_logo_to_use={spine_logo_to_use}")
+                            # Check if we have a logo path and keep_aspect_ratio is enabled (regardless of has_text_logo)
+                            # This handles the case where a preview logo is provided but spine_text_logo_settings is None
+                            if has_logo and keep_aspect_ratio and spine_logo_to_use:
+                                # This is likely a generated text logo passed from outside (e.g., preview)
+                                # We need to resize it to match the spine width while maintaining aspect ratio
+                                # Calculate zone dimensions first to determine resize size
+                                if spine_logo_zone and not spine_from_field:
+                                    zone_tl = spine_logo_zone.get('topLeft', {'x': 0, 'y': 0})
+                                    zone_tr = spine_logo_zone.get('topRight', {'x': 0, 'y': 0})
+                                    zone_bl = spine_logo_zone.get('bottomLeft', {'x': 0, 'y': 0})
+                                    zone_br = spine_logo_zone.get('bottomRight', {'x': 0, 'y': 0})
+                                    
+                                    zone_tl_x = zone_tl.get('x', 0)
+                                    zone_tl_y = zone_tl.get('y', 0)
+                                    zone_tr_x = zone_tr.get('x', 0)
+                                    zone_tr_y = zone_tr.get('y', 0)
+                                    zone_bl_x = zone_bl.get('x', 0)
+                                    zone_bl_y = zone_bl.get('y', 0)
+                                    zone_br_x = zone_br.get('x', 0)
+                                    zone_br_y = zone_br.get('y', 0)
+                                    
+                                    zone_is_valid = (zone_tl_x > 0 or zone_tl_y > 0 or zone_tr_x > 0 or zone_tr_y > 0 or
+                                                   zone_bl_x > 0 or zone_bl_y > 0 or zone_br_x > 0 or zone_br_y > 0)
+                                    
+                                    if zone_is_valid:
+                                        zone_width_template = zone_tr_x - zone_tl_x
+                                        zone_height_template = zone_bl_y - zone_tl_y
+                                        
+                                        template_spine_width = spine_target_topright_x - spine_target_topleft_x
+                                        template_spine_height = spine_target_bottomright_y - spine_target_topright_y
+                                        
+                                        if template_spine_width > 0 and template_spine_height > 0 and zone_width_template > 0 and zone_height_template > 0:
+                                            scale_x = spine_resize_width / template_spine_width
+                                            scale_y = spine_resize_height / template_spine_height
+                                            
+                                            zone_width_resized = int(zone_width_template * scale_x)
+                                            zone_height_resized = int(zone_height_template * scale_y)
+                                            
+                                            # Resize the preview logo to match spine width (after rotation) while maintaining aspect ratio
+                                            effective_zone_width = zone_width_resized
+                                            if effective_zone_width and effective_zone_width > 0:
+                                                # Create temp file for resized preview logo
+                                                if debug:
+                                                    output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                                    temp_preview_logo_resized = os.path.join(temp_dir, f'{output_base}_preview_logo_resized.png')
+                                                else:
+                                                    temp_preview_logo_resized = os.path.join(temp_dir, 'preview_logo_resized.png')
+                                                temp_files.append(temp_preview_logo_resized)
+                                                
+                                                # Get original dimensions
+                                                orig_dim_cmd = ['identify', '-format', '%wx%h', spine_logo_to_use]
+                                                orig_dim_result = subprocess.run(orig_dim_cmd, capture_output=True, text=True, timeout=5)
+                                                if orig_dim_result.returncode == 0:
+                                                    orig_dims = orig_dim_result.stdout.strip().split('x')
+                                                    orig_width = int(orig_dims[0])
+                                                    orig_height = int(orig_dims[1])
+                                                    orig_aspect = orig_width / orig_height if orig_height > 0 else 1
+                                                    
+                                                    # After rotation, width should be effective_zone_width
+                                                    # So before rotation, height should be effective_zone_width
+                                                    text_logo_height = effective_zone_width  # This becomes width after rotation
+                                                    text_logo_width = int(text_logo_height * orig_aspect)  # Maintain aspect ratio
+                                                    
+                                                    # Resize by height only to maintain aspect ratio
+                                                    cmd_resize = [
+                                                        'convert',
+                                                        spine_logo_to_use,
+                                                        '-background', 'transparent',
+                                                        '-alpha', 'set',
+                                                        '-resize', f'x{text_logo_height}',  # Scale by height only, maintain aspect ratio
+                                                        temp_preview_logo_resized
+                                                    ]
+                                                    logging.info(f"3D Box Spine: Resizing preview text logo to maintain aspect ratio - height: {text_logo_height}, width: {text_logo_width} (zone width: {effective_zone_width})")
+                                                    subprocess.run(cmd_resize, check=True)
+                                                    
+                                                    # Use the resized version
+                                                    spine_logo_to_use = temp_preview_logo_resized
+                                                    is_generated_text_logo = True
+                                                    logging.info(f"3D Box Spine: Preview text logo resized and marked as generated text logo")
+                                                else:
+                                                    logging.warning(f"3D Box Spine: Could not get preview logo dimensions, treating as normal logo")
+                                                    is_generated_text_logo = False
+                                            else:
+                                                logging.warning(f"3D Box Spine: Invalid zone width for preview logo resize")
+                                                is_generated_text_logo = False
+                                        else:
+                                            logging.warning(f"3D Box Spine: Zone dimensions not available for preview logo resize, trying with spine dimensions")
+                                            # Fallback: use spine dimensions if zone isn't available
+                                            if spine_resize_width > 0:
+                                                # Create temp file for resized preview logo
+                                                if debug:
+                                                    output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                                    temp_preview_logo_resized = os.path.join(temp_dir, f'{output_base}_preview_logo_resized.png')
+                                                else:
+                                                    temp_preview_logo_resized = os.path.join(temp_dir, 'preview_logo_resized.png')
+                                                temp_files.append(temp_preview_logo_resized)
+                                                
+                                                # Get original dimensions
+                                                orig_dim_cmd = ['identify', '-format', '%wx%h', spine_logo_to_use]
+                                                orig_dim_result = subprocess.run(orig_dim_cmd, capture_output=True, text=True, timeout=5)
+                                                if orig_dim_result.returncode == 0:
+                                                    orig_dims = orig_dim_result.stdout.strip().split('x')
+                                                    orig_width = int(orig_dims[0])
+                                                    orig_height = int(orig_dims[1])
+                                                    orig_aspect = orig_width / orig_height if orig_height > 0 else 1
+                                                    
+                                                    # After rotation, width should be spine_resize_width
+                                                    # So before rotation, height should be spine_resize_width
+                                                    text_logo_height = spine_resize_width  # This becomes width after rotation
+                                                    text_logo_width = int(text_logo_height * orig_aspect)  # Maintain aspect ratio
+                                                    
+                                                    # Resize by height only to maintain aspect ratio
+                                                    cmd_resize = [
+                                                        'convert',
+                                                        spine_logo_to_use,
+                                                        '-background', 'transparent',
+                                                        '-alpha', 'set',
+                                                        '-resize', f'x{text_logo_height}',  # Scale by height only, maintain aspect ratio
+                                                        temp_preview_logo_resized
+                                                    ]
+                                                    logging.info(f"3D Box Spine: Resizing preview text logo to maintain aspect ratio (using spine width) - height: {text_logo_height}, width: {text_logo_width} (spine width: {spine_resize_width})")
+                                                    subprocess.run(cmd_resize, check=True)
+                                                    
+                                                    # Use the resized version
+                                                    spine_logo_to_use = temp_preview_logo_resized
+                                                    is_generated_text_logo = True
+                                                    logging.info(f"3D Box Spine: Preview text logo resized (fallback) and marked as generated text logo")
+                                                else:
+                                                    logging.warning(f"3D Box Spine: Could not get preview logo dimensions (fallback), treating as normal logo")
+                                                    is_generated_text_logo = False
+                                    else:
+                                        logging.warning(f"3D Box Spine: No zone or zone invalid for preview logo resize")
+                                        is_generated_text_logo = False
+                                else:
+                                    logging.warning(f"3D Box Spine: spine_logo_zone not available for preview logo resize")
+                                    is_generated_text_logo = False
+                            
                             if has_text_logo and not has_logo:
                                 # Generate text logo for spine
                                 if debug:
@@ -1470,6 +1613,7 @@ class BoxGenerator:
                                     
                                     # Check if we should keep aspect ratio (read early so it's available for all logo types)
                                     keep_aspect_ratio = spine_logo_zone.get('keepAspectRatio', False) if spine_logo_zone else False
+                                    logging.info(f"3D Box Spine: Logo placement - is_generated_text_logo={is_generated_text_logo}, keep_aspect_ratio={keep_aspect_ratio}")
                                     
                                     if spine_logo_zone:
                                         # Zone coordinates are in template space, need to map to resized spine space
@@ -1535,6 +1679,7 @@ class BoxGenerator:
                                     # Skip resize if this is a generated text logo that's already been resized with keep_aspect_ratio
                                     if is_generated_text_logo and keep_aspect_ratio:
                                         # Generated text logo is already correctly sized, just use it as-is
+                                        # DO NOT resize it again - it's already been resized to maintain aspect ratio
                                         temp_logo_resized = spine_logo_to_use
                                         # Get dimensions for positioning
                                         logo_dim_cmd = ['identify', '-format', '%wx%h', spine_logo_to_use]
@@ -1543,12 +1688,18 @@ class BoxGenerator:
                                             orig_dims = logo_dim_result.stdout.strip().split('x')
                                             logo_pre_rotate_width = int(orig_dims[0])
                                             logo_pre_rotate_height = int(orig_dims[1])
-                                            logging.info(f"3D Box Spine: Using pre-resized generated text logo - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
+                                            logging.info(f"3D Box Spine: Using pre-resized generated text logo (skipping resize) - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
                                         else:
                                             # Fallback: treat as normal logo
+                                            logging.warning(f"3D Box Spine: Could not get generated text logo dimensions, treating as normal logo")
                                             is_generated_text_logo = False
                                     
-                                    if not (is_generated_text_logo and keep_aspect_ratio):
+                                    # Only resize if this is NOT a generated text logo with keep_aspect_ratio
+                                    # Generated text logos are already correctly sized and should not be resized again
+                                    should_resize_logo = not (is_generated_text_logo and keep_aspect_ratio)
+                                    logging.info(f"3D Box Spine: should_resize_logo={should_resize_logo} (is_generated_text_logo={is_generated_text_logo}, keep_aspect_ratio={keep_aspect_ratio})")
+                                    
+                                    if should_resize_logo:
                                         # Normal logo processing: calculate dimensions and resize
                                         if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
                                             # Zone is defined
@@ -1653,6 +1804,10 @@ class BoxGenerator:
                                             logo_x = 0
                                     
                                     # Step 2: Rotate 90 degrees (preserve transparency)
+                                    # For generated text logos with keep_aspect_ratio, the logo is already correctly sized
+                                    # and should only be rotated, not resized
+                                    if is_generated_text_logo and keep_aspect_ratio:
+                                        logging.info(f"3D Box Spine: Rotating pre-resized generated text logo (no resize, maintaining aspect ratio)")
                                     cmd_logo_rotate = [
                                         'convert',
                                         temp_logo_resized,
@@ -1778,6 +1933,10 @@ class BoxGenerator:
                                         
                                         temp_files.append(temp_logo_rotated_resized)
                                         
+                                        # Check if we should keep aspect ratio (read early so it's available for all logo types)
+                                        keep_aspect_ratio = spine_logo_zone.get('keepAspectRatio', False) if spine_logo_zone else False
+                                        logging.info(f"3D Box Spine (Uploaded/Field): Logo placement - is_generated_text_logo={is_generated_text_logo}, keep_aspect_ratio={keep_aspect_ratio}")
+                                        
                                         # Calculate logo zone dimensions if zone is provided
                                         zone_width_resized = None
                                         zone_height_resized = None
@@ -1845,38 +2004,146 @@ class BoxGenerator:
                                                 zone_y_resized = None
                                         
                                         # Process logo: resize first to zone dimensions (height as width, width as height), then rotate
-                                        if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
-                                            # Zone is defined: use zone height as width, zone width as height
-                                            # After rotation, this will become zone width x zone height
-                                            logo_pre_rotate_width = zone_height_resized  # Zone height becomes logo width
-                                            logo_pre_rotate_height = zone_width_resized  # Zone width becomes logo height
-                                            logo_x = zone_x_resized
-                                            logging.info(f"3D Box Spine: Using zone dimensions - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}, post-rotate: {zone_width_resized}x{zone_height_resized}")
-                                        else:
-                                            # No zone: use spine dimensions swapped
-                                            logo_pre_rotate_width = spine_resize_height  # Spine height becomes logo width
-                                            logo_pre_rotate_height = spine_resize_width  # Spine width becomes logo height
+                                        # Skip resize if this is a generated text logo that's already been resized with keep_aspect_ratio
+                                        logo_x = None  # Initialize logo_x
+                                        if is_generated_text_logo and keep_aspect_ratio:
+                                            # Generated text logo is already correctly sized, just use it as-is
+                                            # DO NOT resize it again - it's already been resized to maintain aspect ratio
+                                            temp_logo_resized = spine_logo_to_use
+                                            # Get dimensions for positioning
+                                            logo_dim_cmd = ['identify', '-format', '%wx%h', spine_logo_to_use]
+                                            logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
+                                            if logo_dim_result.returncode == 0:
+                                                orig_dims = logo_dim_result.stdout.strip().split('x')
+                                                logo_pre_rotate_width = int(orig_dims[0])
+                                                logo_pre_rotate_height = int(orig_dims[1])
+                                                logging.info(f"3D Box Spine (Uploaded/Field): Using pre-resized generated text logo (skipping resize) - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
+                                            else:
+                                                # Fallback: treat as normal logo
+                                                logging.warning(f"3D Box Spine (Uploaded/Field): Could not get generated text logo dimensions, treating as normal logo")
+                                                is_generated_text_logo = False
+                                            # Set logo_x for generated text logo
+                                            if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
+                                                logo_x = zone_x_resized
+                                            else:
+                                                logo_x = 0
+                                        
+                                        # Only resize if this is NOT a generated text logo with keep_aspect_ratio
+                                        should_resize_logo = not (is_generated_text_logo and keep_aspect_ratio)
+                                        logging.info(f"3D Box Spine (Uploaded/Field): should_resize_logo={should_resize_logo} (is_generated_text_logo={is_generated_text_logo}, keep_aspect_ratio={keep_aspect_ratio})")
+                                        
+                                        if should_resize_logo:
+                                            if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
+                                                # Zone is defined
+                                                if keep_aspect_ratio:
+                                                    # Keep aspect ratio: scale vertically only to match spine width (after rotation)
+                                                    # After rotation, width should be zone_width_resized (spine width)
+                                                    # Get original logo dimensions
+                                                    logo_dim_cmd = ['identify', '-format', '%wx%h', spine_logo_to_use]
+                                                    logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
+                                                    if logo_dim_result.returncode == 0:
+                                                        orig_dims = logo_dim_result.stdout.strip().split('x')
+                                                        orig_width = int(orig_dims[0])
+                                                        orig_height = int(orig_dims[1])
+                                                        orig_aspect = orig_width / orig_height if orig_height > 0 else 1
+                                                        
+                                                        # After rotation, width should be zone_width_resized
+                                                        # So before rotation, height should be zone_width_resized
+                                                        # Calculate width before rotation to maintain aspect ratio
+                                                        logo_pre_rotate_height = zone_width_resized  # This becomes width after rotation
+                                                        logo_pre_rotate_width = int(logo_pre_rotate_height * orig_aspect)  # Maintain aspect ratio
+                                                        
+                                                        logging.info(f"3D Box Spine (Uploaded/Field): Keeping aspect ratio - original: {orig_width}x{orig_height} (aspect: {orig_aspect:.3f}), pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
+                                                    else:
+                                                        # Fallback: use zone dimensions
+                                                        logo_pre_rotate_width = zone_height_resized
+                                                        logo_pre_rotate_height = zone_width_resized
+                                                        logging.warning(f"3D Box Spine (Uploaded/Field): Could not get logo dimensions, using zone dimensions")
+                                                else:
+                                                    # Zone is defined: use zone height as width, zone width as height
+                                                    # After rotation, this will become zone width x zone height
+                                                    logo_pre_rotate_width = zone_height_resized  # Zone height becomes logo width
+                                                    logo_pre_rotate_height = zone_width_resized  # Zone width becomes logo height
+                                                logo_x = zone_x_resized
+                                                logging.info(f"3D Box Spine: Using zone dimensions - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}, post-rotate: {zone_width_resized}x{zone_height_resized}")
+                                            else:
+                                                # No zone: use spine dimensions swapped
+                                                if keep_aspect_ratio:
+                                                    # Keep aspect ratio: scale vertically only to match spine width (after rotation)
+                                                    # After rotation, width should be spine_resize_width
+                                                    # Get original logo dimensions
+                                                    logo_dim_cmd = ['identify', '-format', '%wx%h', spine_logo_to_use]
+                                                    logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
+                                                    if logo_dim_result.returncode == 0:
+                                                        orig_dims = logo_dim_result.stdout.strip().split('x')
+                                                        orig_width = int(orig_dims[0])
+                                                        orig_height = int(orig_dims[1])
+                                                        orig_aspect = orig_width / orig_height if orig_height > 0 else 1
+                                                        
+                                                        # After rotation, width should be spine_resize_width
+                                                        # So before rotation, height should be spine_resize_width
+                                                        # Calculate width before rotation to maintain aspect ratio
+                                                        logo_pre_rotate_height = spine_resize_width  # This becomes width after rotation
+                                                        logo_pre_rotate_width = int(logo_pre_rotate_height * orig_aspect)  # Maintain aspect ratio
+                                                        
+                                                        logging.info(f"3D Box Spine (Uploaded/Field): No zone, keeping aspect ratio - original: {orig_width}x{orig_height} (aspect: {orig_aspect:.3f}), pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
+                                                    else:
+                                                        # Fallback: use spine dimensions
+                                                        logo_pre_rotate_width = spine_resize_height
+                                                        logo_pre_rotate_height = spine_resize_width
+                                                        logging.warning(f"3D Box Spine (Uploaded/Field): Could not get logo dimensions, using spine dimensions")
+                                                else:
+                                                    logo_pre_rotate_width = spine_resize_height  # Spine height becomes logo width
+                                                    logo_pre_rotate_height = spine_resize_width  # Spine width becomes logo height
+                                                logo_x = 0
+                                                logging.info(f"3D Box Spine: No zone, using spine dimensions - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
+                                            
+                                            # Step 1: Resize logo to pre-rotate dimensions
+                                            temp_logo_resized = os.path.splitext(temp_logo_rotated_resized)[0] + '_pre_rotate.png'
+                                            temp_files.append(temp_logo_resized)
+                                            
+                                            if keep_aspect_ratio:
+                                                # Keep aspect ratio: resize to maintain aspect, don't force exact size
+                                                cmd_logo_resize = [
+                                                    'convert',
+                                                    spine_logo_to_use,
+                                                    '-background', 'transparent',
+                                                    '-alpha', 'set',
+                                                    '-resize', f'x{logo_pre_rotate_height}',  # Scale by height only, maintain aspect ratio
+                                                    temp_logo_resized
+                                                ]
+                                            else:
+                                                # Force exact size (stretch to fill)
+                                                cmd_logo_resize = [
+                                                    'convert',
+                                                    spine_logo_to_use,
+                                                    '-background', 'transparent',
+                                                    '-alpha', 'set',
+                                                    '-resize', f'{logo_pre_rotate_width}x{logo_pre_rotate_height}!',  # Force exact size
+                                                    '-gravity', 'center',
+                                                    '-extent', f'{logo_pre_rotate_width}x{logo_pre_rotate_height}',  # Center on width, use full height
+                                                    temp_logo_resized
+                                                ]
+                                            logging.info(f"3D Box Spine: Resizing logo to {logo_pre_rotate_width}x{logo_pre_rotate_height}: {' '.join(cmd_logo_resize)}")
+                                            subprocess.run(cmd_logo_resize, check=True)
+                                        
+                                        # Set logo_x for logos with keep_aspect_ratio if zone is defined and logo_x not already set
+                                        # (applies to both generated text logos and regular logos)
+                                        if keep_aspect_ratio and logo_x is None:
+                                            if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
+                                                logo_x = zone_x_resized
+                                            else:
+                                                logo_x = 0
+                                        
+                                        # Ensure logo_x is always set (fallback)
+                                        if logo_x is None:
                                             logo_x = 0
-                                            logging.info(f"3D Box Spine: No zone, using spine dimensions - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
-                                        
-                                        # Step 1: Resize logo to pre-rotate dimensions
-                                        temp_logo_resized = os.path.splitext(temp_logo_rotated_resized)[0] + '_pre_rotate.png'
-                                        temp_files.append(temp_logo_resized)
-                                        
-                                        cmd_logo_resize = [
-                                            'convert',
-                                            spine_logo_to_use,
-                                            '-background', 'transparent',
-                                            '-alpha', 'set',
-                                            '-resize', f'{logo_pre_rotate_width}x{logo_pre_rotate_height}!',  # Force exact size
-                                            '-gravity', 'center',
-                                            '-extent', f'{logo_pre_rotate_width}x{logo_pre_rotate_height}',  # Center on width, use full height
-                                            temp_logo_resized
-                                        ]
-                                        logging.info(f"3D Box Spine: Resizing logo to {logo_pre_rotate_width}x{logo_pre_rotate_height}: {' '.join(cmd_logo_resize)}")
-                                        subprocess.run(cmd_logo_resize, check=True)
                                         
                                         # Step 2: Rotate 90 degrees (preserve transparency)
+                                        # For generated text logos with keep_aspect_ratio, the logo is already correctly sized
+                                        # and should only be rotated, not resized
+                                        if is_generated_text_logo and keep_aspect_ratio:
+                                            logging.info(f"3D Box Spine (Uploaded/Field): Rotating pre-resized generated text logo (no resize, maintaining aspect ratio)")
                                         cmd_logo_rotate = [
                                             'convert',
                                             temp_logo_resized,
@@ -1900,7 +2167,27 @@ class BoxGenerator:
                                             logo_rotated_width = int(logo_dims[0])
                                             logo_rotated_height = int(logo_dims[1])
                                             
-                                            logging.info(f"3D Box Spine: Logo after rotation: {logo_rotated_width}x{logo_rotated_height}")
+                                            # After rotation, dimensions should be swapped
+                                            expected_width = zone_width_resized if zone_width_resized else spine_resize_width
+                                            # For logos with keep_aspect_ratio (both generated text and regular logos), height is determined by aspect ratio, not zone height
+                                            if keep_aspect_ratio:
+                                                expected_height = None  # Height is determined by aspect ratio
+                                                logging.info(f"3D Box Spine (Uploaded/Field): Logo after rotation: {logo_rotated_width}x{logo_rotated_height} (expected width: {expected_width}, height maintains aspect ratio)")
+                                            else:
+                                                expected_height = zone_height_resized if zone_height_resized else spine_resize_height
+                                                logging.info(f"3D Box Spine: Logo after rotation: {logo_rotated_width}x{logo_rotated_height} (expected: {expected_width}x{expected_height})")
+                                            
+                                            if expected_height is not None:
+                                                if logo_rotated_width == expected_width and logo_rotated_height == expected_height:
+                                                    logging.info(f"3D Box Spine: ✅ Logo dimensions correct after rotation")
+                                                else:
+                                                    logging.warning(f"3D Box Spine: ⚠️ Logo dimensions mismatch - got {logo_rotated_width}x{logo_rotated_height}, expected {expected_width}x{expected_height}")
+                                            else:
+                                                # For logos with keep_aspect_ratio, only check width
+                                                if logo_rotated_width == expected_width:
+                                                    logging.info(f"3D Box Spine (Uploaded/Field): ✅ Logo width correct after rotation (height maintains aspect ratio)")
+                                                else:
+                                                    logging.warning(f"3D Box Spine (Uploaded/Field): ⚠️ Logo width mismatch - got {logo_rotated_width}, expected {expected_width}")
                                             
                                             # Calculate position: use zone if provided, otherwise default
                                             if zone_height_resized and zone_y_resized is not None:
