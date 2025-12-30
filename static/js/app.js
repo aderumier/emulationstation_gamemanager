@@ -431,19 +431,30 @@ class GameCollectionManager {
                 // Get queued tasks from the combined response and add them to the task grid
                 if (data.queue && data.queue.queued_tasks) {
                     data.queue.queued_tasks.forEach(queuedTask => {
-                        // Create a task object for queued tasks
-                        const queuedTaskObj = {
-                            id: queuedTask.task_id,
-                            type: queuedTask.type,
-                            status: 'queued',
-                            start_time: queuedTask.timestamp,
-                            progress_percentage: 0,
-                            current_step: 0,
-                            total_steps: 0,
-                            username: 'Unknown',
-                            data: queuedTask.data || {}
-                        };
-                        tasks[queuedTask.task_id] = queuedTaskObj;
+                        // Check if task already exists in all_tasks (which has username)
+                        let existingTask = tasks[queuedTask.task_id];
+                        
+                        if (existingTask) {
+                            // Task already exists, just update its status to queued if needed
+                            if (existingTask.status !== 'queued') {
+                                existingTask.status = 'queued';
+                            }
+                        } else {
+                            // Create a task object for queued tasks
+                            // Use username from queuedTask if available, otherwise 'Unknown'
+                            const queuedTaskObj = {
+                                id: queuedTask.task_id,
+                                type: queuedTask.type,
+                                status: 'queued',
+                                start_time: queuedTask.timestamp,
+                                progress_percentage: 0,
+                                current_step: 0,
+                                total_steps: 0,
+                                username: queuedTask.username || 'Unknown',
+                                data: queuedTask.data || {}
+                            };
+                            tasks[queuedTask.task_id] = queuedTaskObj;
+                        }
                     });
                 }
                 

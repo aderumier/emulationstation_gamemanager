@@ -2742,6 +2742,7 @@ def add_task_to_queue(task_type, task_data, username=None):
         'type': task_type,
         'data': task_data,
         'system_name': system_name,
+        'username': task.username,  # Include username in queued task info
         'timestamp': time.time()
     }
     task_queue.append(task_info)
