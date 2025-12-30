@@ -206,7 +206,7 @@ class BoxGenerator:
             if width is None:
                 # Average character width is ~0.4-0.5 times font size
                 avg_char_width = font_size * 0.5
-                estimated_width = int(len(text) * avg_char_width * 1.2)  # Add 20% padding
+                estimated_width = int(len(text) * avg_char_width * 1.03)  # Add 3% padding
                 width = max(200, estimated_width)  # Minimum 200px
             
             # Build command for text generation
@@ -239,6 +239,23 @@ class BoxGenerator:
             if result.returncode != 0:
                 logging.error(f"ImageMagick text generation failed: {result.stderr}")
                 return None
+            
+            # Trim whitespace/padding from the generated image
+            temp_trimmed = output_path + '.trimmed'
+            cmd_trim = [
+                'convert',
+                output_path,
+                '-trim',
+                '+repage',
+                temp_trimmed
+            ]
+            trim_result = subprocess.run(cmd_trim, capture_output=True, text=True, timeout=10)
+            if trim_result.returncode == 0:
+                # Replace original with trimmed version
+                os.rename(temp_trimmed, output_path)
+            else:
+                logging.warning(f"Failed to trim text logo: {trim_result.stderr}")
+                # Continue with original if trim fails
             
             # Add underline if needed
             if text_logo_settings.get('underline', False):

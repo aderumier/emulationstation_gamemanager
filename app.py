@@ -21855,6 +21855,38 @@ def scan_rom_endpoint(system_name):
     except Exception as e:
         return jsonify({'error': f'ROM scan failed: {str(e)}'}), 500
 
+def case_sensitive_path_exists(file_path):
+    """
+    Check if a file exists with case-sensitive matching.
+    On case-insensitive filesystems, this ensures the actual filename matches exactly.
+    Returns True only if the file exists AND the case matches exactly.
+    """
+    # First check if any file exists at this path (case-insensitive check)
+    if not os.path.exists(file_path):
+        return False
+    
+    # On case-insensitive filesystems, os.path.exists() may return True even if case doesn't match
+    # Check the actual filename in the directory listing to ensure case matches
+    dir_path = os.path.dirname(file_path)
+    filename = os.path.basename(file_path)
+    
+    # Handle root directory case
+    if not dir_path or dir_path == file_path:
+        dir_path = os.path.dirname(os.path.abspath(file_path))
+        if not dir_path:
+            dir_path = '.'
+    
+    try:
+        # List files in the directory and check for exact case match
+        actual_files = os.listdir(dir_path)
+        return filename in actual_files
+    except (OSError, PermissionError):
+        # If we can't list the directory, we can't verify case
+        # On case-sensitive filesystems, os.path.exists() is sufficient
+        # On case-insensitive filesystems, we'll assume it matches if it exists
+        # (This is a fallback - ideally we should be able to list the directory)
+        return os.path.exists(file_path)
+
 def parse_m3u_file(m3u_path):
     """Parse M3U file and return list of ROM files referenced in it"""
     try:
@@ -22796,24 +22828,34 @@ def run_rom_scan_task(system_name):
             else:
                 task.update_progress(f"No existing gamelist found, will create new one with {len(rom_files)} ROM files")
         
-        # Create a mapping of ROM filenames to their full paths for lookup
-        existing_roms_by_filename = {}
+        # Create a mapping of ROM paths for case-sensitive lookup
+        # Use full normalized path as key for exact case-sensitive matching
+        existing_roms_by_path = {}
         for game in existing_games:
             rom_path = game.get('path', '')
             if rom_path:
                 # Normalize path (remove ./ prefix if present)
                 normalized_path = rom_path.lstrip('./')
-                filename = os.path.basename(normalized_path)
-                existing_roms_by_filename[filename] = normalized_path
+                # Normalize path separators for consistency
+                normalized_path_clean = normalized_path.replace('\\', '/')
+                # Store with exact case as it appears in gamelist
+                existing_roms_by_path[normalized_path_clean] = game
         
-        # Find new ROMs to add
+        # Create a set of ROM files from filesystem for case-sensitive matching
+        rom_files_set = set()
+        for rom_file in rom_files:
+            # Normalize path separators
+            normalized_rom = rom_file.replace('\\', '/')
+            rom_files_set.add(normalized_rom)
+        
+        # Find new ROMs to add (case-sensitive: not in existing_roms_by_path)
         new_roms = []
         for rom_file in rom_files:
-            filename = os.path.basename(rom_file)
-            if filename not in existing_roms_by_filename:
+            normalized_rom = rom_file.replace('\\', '/')
+            if normalized_rom not in existing_roms_by_path:
                 new_roms.append(rom_file)
         
-        # Find games with missing ROM files
+        # Find games with missing ROM files (case-sensitive check)
         missing_roms = []
         for game in existing_games:
             rom_path = game.get('path', '')
@@ -22822,14 +22864,20 @@ def run_rom_scan_task(system_name):
                 normalized_path = rom_path.lstrip('./')
                 # Normalize path for Windows/Docker compatibility
                 normalized_path_clean = normalized_path.replace('\\', '/')
-                rom_file_path = os.path.join(system_path, normalized_path_clean)
-                # Also try with original normalized_path in case
-                if not os.path.exists(rom_file_path):
-                    rom_file_path = os.path.join(system_path, normalized_path)
                 
-                # Simply check if the file exists at the specified path
-                if not os.path.exists(rom_file_path):
-                    missing_roms.append(game)
+                # First check if path exists in filesystem set (case-sensitive)
+                if normalized_path_clean not in rom_files_set:
+                    # Path not in filesystem, check if file exists with case-sensitive check
+                    rom_file_path = os.path.join(system_path, normalized_path_clean)
+                    if not case_sensitive_path_exists(rom_file_path):
+                        # File doesn't exist or case doesn't match - mark as missing
+                        missing_roms.append(game)
+                else:
+                    # Path exists in filesystem set, verify with case-sensitive file check
+                    rom_file_path = os.path.join(system_path, normalized_path_clean)
+                    if not case_sensitive_path_exists(rom_file_path):
+                        # Case doesn't match exactly - mark as missing
+                        missing_roms.append(game)
         
         task.update_progress(f"Found {len(new_roms)} new ROMs to add")
         task.update_progress(f"Found {len(missing_roms)} games with missing ROM files")
@@ -22992,6 +23040,7 @@ def scan_rom_files_confirm(system_name):
                 task.update_progress("No changes detected, preserving all existing games")
             else:
                 # Find games with missing ROM files (only when there are changes)
+                # Use case-sensitive matching: check if ROM path exactly matches filesystem
                 valid_games = []
                 for game in existing_games:
                     rom_path = game.get('path', '')
@@ -23001,13 +23050,10 @@ def scan_rom_files_confirm(system_name):
                         # Normalize path for Windows/Docker compatibility
                         normalized_path_clean = normalized_path.replace('\\', '/')
                         rom_file_path = os.path.join(system_path, normalized_path_clean)
-                        # Also try with original normalized_path in case
-                        if not os.path.exists(rom_file_path):
-                            rom_file_path = os.path.join(system_path, normalized_path)
                         
-                        # Simply check if the file exists at the specified path
-                        if not os.path.exists(rom_file_path):
-                            task.update_progress(f"Removing game with missing ROM: {game.get('name', 'Unknown')} ({normalized_path})")
+                        # Use case-sensitive path existence check
+                        if not case_sensitive_path_exists(rom_file_path):
+                            task.update_progress(f"Removing game with missing ROM (case mismatch): {game.get('name', 'Unknown')} ({normalized_path})")
                         else:
                             valid_games.append(game)
                     else:
