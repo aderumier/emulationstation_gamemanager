@@ -1615,11 +1615,25 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 .video-preview-item video {
     transition: all 0.2s ease;
+    max-height: 600px;
+    object-fit: contain;
 }
 
 .video-preview-item video:hover {
     transform: scale(1.02);
     box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+/* Ensure fullscreen videos display correctly with their natural aspect ratio */
+.video-preview-item video:-webkit-full-screen,
+.video-preview-item video:-moz-full-screen,
+.video-preview-item video:-ms-fullscreen,
+.video-preview-item video:fullscreen {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: contain !important;
 }
 
 .video-placeholder {

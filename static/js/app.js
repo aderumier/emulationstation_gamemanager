@@ -1812,7 +1812,6 @@ class GameCollectionManager {
         document.getElementById('forceImportGamelistBtn').addEventListener('click', () => this.showForceImportModal());
         document.getElementById('confirmForceImportBtn').addEventListener('click', () => this.confirmForceImport());
         document.getElementById('clearImageCacheBtn').addEventListener('click', () => this.clearImageCache());
-        document.getElementById('startResizeMediasBtn').addEventListener('click', () => this.startResizeMedias());
         document.getElementById('startImportMediasBtn').addEventListener('click', () => this.startImportMedias());
         document.getElementById('startImportRomsBtn').addEventListener('click', () => this.startImportRoms());
         const uploadRomFileBtn = document.getElementById('uploadRomFileBtn');
@@ -7329,13 +7328,13 @@ class GameCollectionManager {
             if (game[field] && game[field].trim()) {
                 const videoItem = document.createElement('div');
                 videoItem.className = 'video-preview-item';
-                videoItem.style.cssText = 'width: 1200px; margin-bottom: 1rem; position: relative;';
+                videoItem.style.cssText = 'width: 100%; max-width: 1200px; margin-bottom: 1rem; position: relative; display: flex; justify-content: center;';
                 
-                // Create video element with reduced height
+                // Create video element
                 const video = document.createElement('video');
                 video.controls = true;
-                video.style.cssText = 'width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
-                video.style.maxHeight = '400px';
+                // Limit height to fit modal while preserving aspect ratio
+                video.style.cssText = 'width: 100%; height: auto; max-width: 100%; max-height: 600px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); object-fit: contain;';
                 
                 // Fix video URL by adding roms/<system>/ prefix if missing
                 // Use the current system that was set when loading the games
@@ -7345,6 +7344,15 @@ class GameCollectionManager {
                 }
                 video.src = videoPath;
                 video.title = `${field}: ${game[field]}`;
+                
+                // Set video dimensions after metadata loads to ensure proper fullscreen and screenshot behavior
+                video.addEventListener('loadedmetadata', () => {
+                    if (video.videoWidth > 0 && video.videoHeight > 0) {
+                        // Set width and height attributes for proper fullscreen behavior
+                        video.setAttribute('width', video.videoWidth);
+                        video.setAttribute('height', video.videoHeight);
+                    }
+                });
                 
                 // Store video field for delete button functionality
                 videoItem.setAttribute('data-video-field', field);
@@ -19046,20 +19054,29 @@ class GameCollectionManager {
                 return;
             }
             
-            // Check if video is ready
-            if (videoElement.readyState < 2) {
-                this.showAlert('Video is not ready. Please wait for the video to load.', 'warning');
+            // Check if video is ready and has valid dimensions
+            if (videoElement.readyState < 1) {
+                this.showAlert('Video metadata is not ready. Please wait for the video to load.', 'warning');
                 return;
             }
             
-            // Create canvas to capture the video frame
+            // Wait for video dimensions to be available
+            if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
+                this.showAlert('Video dimensions are not available. Please wait for the video to load.', 'warning');
+                return;
+            }
+            
+            // Create canvas to capture the video frame using the video's natural dimensions
             const canvas = document.createElement('canvas');
-            canvas.width = videoElement.videoWidth;
-            canvas.height = videoElement.videoHeight;
+            // Use the video's actual dimensions, not the display size
+            const videoWidth = videoElement.videoWidth;
+            const videoHeight = videoElement.videoHeight;
+            canvas.width = videoWidth;
+            canvas.height = videoHeight;
             const ctx = canvas.getContext('2d');
             
-            // Draw the current video frame to canvas
-            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            // Draw the current video frame to canvas at full resolution
+            ctx.drawImage(videoElement, 0, 0, videoWidth, videoHeight);
             
             // Convert canvas to blob (JPEG format)
             canvas.toBlob(async (blob) => {
