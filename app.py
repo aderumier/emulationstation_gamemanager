@@ -44,7 +44,7 @@ import requests
 import httpx
 import multiprocessing
 from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import pickle
 from typing import Dict, List, Optional
@@ -13145,29 +13145,30 @@ def fanart_search_stream_endpoint():
     system_name = data.get('system_name')
     selected_scraper = data.get('scraper', 'all')
     direct_match = data.get('direct_match', True)
+    field_type = data.get('field_type', 'fanart')  # Default to 'fanart' for backward compatibility
     
     if not all([game_name, system_name]):
         return jsonify({'error': 'Game name and system name are required'}), 400
     
     def generate():
         try:
-            print(f"🔧 DEBUG: Fanart search stream for game: {game_name}, system: {system_name}, scraper: {selected_scraper}")
+            print(f"🔧 DEBUG: Media search stream for game: {game_name}, system: {system_name}, scraper: {selected_scraper}, field_type: {field_type}")
             
             # Send initial connection message
-            yield f"data: {json.dumps({'type': 'connected', 'message': 'Fanart search started'})}\n\n"
+            yield f"data: {json.dumps({'type': 'connected', 'message': f'{field_type.capitalize()} search started'})}\n\n"
             
-            # Get scrapers that have fanart mapped
+            # Get scrapers that have the specified field type mapped
             scrapers_config = load_scrappers_config()
-            fanart_scrapers = {}
+            field_scrapers = {}
             for scraper_name, scraper_config in scrapers_config.items():
                 if selected_scraper != 'all' and selected_scraper != scraper_name:
                     continue
                 image_mappings = scraper_config.get('image_type_mappings', {})
-                if 'fanart' in image_mappings:
-                    fanart_scrapers[scraper_name] = scraper_config
+                if field_type in image_mappings:
+                    field_scrapers[scraper_name] = scraper_config
             
             # Add local_images if needed
-            scrapers_to_search = list(fanart_scrapers.items())
+            scrapers_to_search = list(field_scrapers.items())
             if selected_scraper in ('all', 'local_images'):
                 scrapers_to_search.append(('local_images', None))
             
@@ -13175,26 +13176,53 @@ def fanart_search_stream_endpoint():
             
             all_results = []
             
-            # Search each scraper and stream results as they come
-            for scraper_name, scraper_config in scrapers_to_search:
+            # Search scrapers in parallel using ThreadPoolExecutor
+            def search_scraper(scraper_name, scraper_config):
+                """Helper function to search a single scraper"""
                 try:
-                    print(f"🔧 DEBUG: Searching {scraper_name} for fanart...")
-                    yield f"data: {json.dumps({'type': 'scraper_start', 'scraper': scraper_name})}\n\n"
-                    
-                    results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, 'fanart')
-                    all_results.extend(results)
-                    
-                    # Stream results from this scraper
-                    if results:
-                        yield f"data: {json.dumps({'type': 'results', 'scraper': scraper_name, 'results': results, 'count': len(results)})}\n\n"
-                    
-                    yield f"data: {json.dumps({'type': 'scraper_complete', 'scraper': scraper_name, 'count': len(results)})}\n\n"
-                    print(f"🔧 DEBUG: Found {len(results)} fanart results from {scraper_name}")
-                    
+                    print(f"🔧 DEBUG: Searching {scraper_name} for {field_type}...")
+                    results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, field_type)
+                    print(f"🔧 DEBUG: Found {len(results)} {field_type} results from {scraper_name}")
+                    return scraper_name, results, None
                 except Exception as e:
                     print(f"🔧 DEBUG: Error searching {scraper_name}: {e}")
-                    yield f"data: {json.dumps({'type': 'scraper_error', 'scraper': scraper_name, 'error': str(e)})}\n\n"
-                    continue
+                    import traceback
+                    traceback.print_exc()
+                    return scraper_name, [], str(e)
+            
+            # Use ThreadPoolExecutor to run scrapers in parallel
+            with ThreadPoolExecutor(max_workers=len(scrapers_to_search)) as executor:
+                # Submit all scraper searches
+                future_to_scraper = {
+                    executor.submit(search_scraper, scraper_name, scraper_config): scraper_name 
+                    for scraper_name, scraper_config in scrapers_to_search
+                }
+                
+                # Send scraper_start events for all scrapers immediately
+                for scraper_name in future_to_scraper.values():
+                    yield f"data: {json.dumps({'type': 'scraper_start', 'scraper': scraper_name})}\n\n"
+                
+                # Process results as they complete (using as_completed for better streaming)
+                for future in as_completed(future_to_scraper):
+                    scraper_name = future_to_scraper[future]
+                    try:
+                        scraper_name_result, results, error = future.result()
+                        
+                        if error:
+                            yield f"data: {json.dumps({'type': 'scraper_error', 'scraper': scraper_name_result, 'error': error})}\n\n"
+                        else:
+                            all_results.extend(results)
+                            
+                            # Stream results from this scraper as soon as they're ready
+                            if results:
+                                yield f"data: {json.dumps({'type': 'results', 'scraper': scraper_name_result, 'results': results, 'count': len(results)})}\n\n"
+                            
+                            yield f"data: {json.dumps({'type': 'scraper_complete', 'scraper': scraper_name_result, 'count': len(results)})}\n\n"
+                    except Exception as e:
+                        print(f"🔧 DEBUG: Exception getting result from {scraper_name}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        yield f"data: {json.dumps({'type': 'scraper_error', 'scraper': scraper_name, 'error': str(e)})}\n\n"
             
             # Send completion with all sorted results
             all_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)

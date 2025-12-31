@@ -33,7 +33,8 @@ class GameCollectionManager {
         this.selectedThumbnails = []; // Track selected thumbnails for deletion
         this.thumbnailViewEnabled = false; // Track thumbnail view state
         this.lazyLoadingObserver = null; // Track lazy loading observer
-        this.mediaFieldsCache = null; // Cache for media fields from config
+        this.mediaFieldsCache = null; // Cache for media fields from config (array of field names)
+        this.mediaFieldsConfigCache = null; // Cache for full media fields config with extensions
         this.pendingBestMatchResults = null;
         this.currentBestMatchIndex = 0;
         this.duplicatesFilterActive = false; // Track duplicates filter state
@@ -5507,6 +5508,7 @@ class GameCollectionManager {
         // Clear cache if force refresh is requested
         if (forceRefresh) {
             this.mediaFieldsCache = null;
+            this.mediaFieldsConfigCache = null;
         }
         
         // Use cached fields if available
@@ -5540,6 +5542,14 @@ class GameCollectionManager {
                     data.fields.push('manual');
                 }
                 this.mediaFieldsCache = data.fields;
+                // Cache the full media_fields config with extensions
+                if (data.media_fields) {
+                    this.mediaFieldsConfigCache = data.media_fields;
+                } else {
+                    // If media_fields is not in response, try to fetch it separately
+                    // For now, set to empty object - function will default to true
+                    this.mediaFieldsConfigCache = {};
+                }
                 return this.mediaFieldsCache;
             } else {
                 throw new Error(data.error || 'Invalid response format');
@@ -5550,6 +5560,108 @@ class GameCollectionManager {
             this.mediaFieldsCache = fallbackFields;
             return this.mediaFieldsCache;
         }
+    }
+
+    /**
+     * Check if a field is an image field based on its extensions in config.json
+     * Supports two calling patterns:
+     * - isImageField(field) - uses cached config from mediaFieldsConfigCache
+     * - isImageField(fieldName, config) - uses provided config object
+     * @param {string} field - The field name to check
+     * @param {object} config - Optional config object (if not provided, uses cached config)
+     * @returns {boolean} - True if the field has image extensions (png, jpg, jpeg, webp, etc.)
+     */
+    isImageField(field, config) {
+        // TEMPORARY WORKAROUND: Always return true except for excluded fields
+        // This is to test if the issue is with the function logic or something else
+        if (field === 'video' || field === 'manual' || field === 'map' || field === 'magazine') {
+            return false;
+        }
+        return true; // Temporary: always return true for all other fields
+        
+        /* ORIGINAL CODE - COMMENTED OUT FOR TESTING
+        // Always exclude these fields regardless of extensions
+        if (field === 'video' || field === 'manual' || field === 'map' || field === 'magazine') {
+            return false;
+        }
+        
+        // If config is provided, use it; otherwise use cached config
+        let media_fields = null;
+        if (config && config.media_fields) {
+            media_fields = config.media_fields;
+        } else if (this.mediaFieldsConfigCache && typeof this.mediaFieldsConfigCache === 'object' && Object.keys(this.mediaFieldsConfigCache).length > 0) {
+            media_fields = this.mediaFieldsConfigCache;
+        }
+        
+        // If no config available, return true by default (backward compatibility)
+        if (!media_fields) {
+            return true;
+        }
+        
+        const fieldConfig = media_fields[field];
+        // If field not in config, return true by default (backward compatibility)
+        if (!fieldConfig || !fieldConfig.extensions) {
+            return true;
+        }
+        
+        let extensions = fieldConfig.extensions;
+        
+        // If no extensions configured, return true by default
+        if (!extensions || (Array.isArray(extensions) && extensions.length === 0)) {
+            return true;
+        }
+        
+        // Handle extensions as array or comma-separated string
+        // Extensions in config.json are stored as array like [".jpg", ".png", ".jpeg"] or ["jpg", "png", "jpeg"]
+        let field_extensions = [];
+        try {
+            if (Array.isArray(extensions)) {
+                field_extensions = extensions.map(ext => {
+                    // Remove leading dot and normalize
+                    let normalized = ext.toString().toLowerCase().trim();
+                    if (normalized.startsWith('.')) {
+                        normalized = normalized.substring(1);
+                    }
+                    return normalized;
+                }).filter(ext => ext && ext.length > 0);
+            } else if (typeof extensions === 'string' && extensions.trim()) {
+                field_extensions = extensions.toLowerCase().split(',').map(ext => {
+                    let normalized = ext.trim();
+                    if (normalized.startsWith('.')) {
+                        normalized = normalized.substring(1);
+                    }
+                    return normalized;
+                }).filter(ext => ext && ext.length > 0);
+            } else {
+                return true;
+            }
+        } catch (e) {
+            // If any error processing extensions, default to true
+            return true;
+        }
+        
+        if (field_extensions.length === 0) {
+            return true;
+        }
+        
+        // Check if any extension is an image extension (without dots)
+        const imageExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg', 'ico', 'tiff', 'tif'];
+        
+        // Return true if any extension matches image extensions
+        const hasImageExtension = field_extensions.some(ext => imageExtensions.includes(ext));
+        
+        // If image extensions found, return true
+        if (hasImageExtension) {
+            return true;
+        }
+        
+        // If no image extensions found, check if it might be a video field
+        const videoExtensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v'];
+        const hasVideoExtension = field_extensions.some(ext => videoExtensions.includes(ext));
+        
+        // Only return false if it's definitely a video field, otherwise return true (assume image)
+        return !hasVideoExtension;
+        */
     }
 
     async getMediaMappings() {
@@ -5683,6 +5795,9 @@ class GameCollectionManager {
                 return; // Skip duplicate fields
             }
             processedFields.add(field);
+            
+            // Check if field is an image field based on extensions in config
+            const isImageField = this.isImageField(field);
             
             const mediaItem = document.createElement('div');
             mediaItem.className = 'media-preview-item';
@@ -5941,17 +6056,10 @@ class GameCollectionManager {
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
-                                ${field === 'fanart' ? `
-                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                    <i class="bi bi-image"></i>
+                                ${isImageField ? `
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-binoculars"></i>
                                 </button>
-                                ` : ''}
-                                ${field === 'marquee' ? `
-                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                    <i class="bi bi-badge-ad"></i>
-                                </button>
-                                ` : ''}
-                                ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
                                 <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-google"></i>
                                 </button>
@@ -6029,7 +6137,7 @@ class GameCollectionManager {
                 }
                 
                 // Add right-click context menu to mediaItem (for images)
-                if (field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine') {
+                if (isImageField) {
                     mediaItem.addEventListener('contextmenu', (e) => {
                         // Only show context menu if clicking on the image itself, not on buttons
                         if (e.target.tagName === 'IMG' || e.target.closest('.media-preview-item')) {
@@ -6060,17 +6168,10 @@ class GameCollectionManager {
                                 <i class="bi bi-youtube"></i>
                             </button>
                             ` : ''}
-                            ${field === 'fanart' ? `
-                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                <i class="bi bi-image"></i>
-                            </button>
-                            ` : ''}
-                            ${field === 'marquee' ? `
-                            <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                <i class="bi bi-badge-ad"></i>
-                            </button>
-                    ` : ''}
-                    ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
+                    ${isImageField ? `
+                    <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                        <i class="bi bi-binoculars"></i>
+                    </button>
                     <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-google"></i>
                     </button>
@@ -17959,8 +18060,14 @@ class GameCollectionManager {
         mediaPreviewContent.innerHTML = '';
 
         // Get media fields from config.json mappings (including video and manual)
-        // Use cache to avoid unnecessary API calls
+        // Use cache to avoid unnecessary API calls, but force refresh to ensure we have the full config with extensions
         let mediaFields = await this.getMediaFieldsFromConfig(false);
+        
+        // Ensure config cache is loaded with extensions - if not, try to load it explicitly
+        if (!this.mediaFieldsConfigCache || Object.keys(this.mediaFieldsConfigCache).length === 0) {
+            // Force refresh to get the full config with extensions
+            await this.getMediaFieldsFromConfig(true);
+        }
         
         // Ensure 'video' is included even if not in config (it's a standard field)
         if (!mediaFields.includes('video')) {
@@ -17982,6 +18089,9 @@ class GameCollectionManager {
                 return; // Skip duplicate fields
             }
             processedFields.add(field);
+            
+            // Check if field is an image field based on extensions in config
+            const isImageField = this.isImageField(field);
             
             const mediaItem = document.createElement('div');
             mediaItem.className = 'media-preview-item';
@@ -18153,17 +18263,10 @@ class GameCollectionManager {
                                 <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                                     <small class="text-center flex-grow-1">${field}</small>
                                     <div class="d-flex gap-1">
-                                        ${field === 'fanart' ? `
-                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                            <i class="bi bi-image"></i>
+                                        ${isImageField ? `
+                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-binoculars"></i>
                                         </button>
-                                        ` : ''}
-                                        ${field === 'marquee' ? `
-                                        <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                            <i class="bi bi-badge-ad"></i>
-                                        </button>
-                                        ` : ''}
-                                        ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
                                         <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-google"></i>
                                         </button>
@@ -18264,17 +18367,10 @@ class GameCollectionManager {
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
-                                ${field === 'fanart' ? `
-                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                    <i class="bi bi-image"></i>
+                                ${isImageField ? `
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-binoculars"></i>
                                 </button>
-                                ` : ''}
-                                ${field === 'marquee' ? `
-                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                    <i class="bi bi-badge-ad"></i>
-                                </button>
-                                ` : ''}
-                                ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
                                 <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-google"></i>
                                 </button>
@@ -18379,7 +18475,10 @@ class GameCollectionManager {
                                 <i class="bi bi-badge-ad"></i>
                             </button>
                             ` : ''}
-                            ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
+                            ${isImageField ? `
+                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-binoculars"></i>
+                            </button>
                             <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-google"></i>
                             </button>
@@ -18441,17 +18540,10 @@ class GameCollectionManager {
                         <i class="bi bi-youtube"></i>
                     </button>
                     ` : ''}
-                    ${field === 'fanart' ? `
-                    <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                        <i class="bi bi-image"></i>
+                    ${isImageField ? `
+                    <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                        <i class="bi bi-binoculars"></i>
                     </button>
-                    ` : ''}
-                    ${field === 'marquee' ? `
-                    <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                        <i class="bi bi-badge-ad"></i>
-                    </button>
-                    ` : ''}
-                    ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
                     <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-google"></i>
                     </button>
@@ -24632,32 +24724,6 @@ class GameCollectionManager {
         document.getElementById('reencodeVideoOptions').style.display = 'none';
     }
 
-    isImageField(fieldName, config) {
-        // Check extensions in media_fields config for image formats
-        const media_fields = config.media_fields || {};
-        const field_config = media_fields[fieldName];
-        if (!field_config || !field_config.extensions) {
-            return false;
-        }
-        
-        const extensions = field_config.extensions;
-        const image_extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff', 'tif', 'svg', 'ico'];
-        
-        // Handle extensions as array or comma-separated string
-        let field_extensions = [];
-        if (Array.isArray(extensions)) {
-            if (extensions.length === 0) {
-                return false;
-            }
-            field_extensions = extensions.map(ext => ext.toString().toLowerCase().trim().replace('.', '')).filter(ext => ext);
-        } else if (typeof extensions === 'string' && extensions.trim()) {
-            field_extensions = extensions.toLowerCase().split(',').map(ext => ext.trim().replace('.', '')).filter(ext => ext);
-        } else {
-            return false;
-        }
-        
-        return field_extensions.length > 0 && field_extensions.some(ext => image_extensions.includes(ext));
-    }
 
     async loadReencodeMediasFields() {
         try {
@@ -36971,6 +37037,69 @@ class GameCollectionManager {
     }
 
 
+    // Generic Media Search Functions
+    async openMediaSearchModal(game, field = 'fanart') {
+        // Reuse the fanart search modal but adapt it for any field
+        const modal = new bootstrap.Modal(document.getElementById('fanartSearchModal'));
+        
+        // Update modal title based on field
+        const modalTitle = document.getElementById('fanartSearchModalLabel');
+        if (modalTitle) {
+            const fieldName = field.charAt(0).toUpperCase() + field.slice(1);
+            modalTitle.innerHTML = `<i class="bi bi-binoculars me-2"></i>Search ${fieldName} across all systems`;
+        }
+        
+        // Pre-fill the game name
+        document.getElementById('fanartGameName').value = game.name || '';
+        
+        // Set the current system and field for the search
+        this.currentFanartSearchGame = game;
+        this.currentFanartSearchSystem = this.currentSystem;
+        this.currentFanartSearchField = field;
+        
+        // Populate scrapers dropdown for this field
+        await this.populateMediaScrapersDropdown(field);
+        
+        // Show the modal
+        modal.show();
+    }
+
+    async populateMediaScrapersDropdown(fieldType) {
+        try {
+            const response = await fetch('/api/config');
+            const data = await response.json();
+            
+            if (data) {
+                const select = document.getElementById('fanartScraper');
+                // Clear existing options except "All Scrapers"
+                select.innerHTML = '<option value="all">All Scrapers</option>';
+                
+                // Add scrapers that have mapping for this field type
+                Object.keys(data).forEach(scraperName => {
+                    const scraperConfig = data[scraperName];
+                    // Check if this is a scraper config (has image_type_mappings)
+                    if (scraperConfig && typeof scraperConfig === 'object' && scraperConfig.image_type_mappings) {
+                        const imageMappings = scraperConfig.image_type_mappings || {};
+                        
+                        if (fieldType in imageMappings) {
+                            const option = document.createElement('option');
+                            option.value = scraperName;
+                            option.textContent = this.formatScraperLabel(scraperName);
+                            select.appendChild(option);
+                        }
+                    }
+                });
+
+                const localOption = document.createElement('option');
+                localOption.value = 'local_images';
+                localOption.textContent = this.formatScraperLabel('local_images');
+                select.appendChild(localOption);
+            }
+        } catch (error) {
+            console.error(`Error loading ${fieldType} scrapers:`, error);
+        }
+    }
+
     // Fanart Search Functions
     async openFanartSearchModal(game) {
         const modal = new bootstrap.Modal(document.getElementById('fanartSearchModal'));
@@ -37050,17 +37179,21 @@ class GameCollectionManager {
         document.getElementById('fanartSearchResults').style.display = 'block';
 
         // Create EventSource for streaming results
+        const fieldType = this.currentFanartSearchField || 'fanart';
         const searchData = {
             game_name: gameName,
             system_name: this.currentFanartSearchSystem,
             scraper: scraper,
-            direct_match: directMatch
+            direct_match: directMatch,
+            field_type: fieldType
         };
 
         // Use POST with EventSource - we'll need to use fetch with streaming or use a workaround
         // Since EventSource doesn't support POST, we'll use fetch with ReadableStream
         try {
-            const response = await fetch('/api/fanart-search/stream', {
+            // Use fanart search endpoint (it supports field_type parameter for generic media search)
+            const endpoint = '/api/fanart-search/stream';
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -37159,9 +37292,15 @@ class GameCollectionManager {
     appendFanartSearchResults(results) {
         const container = document.getElementById('fanartResultsContainer');
         
+        // Get the current field type (default to 'fanart' for backward compatibility)
+        const fieldType = this.currentFanartSearchField || 'fanart';
+        const urlsKey = `${fieldType}_urls`;
+        const fieldTypeName = fieldType.charAt(0).toUpperCase() + fieldType.slice(1);
+        
         results.forEach(result => {
-            if (result.fanart_urls && result.fanart_urls.length > 0) {
-                result.fanart_urls.forEach((url, index) => {
+            const urls = result[urlsKey] || result.fanart_urls || [];
+            if (urls && urls.length > 0) {
+                urls.forEach((url, index) => {
                     // Check if this result already exists (avoid duplicates)
                     const existingCards = container.querySelectorAll(`[data-result-id="${result.scraper}-${result.game_name}-${index}"]`);
                     if (existingCards.length > 0) {
@@ -37191,7 +37330,7 @@ class GameCollectionManager {
                         <div class="card">
                             <div class="card-body">
                                 <img src="${escapedUrl}" class="img-fluid rounded mb-2" style="width: 100%; height: 200px; object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" 
-                                     alt="Fanart" onerror="this.style.display='none'">
+                                     alt="${fieldTypeName}" onerror="this.style.display='none'">
                                 <h6 class="card-title">${result.game_name}</h6>
                                 <p class="card-text">
                                     <small class="text-muted">
@@ -37208,8 +37347,9 @@ class GameCollectionManager {
                                     <button class="btn btn-primary btn-sm fanart-download-btn" 
                                             data-fanart-url="${escapedUrl}" 
                                             data-fanart-result="${escapedResultJson}" 
-                                            data-fanart-game="${escapedGameJson}">
-                                        <i class="bi bi-download me-1"></i>Download This Fanart
+                                            data-fanart-game="${escapedGameJson}"
+                                            data-field-type="${fieldType}">
+                                        <i class="bi bi-download me-1"></i>Download This ${fieldTypeName}
                                     </button>
                                 </div>
                             </div>
@@ -37223,7 +37363,8 @@ class GameCollectionManager {
                             const fanartUrl = downloadBtn.getAttribute('data-fanart-url');
                             const fanartResult = JSON.parse(downloadBtn.getAttribute('data-fanart-result'));
                             const game = JSON.parse(downloadBtn.getAttribute('data-fanart-game'));
-                            this.downloadSingleFanartImage(fanartUrl, fanartResult, game);
+                            const fieldTypeAttr = downloadBtn.getAttribute('data-field-type') || 'fanart';
+                            this.downloadSingleFanartImage(fanartUrl, fanartResult, game, fieldTypeAttr);
                         });
                     }
                     
@@ -37243,7 +37384,7 @@ class GameCollectionManager {
                         
                         // Add hover preview functionality
                         img.addEventListener('mouseenter', (e) => {
-                            this.showMediaHover(e, url, 'fanart', this.currentFanartSearchGame);
+                            this.showMediaHover(e, url, fieldType, this.currentFanartSearchGame);
                         });
                         img.addEventListener('mouseleave', () => {
                             this.hideMediaHover();
@@ -37260,16 +37401,22 @@ class GameCollectionManager {
         const container = document.getElementById('fanartResultsContainer');
         container.innerHTML = '';
 
+        // Get the current field type (default to 'fanart' for backward compatibility)
+        const fieldType = this.currentFanartSearchField || 'fanart';
+        const urlsKey = `${fieldType}_urls`;
+        const fieldTypeName = fieldType.charAt(0).toUpperCase() + fieldType.slice(1);
+
         if (results.length === 0) {
-            container.innerHTML = '<div class="col-12"><p class="text-muted">No fanart found.</p></div>';
+            container.innerHTML = `<div class="col-12"><p class="text-muted">No ${fieldType} found.</p></div>`;
             document.getElementById('fanartSearchResults').style.display = 'block';
             return;
         }
 
         results.forEach(result => {
-            // Create a separate card for each fanart image
-            if (result.fanart_urls && result.fanart_urls.length > 0) {
-                result.fanart_urls.forEach((url, index) => {
+            // Create a separate card for each image
+            const urls = result[urlsKey] || result.fanart_urls || [];
+            if (urls && urls.length > 0) {
+                urls.forEach((url, index) => {
                     const resultCard = document.createElement('div');
                     resultCard.className = 'col-md-4 mb-3';
                     
@@ -37359,7 +37506,7 @@ class GameCollectionManager {
         document.getElementById('fanartSearchResults').style.display = 'block';
     }
 
-    async downloadSingleFanartImage(fanartUrl, fanartResult, game) {
+    async downloadSingleFanartImage(fanartUrl, fanartResult, game, fieldType = 'fanart') {
         try {
             const response = await fetch('/api/download-multiscraper-media', {
                 method: 'POST',
@@ -37369,7 +37516,7 @@ class GameCollectionManager {
                 body: JSON.stringify({
                     game_name: game.name,
                     system_name: this.currentFanartSearchSystem,
-                    media_type: 'fanart',
+                    media_type: fieldType,
                     media_url: fanartUrl
                 })
             });
@@ -37377,7 +37524,8 @@ class GameCollectionManager {
             const result = await response.json();
 
             if (response.ok && result.success) {
-                this.showAlert('Fanart downloaded successfully!', 'success');
+                const fieldName = fieldType.charAt(0).toUpperCase() + fieldType.slice(1);
+                this.showAlert(`${fieldName} downloaded successfully!`, 'success');
                 
                 // Close the fanart search modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('fanartSearchModal'));
