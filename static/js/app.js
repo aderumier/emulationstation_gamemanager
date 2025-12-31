@@ -19250,15 +19250,92 @@ class GameCollectionManager {
         this.currentCropVideoField = videoField;
         this.currentCropVideoPath = absoluteVideoPath;
         
+        // Clear any existing frame image to prevent showing old cached frame
+        const cropperImage = document.getElementById('videoCropperImage');
+        if (cropperImage) {
+            cropperImage.src = '';
+            cropperImage.style.display = 'none';
+        }
+        
         // Show the modal
         const modal = new bootstrap.Modal(document.getElementById('videoCroppingModal'));
         modal.show();
         
+        // Get current video player position if video is not at start
+        // Find the video element that matches the video field we're cropping
+        let videoTimestamp = null;
+        const videoContent = document.getElementById('editGameVideoContent');
+        if (videoContent) {
+            // Try to find video element that matches the video field
+            const videoItems = videoContent.querySelectorAll('.video-preview-item');
+            let videoElement = null;
+            
+            // Find video element with matching data-video-field attribute
+            for (const item of videoItems) {
+                if (item.getAttribute('data-video-field') === videoField) {
+                    videoElement = item.querySelector('video');
+                    break;
+                }
+            }
+            
+            // Fallback to first video if not found by field
+            if (!videoElement) {
+                videoElement = videoContent.querySelector('video');
+            }
+            
+            if (videoElement) {
+                // Check if video has loaded metadata
+                if (videoElement.readyState >= 1) {
+                    const currentTime = videoElement.currentTime;
+                    console.log('Video element found - currentTime:', currentTime, 'readyState:', videoElement.readyState);
+                    if (currentTime > 0) {
+                        videoTimestamp = currentTime;
+                        console.log('Using video player position:', videoTimestamp, 'seconds');
+                    } else {
+                        console.log('Video is at 0s, will use middle frame');
+                    }
+                } else {
+                    console.log('Video element not ready (readyState:', videoElement.readyState, '), will use middle frame');
+                }
+            } else {
+                console.log('Video element not found in editGameVideoContent');
+            }
+        } else {
+            console.log('editGameVideoContent not found');
+        }
+        
         // Wait for modal to be fully shown before extracting frame
         const modalElement = document.getElementById('videoCroppingModal');
         modalElement.addEventListener('shown.bs.modal', () => {
-            // Extract middle frame and setup crop interface after modal is fully shown
-            this.extractFirstFrameAndSetupCropper(absoluteVideoPath);
+            // Re-check video timestamp right before extraction (in case it changed)
+            let finalTimestamp = videoTimestamp;
+            const videoContent = document.getElementById('editGameVideoContent');
+            if (videoContent) {
+                const videoItems = videoContent.querySelectorAll('.video-preview-item');
+                let videoElement = null;
+                
+                for (const item of videoItems) {
+                    if (item.getAttribute('data-video-field') === videoField) {
+                        videoElement = item.querySelector('video');
+                        break;
+                    }
+                }
+                
+                if (!videoElement) {
+                    videoElement = videoContent.querySelector('video');
+                }
+                
+                if (videoElement && videoElement.readyState >= 1) {
+                    const currentTime = videoElement.currentTime;
+                    if (currentTime > 0) {
+                        finalTimestamp = currentTime;
+                        console.log('Updated timestamp from video element:', finalTimestamp);
+                    }
+                }
+            }
+            
+            // Extract frame at current video position (or middle if at 0s) and setup crop interface
+            this.extractFirstFrameAndSetupCropper(absoluteVideoPath, finalTimestamp);
         }, { once: true }); // Use once: true to only run this once
         
         // Add cleanup when modal is hidden
@@ -19267,24 +19344,53 @@ class GameCollectionManager {
         }, { once: true }); // Use once: true to only run this once
     }
     
-    async extractFirstFrameAndSetupCropper(videoPath) {
+    async extractFirstFrameAndSetupCropper(videoPath, timestamp = null) {
         // Set flag to prevent duplicate calls
         this.isExtractingFrame = true;
         
         try {
             // Show loading state
             const imageContainer = document.getElementById('videoCropperCanvasContainer');
-            // Create a temporary loading overlay if needed
+            const cropperImage = document.getElementById('videoCropperImage');
             
-            // Call API to extract middle frame
+            // Show loading indicator
+            if (imageContainer && cropperImage) {
+                cropperImage.style.display = 'none';
+                // Create or update loading indicator
+                let loadingDiv = imageContainer.querySelector('.frame-loading');
+                if (!loadingDiv) {
+                    loadingDiv = document.createElement('div');
+                    loadingDiv.className = 'frame-loading';
+                    loadingDiv.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #6c757d;';
+                    loadingDiv.innerHTML = '<i class="bi bi-hourglass-split" style="font-size: 2rem; display: block; margin-bottom: 1rem;"></i><div>Extracting frame...</div>';
+                    imageContainer.appendChild(loadingDiv);
+                } else {
+                    loadingDiv.style.display = 'block';
+                }
+            }
+            
+            // Prepare request body
+            const requestBody = {
+                video_path: videoPath
+            };
+            
+            // Add timestamp if provided and not 0
+            if (timestamp !== null && timestamp > 0) {
+                requestBody.timestamp = timestamp;
+                console.log('Sending timestamp to API:', timestamp);
+            } else {
+                console.log('No timestamp provided, will use middle frame');
+            }
+            
+            console.log('Request body:', JSON.stringify(requestBody));
+            
+            // Call API to extract frame at specified timestamp (or middle if not provided)
             const response = await fetch('/api/extract-first-frame', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    video_path: videoPath
-                })
+                body: JSON.stringify(requestBody)
             });
             
             if (!response.ok) {
@@ -19300,23 +19406,83 @@ class GameCollectionManager {
                 const cropperImage = document.getElementById('videoCropperImage');
                 
                 if (cropperImage) {
-                    // Set image source
-                    console.log('Setting video frame src:', result.frame_path);
-                    cropperImage.src = `/roms/${result.frame_path}`;
+                    // Hide loading indicator
+                    const imageContainer = document.getElementById('videoCropperCanvasContainer');
+                    if (imageContainer) {
+                        const loadingDiv = imageContainer.querySelector('.frame-loading');
+                        if (loadingDiv) {
+                            loadingDiv.style.display = 'none';
+                        }
+                    }
                     
-                    // Setup Cropper.js v2
-                    // We can call setupVideoCropper which waits for $ready()
-                    setTimeout(() => {
-                        this.setupVideoCropper();
-                    }, 100);
+                    // Set image source with cache busting to ensure fresh load
+                    const cacheBuster = new Date().getTime();
+                    const imageUrl = `/roms/${result.frame_path}?v=${cacheBuster}`;
+                    console.log('Setting video frame src:', imageUrl);
+                    
+                    // Set up event handlers and flags
+                    let imageLoaded = false;
+                    let imageErrored = false;
+                    
+                    // Clear old image first to prevent caching issues
+                    // Remove any existing event handlers to prevent false error triggers
+                    cropperImage.onload = null;
+                    cropperImage.onerror = null;
+                    cropperImage.src = '';
+                    cropperImage.style.display = 'none';
+                    
+                    // Set up event handlers
+                    cropperImage.onload = () => {
+                        if (!imageLoaded) {
+                            imageLoaded = true;
+                            cropperImage.style.display = '';
+                            // Setup Cropper.js v2 after image loads
+                            setTimeout(() => {
+                                this.setupVideoCropper();
+                            }, 100);
+                        }
+                    };
+                    
+                    cropperImage.onerror = () => {
+                        // Only show error if:
+                        // 1. Image hasn't loaded yet
+                        // 2. We haven't already shown an error
+                        // 3. The src is not empty and matches our target URL (ignore errors from clearing src)
+                        const currentSrc = cropperImage.src;
+                        if (!imageLoaded && !imageErrored && currentSrc && currentSrc !== '' && 
+                            (currentSrc === imageUrl || currentSrc.includes(result.frame_path))) {
+                            imageErrored = true;
+                            console.error('Failed to load frame image:', currentSrc);
+                            // Show error in loading indicator
+                            if (imageContainer) {
+                                const loadingDiv = imageContainer.querySelector('.frame-loading');
+                                if (loadingDiv) {
+                                    loadingDiv.innerHTML = '<i class="bi bi-exclamation-triangle" style="font-size: 2rem; display: block; margin-bottom: 1rem; color: #dc3545;"></i><div>Failed to load frame</div>';
+                                    loadingDiv.style.display = 'block';
+                                }
+                            }
+                            this.showAlert('Failed to load frame image', 'error');
+                        }
+                    };
+                    
+                    // Set src after handlers are in place
+                    cropperImage.src = imageUrl;
                 } else {
                     throw new Error('Failed to find videoCropperImage element');
                 }
             } else {
-                throw new Error(result.error || 'Failed to extract middle frame');
+                throw new Error(result.error || 'Failed to extract frame');
             }
         } catch (error) {
-            this.showAlert(`Error extracting middle frame: ${error.message}`, 'error');
+            // Hide loading indicator on error
+            const imageContainer = document.getElementById('videoCropperCanvasContainer');
+            if (imageContainer) {
+                const loadingDiv = imageContainer.querySelector('.frame-loading');
+                if (loadingDiv) {
+                    loadingDiv.style.display = 'none';
+                }
+            }
+            this.showAlert(`Error extracting frame: ${error.message}`, 'error');
             console.error('Error extraction:', error);
         } finally {
             // Reset flag to allow future calls

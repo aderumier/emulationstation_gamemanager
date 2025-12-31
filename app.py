@@ -16344,10 +16344,13 @@ def save_screenshot_to_field(system_name):
 @app.route('/api/extract-first-frame', methods=['POST'])
 @login_required
 def extract_first_frame():
-    """Extract middle frame from video for manual cropping"""
+    """Extract frame from video for manual cropping at specified timestamp or middle"""
     try:
         data = request.get_json()
         video_path = data.get('video_path')
+        timestamp = data.get('timestamp')  # Optional: current video player position
+        
+        print(f"Received request - video_path: {video_path}, timestamp: {timestamp}")
         
         if not video_path:
             return jsonify({'error': 'Video path is required'}), 400
@@ -16363,34 +16366,40 @@ def extract_first_frame():
         if not os.path.exists(video_path):
             return jsonify({'error': f'Video file not found: {video_path}'}), 404
         
-        # Get video duration to calculate middle frame time
-        duration_cmd = [
-            'ffprobe',
-            '-v', 'quiet',
-            '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrappers=1:nokey=1',
-            video_path
-        ]
-        
-        duration_result = subprocess.run(duration_cmd, capture_output=True, text=True, timeout=10)
-        duration = None
-        
-        if duration_result.returncode == 0:
-            try:
-                duration = float(duration_result.stdout.strip())
-                print(f"Video duration: {duration} seconds")
-            except (ValueError, AttributeError):
-                print(f"Could not parse duration, using middle estimate")
-        
-        # Calculate middle frame time (or use 5 seconds if duration unknown)
-        if duration and duration > 0:
-            middle_time = duration / 2
+        # Determine frame extraction time
+        if timestamp is not None and timestamp > 0:
+            # Use provided timestamp (current video player position)
+            frame_time = float(timestamp)
+            print(f"Extracting frame at time: {frame_time} seconds (current video position)")
         else:
-            # Default to 5 seconds if we can't get duration
-            middle_time = 5.0
-            print(f"Using default middle time: {middle_time} seconds")
-        
-        print(f"Extracting frame at time: {middle_time} seconds (middle of video)")
+            # Get video duration to calculate middle frame time
+            duration_cmd = [
+                'ffprobe',
+                '-v', 'quiet',
+                '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                video_path
+            ]
+            
+            duration_result = subprocess.run(duration_cmd, capture_output=True, text=True, timeout=10)
+            duration = None
+            
+            if duration_result.returncode == 0:
+                try:
+                    duration = float(duration_result.stdout.strip())
+                    print(f"Video duration: {duration} seconds")
+                except (ValueError, AttributeError):
+                    print(f"Could not parse duration, using middle estimate")
+            
+            # Calculate middle frame time (or use 5 seconds if duration unknown)
+            if duration and duration > 0:
+                frame_time = duration / 2
+            else:
+                # Default to 5 seconds if we can't get duration
+                frame_time = 5.0
+                print(f"Using default middle time: {frame_time} seconds")
+            
+            print(f"Extracting frame at time: {frame_time} seconds (middle of video)")
         
         # Create frames directory if it doesn't exist
         frames_dir = os.path.join(os.path.dirname(video_path), 'frames')
@@ -16401,11 +16410,11 @@ def extract_first_frame():
         frame_filename = f"{video_basename}_frame.jpg"
         frame_path = os.path.join(frames_dir, frame_filename)
         
-        # Extract frame from middle of video using ffmpeg
+        # Extract frame from video using ffmpeg
         # Use -ss before -i for faster seeking (input seeking)
         cmd = [
             'ffmpeg',
-            '-ss', str(middle_time),  # Seek to middle of video
+            '-ss', str(frame_time),  # Seek to specified time (or middle)
             '-i', video_path,
             '-vframes', '1',
             '-q:v', '2',  # High quality
