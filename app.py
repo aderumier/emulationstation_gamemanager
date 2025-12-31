@@ -13130,6 +13130,89 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
 
     return results
 
+@app.route('/api/fanart-search/stream', methods=['POST'])
+@login_required
+def fanart_search_stream_endpoint():
+    """Stream fanart search results as scrapers return them using Server-Sent Events"""
+    from flask import Response, stream_with_context
+    
+    # Get request data before generator (request context is needed)
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    game_name = data.get('game_name')
+    system_name = data.get('system_name')
+    selected_scraper = data.get('scraper', 'all')
+    direct_match = data.get('direct_match', True)
+    
+    if not all([game_name, system_name]):
+        return jsonify({'error': 'Game name and system name are required'}), 400
+    
+    def generate():
+        try:
+            print(f"🔧 DEBUG: Fanart search stream for game: {game_name}, system: {system_name}, scraper: {selected_scraper}")
+            
+            # Send initial connection message
+            yield f"data: {json.dumps({'type': 'connected', 'message': 'Fanart search started'})}\n\n"
+            
+            # Get scrapers that have fanart mapped
+            scrapers_config = load_scrappers_config()
+            fanart_scrapers = {}
+            for scraper_name, scraper_config in scrapers_config.items():
+                if selected_scraper != 'all' and selected_scraper != scraper_name:
+                    continue
+                image_mappings = scraper_config.get('image_type_mappings', {})
+                if 'fanart' in image_mappings:
+                    fanart_scrapers[scraper_name] = scraper_config
+            
+            # Add local_images if needed
+            scrapers_to_search = list(fanart_scrapers.items())
+            if selected_scraper in ('all', 'local_images'):
+                scrapers_to_search.append(('local_images', None))
+            
+            print(f"🔧 DEBUG: Found {len(scrapers_to_search)} scrapers to search")
+            
+            all_results = []
+            
+            # Search each scraper and stream results as they come
+            for scraper_name, scraper_config in scrapers_to_search:
+                try:
+                    print(f"🔧 DEBUG: Searching {scraper_name} for fanart...")
+                    yield f"data: {json.dumps({'type': 'scraper_start', 'scraper': scraper_name})}\n\n"
+                    
+                    results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, 'fanart')
+                    all_results.extend(results)
+                    
+                    # Stream results from this scraper
+                    if results:
+                        yield f"data: {json.dumps({'type': 'results', 'scraper': scraper_name, 'results': results, 'count': len(results)})}\n\n"
+                    
+                    yield f"data: {json.dumps({'type': 'scraper_complete', 'scraper': scraper_name, 'count': len(results)})}\n\n"
+                    print(f"🔧 DEBUG: Found {len(results)} fanart results from {scraper_name}")
+                    
+                except Exception as e:
+                    print(f"🔧 DEBUG: Error searching {scraper_name}: {e}")
+                    yield f"data: {json.dumps({'type': 'scraper_error', 'scraper': scraper_name, 'error': str(e)})}\n\n"
+                    continue
+            
+            # Send completion with all sorted results
+            all_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
+            yield f"data: {json.dumps({'type': 'completed', 'total_found': len(all_results), 'results': all_results})}\n\n"
+            print(f"🔧 DEBUG: Fanart search completed with {len(all_results)} total results")
+            
+        except Exception as e:
+            print(f"Error in fanart search stream: {e}")
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': f'Internal server error: {str(e)}'})}\n\n"
+    
+    response = Response(stream_with_context(generate()), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Connection'] = 'keep-alive'
+    response.headers['X-Accel-Buffering'] = 'no'  # Disable nginx buffering
+    return response
+
 @app.route('/api/fanart-search', methods=['POST'])
 @login_required
 def fanart_search_endpoint():
@@ -13205,6 +13288,92 @@ def fanart_search_endpoint():
     except Exception as e:
         print(f"Error in fanart search: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/marquee-search/stream', methods=['POST'])
+@login_required
+def marquee_search_stream_endpoint():
+    """Stream marquee search results as scrapers return them using Server-Sent Events"""
+    from flask import Response, stream_with_context
+    
+    # Get request data before generator (request context is needed)
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    game_name = data.get('game_name', '').strip()
+    system_name = data.get('system_name', '').strip()
+    selected_scraper = data.get('scraper', 'all').strip()
+    direct_match = data.get('direct_match', True)
+    
+    if not game_name:
+        return jsonify({'error': 'Game name is required'}), 400
+    
+    def generate():
+        try:
+            print(f"🔧 DEBUG: Marquee search stream for game: {game_name}, system: {system_name}, scraper: {selected_scraper}")
+            
+            # Send initial connection message
+            yield f"data: {json.dumps({'type': 'connected', 'message': 'Marquee search started'})}\n\n"
+            
+            # Load scrappers configuration
+            scrappers_config = load_scrappers_config()
+            
+            # Find scrapers that support marquee
+            marquee_scrapers = {}
+            for scraper_name, scraper_config in scrappers_config.items():
+                if selected_scraper != 'all' and selected_scraper != scraper_name:
+                    continue
+                if 'image_type_mappings' in scraper_config:
+                    image_mappings = scraper_config['image_type_mappings']
+                    if 'marquee' in image_mappings:
+                        marquee_scrapers[scraper_name] = scraper_config
+            
+            # Add local_images if needed
+            scrapers_to_search = list(marquee_scrapers.items())
+            if selected_scraper in ('all', 'local_images'):
+                scrapers_to_search.append(('local_images', None))
+            
+            print(f"🔧 DEBUG: Found {len(scrapers_to_search)} scrapers to search")
+            
+            all_results = []
+            
+            # Search each scraper and stream results as they come
+            for scraper_name, scraper_config in scrapers_to_search:
+                try:
+                    print(f"🔧 DEBUG: Searching {scraper_name} for marquee...")
+                    yield f"data: {json.dumps({'type': 'scraper_start', 'scraper': scraper_name})}\n\n"
+                    
+                    results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, 'marquee')
+                    all_results.extend(results)
+                    
+                    # Stream results from this scraper
+                    if results:
+                        yield f"data: {json.dumps({'type': 'results', 'scraper': scraper_name, 'results': results, 'count': len(results)})}\n\n"
+                    
+                    yield f"data: {json.dumps({'type': 'scraper_complete', 'scraper': scraper_name, 'count': len(results)})}\n\n"
+                    print(f"🔧 DEBUG: Found {len(results)} marquee results from {scraper_name}")
+                    
+                except Exception as e:
+                    print(f"🔧 DEBUG: Error searching {scraper_name}: {e}")
+                    yield f"data: {json.dumps({'type': 'scraper_error', 'scraper': scraper_name, 'error': str(e)})}\n\n"
+                    continue
+            
+            # Send completion with all sorted results
+            all_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
+            yield f"data: {json.dumps({'type': 'completed', 'total_found': len(all_results), 'results': all_results})}\n\n"
+            print(f"🔧 DEBUG: Marquee search completed with {len(all_results)} total results")
+            
+        except Exception as e:
+            print(f"Error in marquee search stream: {e}")
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': f'Internal server error: {str(e)}'})}\n\n"
+    
+    response = Response(stream_with_context(generate()), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Connection'] = 'keep-alive'
+    response.headers['X-Accel-Buffering'] = 'no'  # Disable nginx buffering
+    return response
 
 @app.route('/api/marquee-search', methods=['POST'])
 @login_required

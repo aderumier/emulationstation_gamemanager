@@ -37035,36 +37035,225 @@ class GameCollectionManager {
             return;
         }
 
+        // Close any existing stream
+        if (this.currentFanartSearchStream) {
+            this.currentFanartSearchStream.close();
+            this.currentFanartSearchStream = null;
+        }
+
+        // Clear previous results
+        const container = document.getElementById('fanartResultsContainer');
+        container.innerHTML = '';
+
         // Show loading state
         document.getElementById('fanartSearchLoading').style.display = 'block';
-        document.getElementById('fanartSearchResults').style.display = 'none';
+        document.getElementById('fanartSearchResults').style.display = 'block';
 
+        // Create EventSource for streaming results
+        const searchData = {
+            game_name: gameName,
+            system_name: this.currentFanartSearchSystem,
+            scraper: scraper,
+            direct_match: directMatch
+        };
+
+        // Use POST with EventSource - we'll need to use fetch with streaming or use a workaround
+        // Since EventSource doesn't support POST, we'll use fetch with ReadableStream
         try {
-            const response = await fetch('/api/fanart-search', {
+            const response = await fetch('/api/fanart-search/stream', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    game_name: gameName,
-                    system_name: this.currentFanartSearchSystem,
-                    scraper: scraper,
-                    direct_match: directMatch
-                })
+                body: JSON.stringify(searchData)
             });
 
-            const result = await response.json();
-
-            if (response.ok && result.success) {
-                this.displayFanartSearchResults(result.results);
-            } else {
-                this.showAlert(`Error searching fanart: ${result.error || 'Unknown error'}`, 'error');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            this.handleFanartSearchStreamEvent(data);
+                        } catch (e) {
+                            console.error('Error parsing SSE data:', e);
+                        }
+                    }
+                }
+            }
+
+            // Process remaining buffer
+            if (buffer.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(buffer.slice(6));
+                    this.handleFanartSearchStreamEvent(data);
+                } catch (e) {
+                    console.error('Error parsing final SSE data:', e);
+                }
+            }
+
         } catch (error) {
+            console.error('Error in fanart search stream:', error);
             this.showAlert('Error searching fanart', 'error');
-        } finally {
             document.getElementById('fanartSearchLoading').style.display = 'none';
         }
+    }
+
+    handleFanartSearchStreamEvent(data) {
+        const container = document.getElementById('fanartResultsContainer');
+        
+        switch (data.type) {
+            case 'connected':
+                console.log('Fanart search connected:', data.message);
+                break;
+            
+            case 'scraper_start':
+                // Optionally show which scraper is starting
+                console.log(`Starting scraper: ${data.scraper}`);
+                break;
+            
+            case 'results':
+                // Append results from this scraper
+                if (data.results && data.results.length > 0) {
+                    this.appendFanartSearchResults(data.results);
+                }
+                break;
+            
+            case 'scraper_complete':
+                console.log(`Scraper ${data.scraper} completed with ${data.count} results`);
+                break;
+            
+            case 'scraper_error':
+                console.error(`Error from scraper ${data.scraper}:`, data.error);
+                break;
+            
+            case 'completed':
+                // All scrapers finished
+                document.getElementById('fanartSearchLoading').style.display = 'none';
+                if (data.total_found === 0) {
+                    container.innerHTML = '<div class="col-12"><p class="text-muted">No fanart found.</p></div>';
+                }
+                break;
+            
+            case 'error':
+                this.showAlert(`Error: ${data.message}`, 'error');
+                document.getElementById('fanartSearchLoading').style.display = 'none';
+                break;
+        }
+    }
+
+    appendFanartSearchResults(results) {
+        const container = document.getElementById('fanartResultsContainer');
+        
+        results.forEach(result => {
+            if (result.fanart_urls && result.fanart_urls.length > 0) {
+                result.fanart_urls.forEach((url, index) => {
+                    // Check if this result already exists (avoid duplicates)
+                    const existingCards = container.querySelectorAll(`[data-result-id="${result.scraper}-${result.game_name}-${index}"]`);
+                    if (existingCards.length > 0) {
+                        return; // Skip duplicate
+                    }
+
+                    const resultCard = document.createElement('div');
+                    resultCard.className = 'col-md-4 mb-3';
+                    resultCard.setAttribute('data-result-id', `${result.scraper}-${result.game_name}-${index}`);
+                    
+                    // Escape HTML for safe insertion in attributes
+                    const escapeHtml = (str) => {
+                        if (!str) return '';
+                        return String(str)
+                            .replace(/&/g, '&amp;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#39;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                    };
+                    
+                    const escapedUrl = escapeHtml(url);
+                    const escapedResultJson = escapeHtml(JSON.stringify(result));
+                    const escapedGameJson = escapeHtml(JSON.stringify(this.currentFanartSearchGame));
+                    
+                    resultCard.innerHTML = `
+                        <div class="card">
+                            <div class="card-body">
+                                <img src="${escapedUrl}" class="img-fluid rounded mb-2" style="width: 100%; height: 200px; object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" 
+                                     alt="Fanart" onerror="this.style.display='none'">
+                                <h6 class="card-title">${result.game_name}</h6>
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        <strong>Scraper:</strong> ${this.formatScraperLabel(result.scraper || 'Unknown')}<br>
+                                        <strong>System:</strong> ${result.platform || 'Unknown'}<br>
+                                        <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
+                                    </small>
+                                </p>
+                                <div class="image-metadata" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                    <div class="resolution-info">Loading...</div>
+                                    ${result.region ? `<div class="region-info">Region: ${result.region}</div>` : ''}
+                                </div>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-primary btn-sm fanart-download-btn" 
+                                            data-fanart-url="${escapedUrl}" 
+                                            data-fanart-result="${escapedResultJson}" 
+                                            data-fanart-game="${escapedGameJson}">
+                                        <i class="bi bi-download me-1"></i>Download This Fanart
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add click event listener to download button
+                    const downloadBtn = resultCard.querySelector('.fanart-download-btn');
+                    if (downloadBtn) {
+                        downloadBtn.addEventListener('click', () => {
+                            const fanartUrl = downloadBtn.getAttribute('data-fanart-url');
+                            const fanartResult = JSON.parse(downloadBtn.getAttribute('data-fanart-result'));
+                            const game = JSON.parse(downloadBtn.getAttribute('data-fanart-game'));
+                            this.downloadSingleFanartImage(fanartUrl, fanartResult, game);
+                        });
+                    }
+                    
+                    // Add image load handler to update resolution
+                    const img = resultCard.querySelector('img');
+                    if (img) {
+                        img.addEventListener('load', () => {
+                            const resolutionInfo = resultCard.querySelector('.resolution-info');
+                            if (resolutionInfo) {
+                                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                    resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
+                                } else {
+                                    resolutionInfo.textContent = 'Resolution: Unknown';
+                                }
+                            }
+                        });
+                        
+                        // Add hover preview functionality
+                        img.addEventListener('mouseenter', (e) => {
+                            this.showMediaHover(e, url, 'fanart', this.currentFanartSearchGame);
+                        });
+                        img.addEventListener('mouseleave', () => {
+                            this.hideMediaHover();
+                        });
+                    }
+                    
+                    container.appendChild(resultCard);
+                });
+            }
+        });
     }
 
     displayFanartSearchResults(results) {
@@ -37452,39 +37641,230 @@ class GameCollectionManager {
             this.showAlert('Please enter a game name', 'warning');
             return;
         }
-        
-        // Show loading
+
+        // Close any existing stream
+        if (this.currentMarqueeSearchStream) {
+            this.currentMarqueeSearchStream.close();
+            this.currentMarqueeSearchStream = null;
+        }
+
+        // Clear previous results
+        const container = document.getElementById('marqueeResultsContainer');
+        container.innerHTML = '';
+
+        // Show loading state
         document.getElementById('marqueeSearchLoading').style.display = 'block';
-        document.getElementById('marqueeSearchResults').style.display = 'none';
-        
+        document.getElementById('marqueeSearchResults').style.display = 'block';
+
+        // Create search data
+        const searchData = {
+            game_name: gameName,
+            system_name: this.currentMarqueeSearchSystem,
+            scraper: selectedScraper,
+            direct_match: directMatch
+        };
+
+        // Use fetch with streaming
         try {
-            const response = await fetch('/api/marquee-search', {
+            const response = await fetch('/api/marquee-search/stream', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    game_name: gameName,
-                    system_name: this.currentMarqueeSearchSystem,
-                    scraper: selectedScraper,
-                    direct_match: directMatch
-                })
+                body: JSON.stringify(searchData)
             });
-            
-            const result = await response.json();
-            
-            // Hide loading
-            document.getElementById('marqueeSearchLoading').style.display = 'none';
-            
-            if (response.ok && result.success) {
-                this.displayMarqueeSearchResults(result.results);
-            } else {
-                this.showAlert(`Error searching marquee: ${result.error || 'Unknown error'}`, 'error');
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            this.handleMarqueeSearchStreamEvent(data);
+                        } catch (e) {
+                            console.error('Error parsing SSE data:', e);
+                        }
+                    }
+                }
+            }
+
+            // Process remaining buffer
+            if (buffer.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(buffer.slice(6));
+                    this.handleMarqueeSearchStreamEvent(data);
+                } catch (e) {
+                    console.error('Error parsing final SSE data:', e);
+                }
+            }
+
         } catch (error) {
-            document.getElementById('marqueeSearchLoading').style.display = 'none';
+            console.error('Error in marquee search stream:', error);
             this.showAlert('Error searching marquee', 'error');
+            document.getElementById('marqueeSearchLoading').style.display = 'none';
         }
+    }
+
+    handleMarqueeSearchStreamEvent(data) {
+        const container = document.getElementById('marqueeResultsContainer');
+        
+        switch (data.type) {
+            case 'connected':
+                console.log('Marquee search connected:', data.message);
+                break;
+            
+            case 'scraper_start':
+                console.log(`Starting scraper: ${data.scraper}`);
+                break;
+            
+            case 'results':
+                // Append results from this scraper
+                if (data.results && data.results.length > 0) {
+                    this.appendMarqueeSearchResults(data.results);
+                }
+                break;
+            
+            case 'scraper_complete':
+                console.log(`Scraper ${data.scraper} completed with ${data.count} results`);
+                break;
+            
+            case 'scraper_error':
+                console.error(`Error from scraper ${data.scraper}:`, data.error);
+                break;
+            
+            case 'completed':
+                // All scrapers finished
+                document.getElementById('marqueeSearchLoading').style.display = 'none';
+                if (data.total_found === 0) {
+                    container.innerHTML = '<div class="col-12"><div class="alert alert-info">No marquee found.</div></div>';
+                }
+                break;
+            
+            case 'error':
+                this.showAlert(`Error: ${data.message}`, 'error');
+                document.getElementById('marqueeSearchLoading').style.display = 'none';
+                break;
+        }
+    }
+
+    appendMarqueeSearchResults(results) {
+        const container = document.getElementById('marqueeResultsContainer');
+        
+        results.forEach(result => {
+            if (result.marquee_urls && result.marquee_urls.length > 0) {
+                result.marquee_urls.forEach((url, index) => {
+                    // Check if this result already exists (avoid duplicates)
+                    const existingCards = container.querySelectorAll(`[data-result-id="${result.scraper}-${result.game_name}-${index}"]`);
+                    if (existingCards.length > 0) {
+                        return; // Skip duplicate
+                    }
+
+                    const resultCard = document.createElement('div');
+                    resultCard.className = 'col-md-4 col-lg-3 mb-3';
+                    resultCard.setAttribute('data-result-id', `${result.scraper}-${result.game_name}-${index}`);
+                    
+                    // Escape HTML for safe insertion in attributes
+                    const escapeHtml = (str) => {
+                        if (!str) return '';
+                        return String(str)
+                            .replace(/&/g, '&amp;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#39;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                    };
+                    
+                    const escapedUrl = escapeHtml(url);
+                    const escapedResultJson = escapeHtml(JSON.stringify(result));
+                    const escapedGameJson = escapeHtml(JSON.stringify(this.currentMarqueeSearchGame));
+                    
+                    resultCard.innerHTML = `
+                        <div class="card h-100">
+                            <div class="card-img-top-container" style="height: 200px; overflow: hidden; background-color: ${this.getMediaCardBackgroundColor()};">
+                                <img src="${escapedUrl}" class="card-img-top" style="object-fit: contain; height: 100%; width: 100%;" 
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                <div class="d-flex align-items-center justify-content-center h-100" style="display: none;">
+                                    <div class="text-muted text-center">
+                                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                                        <div class="small">Image not available</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <h6 class="card-title">${result.game_name || 'Unknown Game'}</h6>
+                                <p class="card-text small text-muted flex-grow-1">
+                                    <strong>Scraper:</strong> ${this.formatScraperLabel(result.scraper || 'Unknown')}<br>
+                                    <strong>System:</strong> ${result.platform || 'Unknown'}<br>
+                                    <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
+                                </p>
+                                <div class="image-metadata" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                    <div class="resolution-info">Loading...</div>
+                                    ${result.region ? `<div class="region-info">Region: ${result.region}</div>` : ''}
+                                </div>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-primary btn-sm marquee-download-btn" 
+                                            data-marquee-url="${escapedUrl}" 
+                                            data-marquee-result="${escapedResultJson}" 
+                                            data-marquee-game="${escapedGameJson}">
+                                        <i class="bi bi-download me-1"></i>Download This Marquee
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add click event listener to download button
+                    const downloadBtn = resultCard.querySelector('.marquee-download-btn');
+                    if (downloadBtn) {
+                        downloadBtn.addEventListener('click', () => {
+                            const marqueeUrl = downloadBtn.getAttribute('data-marquee-url');
+                            const marqueeResult = JSON.parse(downloadBtn.getAttribute('data-marquee-result'));
+                            const game = JSON.parse(downloadBtn.getAttribute('data-marquee-game'));
+                            this.downloadSingleMarqueeImage(marqueeUrl, marqueeResult, game);
+                        });
+                    }
+                    
+                    // Add image load handler to update resolution
+                    const img = resultCard.querySelector('img');
+                    if (img) {
+                        img.addEventListener('load', () => {
+                            const resolutionInfo = resultCard.querySelector('.resolution-info');
+                            if (resolutionInfo) {
+                                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                    resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
+                                } else {
+                                    resolutionInfo.textContent = 'Resolution: Unknown';
+                                }
+                            }
+                        });
+                        
+                        // Add hover preview functionality
+                        img.addEventListener('mouseenter', (e) => {
+                            this.showMediaHover(e, url, 'marquee', this.currentMarqueeSearchGame);
+                        });
+                        img.addEventListener('mouseleave', () => {
+                            this.hideMediaHover();
+                        });
+                    }
+                    
+                    container.appendChild(resultCard);
+                });
+            }
+        });
     }
 
     displayMarqueeSearchResults(results) {
@@ -39392,25 +39772,25 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-            if (modalBody.innerHTML && modalBody.innerHTML.trim().length > 0) {
-                // Verify form exists in the backup
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = modalBody.innerHTML;
-                if (tempDiv.querySelector('#editGameForm')) {
-                    window.gameManager.modalBodyBackupHTML = modalBody.innerHTML;
-                } else {
-                    console.error('Modal body backup created but form not found in backup!');
-                    if (attempt < 5) {
-                        setTimeout(() => createBackup(attempt + 1), 200);
-                    }
-                }
+        if (modalBody.innerHTML && modalBody.innerHTML.trim().length > 0) {
+            // Verify form exists in the backup
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = modalBody.innerHTML;
+            if (tempDiv.querySelector('#editGameForm')) {
+                window.gameManager.modalBodyBackupHTML = modalBody.innerHTML;
             } else {
+                console.error('Modal body backup created but form not found in backup!');
                 if (attempt < 5) {
                     setTimeout(() => createBackup(attempt + 1), 200);
-                } else {
-                    console.error('Failed to create modal body backup - modal body is empty after 5 attempts');
                 }
             }
+        } else {
+            if (attempt < 5) {
+                setTimeout(() => createBackup(attempt + 1), 200);
+            } else {
+                console.error('Failed to create modal body backup - modal body is empty after 5 attempts');
+            }
+        }
     };
     
     // Start backup creation
