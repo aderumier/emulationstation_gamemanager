@@ -12740,12 +12740,24 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
             if not igdb_service:
                 print(f"🔧 DEBUG: IGDB service not available")
                 return results
-            print(f"🔧 DEBUG: IGDB service loaded, searching for '{game_name}' with direct_match={direct_match}")
+            print(f"🔧 DEBUG: IGDB service loaded, searching for '{game_name}' with direct_match={direct_match}, media_type='{media_type}'")
 
             # Get IGDB field name from config mapping
+            # Structure: {gamelist_field: igdb_type} e.g., {'fanart': 'artworks', 'marquee': 'logos'}
             igdb_field = None
-            if scraper_config and 'image_type_mappings' in scraper_config:
-                igdb_field = scraper_config['image_type_mappings'].get(media_type)
+            if scraper_config:
+                print(f"🔧 DEBUG: IGDB scraper_config keys: {list(scraper_config.keys())}")
+                if 'image_type_mappings' in scraper_config:
+                    print(f"🔧 DEBUG: IGDB image_type_mappings: {scraper_config['image_type_mappings']}")
+                    igdb_field = scraper_config['image_type_mappings'].get(media_type)
+                    print(f"🔧 DEBUG: IGDB image_type_mappings for '{media_type}': {igdb_field}")
+                    if not igdb_field:
+                        print(f"🔧 DEBUG: WARNING - No IGDB mapping found for media_type '{media_type}'")
+                        print(f"🔧 DEBUG: Available mappings: {list(scraper_config['image_type_mappings'].keys())}")
+                else:
+                    print(f"🔧 DEBUG: WARNING - No image_type_mappings found in IGDB scraper_config")
+            else:
+                print(f"🔧 DEBUG: WARNING - scraper_config is None or empty for IGDB")
 
             from game_utils import normalize_game_name
             if direct_match:
@@ -12808,23 +12820,40 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                     urls = []
                     seen_image_ids = set()  # Track seen image IDs to avoid duplicates
                     
-                    if igdb_field and igdb_field in best_game and best_game[igdb_field]:
-                        print(f"🔧 DEBUG: IGDB {igdb_field} type: {type(best_game[igdb_field])}, value: {best_game[igdb_field]}")
-                        if isinstance(best_game[igdb_field], dict):
-                            # New format: dict with image_id as key
-                            print(f"🔧 DEBUG: IGDB {igdb_field} is a dict with {len(best_game[igdb_field])} keys")
-                            for image_id in best_game[igdb_field].keys():
-                                print(f"🔧 DEBUG: Processing image_id: {image_id} (type: {type(image_id)})")
-                                if image_id not in seen_image_ids and isinstance(image_id, str):
-                                    seen_image_ids.add(image_id)
-                                    url = normalize_igdb_url(image_id)
-                                    print(f"🔧 DEBUG: Generated URL: {url}")
-                                    urls.append(url)
+                    if igdb_field:
+                        if igdb_field in best_game:
+                            print(f"🔧 DEBUG: IGDB game has field '{igdb_field}': {best_game[igdb_field] is not None}")
+                            if best_game[igdb_field]:
+                                print(f"🔧 DEBUG: IGDB {igdb_field} type: {type(best_game[igdb_field])}, value: {best_game[igdb_field]}")
+                                if isinstance(best_game[igdb_field], dict):
+                                    # New format: dict with image_id as key
+                                    print(f"🔧 DEBUG: IGDB {igdb_field} is a dict with {len(best_game[igdb_field])} keys")
+                                    for image_id in best_game[igdb_field].keys():
+                                        print(f"🔧 DEBUG: Processing image_id: {image_id} (type: {type(image_id)})")
+                                        if image_id not in seen_image_ids and isinstance(image_id, str):
+                                            seen_image_ids.add(image_id)
+                                            url = normalize_igdb_url(image_id)
+                                            print(f"🔧 DEBUG: Generated URL: {url}")
+                                            urls.append(url)
+                                        else:
+                                            print(f"🔧 DEBUG: Skipping invalid image_id: {image_id} (type: {type(image_id)})")
+                                elif isinstance(best_game[igdb_field], str):
+                                    # Old format: string image_id (e.g., 'coaaw2' for cover)
+                                    print(f"🔧 DEBUG: IGDB {igdb_field} is a string (old format): {best_game[igdb_field]}")
+                                    image_id = best_game[igdb_field]
+                                    if image_id not in seen_image_ids:
+                                        seen_image_ids.add(image_id)
+                                        url = normalize_igdb_url(image_id)
+                                        print(f"🔧 DEBUG: Generated URL: {url}")
+                                        urls.append(url)
                                 else:
-                                    print(f"🔧 DEBUG: Skipping invalid image_id: {image_id} (type: {type(image_id)})")
+                                    print(f"🔧 DEBUG: IGDB {igdb_field} is unexpected type: {type(best_game[igdb_field])}")
+                            else:
+                                print(f"🔧 DEBUG: IGDB field '{igdb_field}' exists but is empty/None")
                         else:
-                            print(f"🔧 DEBUG: IGDB {igdb_field} is not a dict, it's: {type(best_game[igdb_field])}")
-                            print(f"🔧 DEBUG: This means the database still has old format data!")
+                            print(f"🔧 DEBUG: IGDB game does not have field '{igdb_field}'. Available fields: {list(best_game.keys())}")
+                    else:
+                        print(f"🔧 DEBUG: No IGDB field mapping for media_type '{media_type}', cannot process")
                     
                     if urls:
                         platform_name = 'Unknown'
@@ -12876,22 +12905,36 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                 game['_similarity_score'] = similarity
                                 similar_games.append(game)
                 similar_games.sort(key=lambda x: x.get('_similarity_score', 0), reverse=True)
-                # Get IGDB field name from config mapping
-                igdb_field = None
-                if scraper_config and 'image_type_mappings' in scraper_config:
-                    igdb_field = scraper_config['image_type_mappings'].get(media_type)
+                # Get IGDB field name from config mapping (re-check in case it wasn't set earlier)
+                if not igdb_field:
+                    if scraper_config and 'image_type_mappings' in scraper_config:
+                        igdb_field = scraper_config['image_type_mappings'].get(media_type)
+                        print(f"🔧 DEBUG: IGDB similarity search - image_type_mappings for '{media_type}': {igdb_field}")
+                    if not igdb_field:
+                        print(f"🔧 DEBUG: WARNING - No IGDB mapping found for media_type '{media_type}' in similarity search")
                 
                 for game in similar_games[:50]:
                     urls = []
                     seen_image_ids = set()  # Track seen image IDs to avoid duplicates
                     
-                    if igdb_field and igdb_field in game and game[igdb_field]:
-                        if isinstance(game[igdb_field], dict):
-                            # New format: dict with image_id as key
-                            for image_id in game[igdb_field].keys():
-                                if image_id not in seen_image_ids and isinstance(image_id, str):
-                                    seen_image_ids.add(image_id)
-                                    urls.append(normalize_igdb_url(image_id))
+                    if igdb_field:
+                        if igdb_field in game:
+                            if game[igdb_field]:
+                                if isinstance(game[igdb_field], dict):
+                                    # New format: dict with image_id as key
+                                    for image_id in game[igdb_field].keys():
+                                        if image_id not in seen_image_ids and isinstance(image_id, str):
+                                            seen_image_ids.add(image_id)
+                                            urls.append(normalize_igdb_url(image_id))
+                                elif isinstance(game[igdb_field], str):
+                                    # Old format: string image_id (e.g., 'coaaw2' for cover)
+                                    image_id = game[igdb_field]
+                                    if image_id not in seen_image_ids:
+                                        seen_image_ids.add(image_id)
+                                        urls.append(normalize_igdb_url(image_id))
+                        else:
+                            # Skip games without the required field
+                            continue
                     if urls:
                         platform_name = 'Unknown'
                         if 'platform' in game and game['platform']:
