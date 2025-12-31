@@ -12713,8 +12713,20 @@ def download_multiscraper_media_endpoint():
 
 
 def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, media_type):
-    """Common helper to search media by scraper for a given media_type ('fanart'|'marquee').
-    Returns a list of standardized result dicts.
+    """Common helper to search media by scraper for a given media_type (e.g., 'fanart', 'marquee', 'boxart', etc.).
+    
+    Supported scrapers: igdb, steam, steamgriddb, screenscraper, launchbox, mobygames, custom, emumovies, local_images
+    
+    Returns a list of standardized result dicts with the following structure:
+    {
+        'scraper': scraper_name,
+        'game_name': game name,
+        'game_id': game identifier,
+        'similarity_score': similarity score (0.0-1.0),
+        '{media_type}_urls': list of URLs,
+        'region': region name,
+        'platform': platform/system name
+    }
     """
     results = []
 
@@ -12729,6 +12741,11 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 print(f"🔧 DEBUG: IGDB service not available")
                 return results
             print(f"🔧 DEBUG: IGDB service loaded, searching for '{game_name}' with direct_match={direct_match}")
+
+            # Get IGDB field name from config mapping
+            igdb_field = None
+            if scraper_config and 'image_type_mappings' in scraper_config:
+                igdb_field = scraper_config['image_type_mappings'].get(media_type)
 
             from game_utils import normalize_game_name
             if direct_match:
@@ -12761,10 +12778,8 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 
                 for game_id, game, platform_id in matching_games:
                     has_media = False
-                    if media_type == 'fanart':
-                        has_media = 'artworks' in game and game['artworks'] and isinstance(game['artworks'], dict) and len(game['artworks']) > 0
-                    elif media_type == 'marquee':
-                        has_media = 'logos' in game and game['logos'] and isinstance(game['logos'], dict) and len(game['logos']) > 0
+                    if igdb_field and igdb_field in game:
+                        has_media = game[igdb_field] and isinstance(game[igdb_field], dict) and len(game[igdb_field]) > 0
                     
                     if has_media:
                         best_game = game
@@ -12792,39 +12807,24 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                     print(f"🔧 DEBUG: About to process {media_type} for game {best_game.get('name', 'Unknown')}")
                     urls = []
                     seen_image_ids = set()  # Track seen image IDs to avoid duplicates
-                                
-                    if media_type == 'fanart':
-                        # For fanart, use artworks
-                        if 'artworks' in best_game and best_game['artworks']:
-                            print(f"🔧 DEBUG: IGDB artworks type: {type(best_game['artworks'])}, value: {best_game['artworks']}")
-                            if isinstance(best_game['artworks'], dict):
-                                # New format: dict with image_id as key
-                                print(f"🔧 DEBUG: IGDB artworks is a dict with {len(best_game['artworks'])} keys")
-                                for image_id in best_game['artworks'].keys():
-                                    print(f"🔧 DEBUG: Processing image_id: {image_id} (type: {type(image_id)})")
-                                    if image_id not in seen_image_ids and isinstance(image_id, str):
-                                        seen_image_ids.add(image_id)
-                                        url = normalize_igdb_url(image_id)
-                                        print(f"🔧 DEBUG: Generated URL: {url}")
-                                        urls.append(url)
-                                    else:
-                                        print(f"🔧 DEBUG: Skipping invalid image_id: {image_id} (type: {type(image_id)})")
-                            else:
-                                print(f"🔧 DEBUG: IGDB artworks is not a dict, it's: {type(best_game['artworks'])}")
-                                print(f"🔧 DEBUG: This means the database still has old format data!")
-                    else:  # marquee
-                        # For marquee, use logos field (not artworks)
-                        if 'logos' in best_game and best_game['logos']:
-                            print(f"🔧 DEBUG: IGDB logos type: {type(best_game['logos'])}, value: {best_game['logos']}")
-                            if isinstance(best_game['logos'], dict):
-                                # New format: dict with image_id as key
-                                for image_id in best_game['logos'].keys():
-                                    print(f"🔧 DEBUG: Processing logo image_id: {image_id} (type: {type(image_id)})")
-                                    if image_id not in seen_image_ids and isinstance(image_id, str):
-                                        seen_image_ids.add(image_id)
-                                        urls.append(normalize_igdb_url(image_id))
-                                    else:
-                                        print(f"🔧 DEBUG: Skipping invalid logo image_id: {image_id} (type: {type(image_id)})")
+                    
+                    if igdb_field and igdb_field in best_game and best_game[igdb_field]:
+                        print(f"🔧 DEBUG: IGDB {igdb_field} type: {type(best_game[igdb_field])}, value: {best_game[igdb_field]}")
+                        if isinstance(best_game[igdb_field], dict):
+                            # New format: dict with image_id as key
+                            print(f"🔧 DEBUG: IGDB {igdb_field} is a dict with {len(best_game[igdb_field])} keys")
+                            for image_id in best_game[igdb_field].keys():
+                                print(f"🔧 DEBUG: Processing image_id: {image_id} (type: {type(image_id)})")
+                                if image_id not in seen_image_ids and isinstance(image_id, str):
+                                    seen_image_ids.add(image_id)
+                                    url = normalize_igdb_url(image_id)
+                                    print(f"🔧 DEBUG: Generated URL: {url}")
+                                    urls.append(url)
+                                else:
+                                    print(f"🔧 DEBUG: Skipping invalid image_id: {image_id} (type: {type(image_id)})")
+                        else:
+                            print(f"🔧 DEBUG: IGDB {igdb_field} is not a dict, it's: {type(best_game[igdb_field])}")
+                            print(f"🔧 DEBUG: This means the database still has old format data!")
                     
                     if urls:
                         platform_name = 'Unknown'
@@ -12876,28 +12876,22 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                 game['_similarity_score'] = similarity
                                 similar_games.append(game)
                 similar_games.sort(key=lambda x: x.get('_similarity_score', 0), reverse=True)
+                # Get IGDB field name from config mapping
+                igdb_field = None
+                if scraper_config and 'image_type_mappings' in scraper_config:
+                    igdb_field = scraper_config['image_type_mappings'].get(media_type)
+                
                 for game in similar_games[:50]:
                     urls = []
                     seen_image_ids = set()  # Track seen image IDs to avoid duplicates
                     
-                    if media_type == 'fanart':
-                        # For fanart, use artworks
-                        if 'artworks' in game and game['artworks']:
-                            if isinstance(game['artworks'], dict):
-                                # New format: dict with image_id as key
-                                for image_id in game['artworks'].keys():
-                                    if image_id not in seen_image_ids and isinstance(image_id, str):
-                                        seen_image_ids.add(image_id)
-                                        urls.append(normalize_igdb_url(image_id))
-                    else:  # marquee
-                        # For marquee, use logos field (not artworks)
-                        if 'logos' in game and game['logos']:
-                            if isinstance(game['logos'], dict):
-                                # New format: dict with image_id as key
-                                for image_id in game['logos'].keys():
-                                    if image_id not in seen_image_ids and isinstance(image_id, str):
-                                        seen_image_ids.add(image_id)
-                                        urls.append(normalize_igdb_url(image_id))
+                    if igdb_field and igdb_field in game and game[igdb_field]:
+                        if isinstance(game[igdb_field], dict):
+                            # New format: dict with image_id as key
+                            for image_id in game[igdb_field].keys():
+                                if image_id not in seen_image_ids and isinstance(image_id, str):
+                                    seen_image_ids.add(image_id)
+                                    urls.append(normalize_igdb_url(image_id))
                     if urls:
                         platform_name = 'Unknown'
                         if 'platform' in game and game['platform']:
@@ -12937,15 +12931,25 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                     g['similarity_score'] = 1.0
             else:
                 games = steam_service.find_similarity_matches(game_name, [], limit=50)
+            # Get Steam type from config mapping
+            steam_type = None
+            if scraper_config and 'image_type_mappings' in scraper_config:
+                steam_type = scraper_config['image_type_mappings'].get(media_type)
+            
+            # Steam URL patterns based on type
+            steam_url_patterns = {
+                'hero': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{{steam_id}}/library_hero.jpg",
+                'logo': f"https://cdn.akamai.steamstatic.com/steam/apps/{{steam_id}}/logo.png",
+                'capsule': f"https://cdn.akamai.steamstatic.com/steam/apps/{{steam_id}}/header.jpg",
+                'screenshot': f"https://cdn.akamai.steamstatic.com/steam/apps/{{steam_id}}/ss_0.jpg"
+            }
+            
             for g in games:
                 similarity_score = g.get('similarity_score', 0.0)
                 if similarity_score > 0.85:
                     steam_id = g.get('appid')
-                    if steam_id:
-                        if media_type == 'fanart':
-                            url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
-                        else:
-                            url = f"https://cdn.akamai.steamstatic.com/steam/apps/{steam_id}/logo.png"
+                    if steam_id and steam_type and steam_type in steam_url_patterns:
+                        url = steam_url_patterns[steam_type].format(steam_id=steam_id)
                         results.append({
                             'scraper': 'steam',
                             'game_name': g.get('name', ''),
@@ -12970,24 +12974,29 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 if gid and gid not in seen:
                     seen.add(gid)
                     unique_games.append(g)
-            media_key = 'heroes' if media_type == 'fanart' else 'logos'
-            for g in unique_games:
-                gid = g.get('id')
-                if not gid:
-                    continue
-                media = run_async_safely(sgdb_service.get_steamgrid_media(gid, [media_key], api_key=api_key))
-                if media and media_key in media and media[media_key]:
-                    for item in media[media_key]:
-                        url = item.get('url', '')
-                        if url:
-                            results.append({
-                                'scraper': 'steamgriddb',
-                                'game_name': g.get('name', ''),
-                                'game_id': gid,
-                                'similarity_score': 1.0,
-                                f'{media_type}_urls': [url],
-                                'region': 'Unknown'
-                            })
+            # Get SteamGridDB media key from config mapping
+            steamgriddb_key = None
+            if scraper_config and 'image_type_mappings' in scraper_config:
+                steamgriddb_key = scraper_config['image_type_mappings'].get(media_type)
+            
+            if steamgriddb_key:
+                for g in unique_games:
+                    gid = g.get('id')
+                    if not gid:
+                        continue
+                    media = run_async_safely(sgdb_service.get_steamgrid_media(gid, [steamgriddb_key], api_key=api_key))
+                    if media and steamgriddb_key in media and media[steamgriddb_key]:
+                        for item in media[steamgriddb_key]:
+                            url = item.get('url', '')
+                            if url:
+                                results.append({
+                                    'scraper': 'steamgriddb',
+                                    'game_name': g.get('name', ''),
+                                    'game_id': gid,
+                                    'similarity_score': 1.0,
+                                    f'{media_type}_urls': [url],
+                                    'region': 'Unknown'
+                                })
 
         elif scraper_name == 'screenscraper':
             from screenscraper_service import ScreenScraperService
@@ -13017,12 +13026,16 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                         continue
                     urls = []
                     if 'medias' in fd and fd['medias']:
+                        # Get the screenscraper media types for this media_type from config
+                        screenscraper_types = []
+                        if scraper_config and 'image_type_mappings' in scraper_config:
+                            screenscraper_types = scraper_config['image_type_mappings'].get(media_type, [])
+                        
                         for media in fd['medias']:
                             if not isinstance(media, dict):
                                 continue
-                            if media_type == 'fanart' and media.get('type') == 'fanart' and media.get('url'):
-                                urls.append(media['url'])
-                            if media_type == 'marquee' and media.get('type') == 'wheel' and media.get('url'):
+                            media_type_ss = media.get('type')
+                            if media_type_ss in screenscraper_types and media.get('url'):
                                 urls.append(media['url'])
                     if urls:
                         results.append({
@@ -13121,6 +13134,209 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 except Exception:
                     continue
             results.extend(all_lb)
+
+        elif scraper_name == 'mobygames':
+            from game_utils import normalize_game_name, calculate_similarity
+            systems_config = load_systems_config()
+            system_config = systems_config.get(system_name, {})
+            mobygames_system = system_config.get('mobygames')
+            if not mobygames_system:
+                return results
+            
+            mobygames_service = load_mobygames_service()
+            if not mobygames_service:
+                return results
+            
+            # Get mobygames field name from config mapping
+            mobygames_types = None
+            if scraper_config and 'image_type_mappings' in scraper_config:
+                mobygames_types = scraper_config['image_type_mappings'].get(media_type, [])
+            
+            if not mobygames_types:
+                return results
+            
+            # Search for games
+            if direct_match:
+                games = mobygames_service.search_games(system_name, game_name, limit=10)
+                for g in games:
+                    g['similarity_score'] = 1.0
+            else:
+                games = mobygames_service.search_games(system_name, game_name, limit=50)
+            
+            # Get media fields for each game
+            platform_mapping = load_mobygames_platform_mapping()
+            for g in games:
+                similarity_score = g.get('similarity_score', g.get('score', 0.0))
+                if similarity_score > 0.85:
+                    game_id = g.get('id')
+                    if not game_id:
+                        continue
+                    
+                    # Extract media fields using the same logic as manual scraping
+                    image_type_mappings = {media_type: mobygames_types}
+                    media_fields = extract_mobygames_media_fields(g, system_name, image_type_mappings, platform_mapping, mobygames_service)
+                    
+                    if media_type in media_fields and media_fields[media_type]:
+                        urls = []
+                        for media_item in media_fields[media_type]:
+                            # Use page_url for full-size download, or thumbnail_url for preview
+                            url = media_item.get('page_url') or media_item.get('url', '')
+                            if url:
+                                urls.append(url)
+                        
+                        if urls:
+                            results.append({
+                                'scraper': 'mobygames',
+                                'game_name': g.get('title', ''),
+                                'game_id': game_id,
+                                'similarity_score': similarity_score,
+                                f'{media_type}_urls': urls,
+                                'region': 'Unknown',
+                                'platform': system_name
+                            })
+
+        elif scraper_name == 'custom':
+            systems_config = load_systems_config()
+            system_config = systems_config.get(system_name, {})
+            custom_database = system_config.get('custom', '')
+            if not custom_database:
+                return results
+            
+            service = load_custom_scraper_service()
+            if not service or custom_database not in service.databases:
+                return results
+            
+            # Get custom field name from config mapping
+            # Structure: {custom_field: gamelist_field}
+            custom_field = None
+            if scraper_config and 'image_type_mappings' in scraper_config:
+                # Find the custom_field that maps to this media_type
+                for cf, gf in scraper_config['image_type_mappings'].items():
+                    if gf == media_type:
+                        custom_field = cf
+                        break
+            
+            if not custom_field:
+                return results
+            
+            # Search for games
+            if direct_match:
+                matches = service.find_best_matches(custom_database, game_name, max_results=10, min_similarity=0.95)
+            else:
+                matches = service.find_best_matches(custom_database, game_name, max_results=50, min_similarity=0.7)
+            
+            for match in matches:
+                similarity_score = match.get('similarity', 0.0)
+                if similarity_score > 0.85:
+                    game_id = match.get('game_id', '')
+                    if not game_id:
+                        continue
+                    
+                    # Get media URL from custom database
+                    media_url = service.get_media_url(custom_database, game_id, custom_field)
+                    if media_url:
+                        results.append({
+                            'scraper': 'custom',
+                            'game_name': match.get('name', ''),
+                            'game_id': format_customid(custom_database, game_id),
+                            'similarity_score': similarity_score,
+                            f'{media_type}_urls': [media_url],
+                            'region': 'Unknown',
+                            'platform': system_name
+                        })
+
+        elif scraper_name == 'emumovies':
+            systems_config = load_systems_config()
+            system_config = systems_config.get(system_name, {})
+            emumovies_system = system_config.get('emumovies', '')
+            if not emumovies_system:
+                return results
+            
+            # Load EmuMovies index if not loaded
+            global emumovies_index
+            if not emumovies_index:
+                load_emumovies_index()
+            
+            if not emumovies_index or emumovies_system not in emumovies_index:
+                return results
+            
+            # Get emumovies types from config mapping
+            emumovies_types = None
+            if scraper_config and 'image_type_mappings' in scraper_config:
+                emumovies_types = scraper_config['image_type_mappings'].get(media_type, [])
+            
+            if not emumovies_types:
+                return results
+            
+            if not isinstance(emumovies_types, list):
+                emumovies_types = [emumovies_types]
+            
+            # Normalize game name for searching
+            from game_utils import normalize_game_name
+            normalized_gamename = normalize_game_name(game_name, remove_paranthesis=True)
+            
+            # Search in EmuMovies index
+            system_index = emumovies_index[emumovies_system]
+            found_files = []
+            seen_files = set()
+            
+            for emumovies_type in emumovies_types:
+                if emumovies_type not in system_index:
+                    continue
+                
+                media_type_index = system_index[emumovies_type]
+                if not isinstance(media_type_index, dict) or len(media_type_index) == 0:
+                    continue
+                
+                # Try normalized gamename
+                matched_value = None
+                if normalized_gamename and normalized_gamename in media_type_index:
+                    matched_value = media_type_index[normalized_gamename]
+                
+                if matched_value:
+                    # Handle array of files
+                    if isinstance(matched_value, list):
+                        for filename in matched_value:
+                            file_key = f"{emumovies_type}:{filename}"
+                            if file_key not in seen_files:
+                                seen_files.add(file_key)
+                                from urllib.parse import quote
+                                encoded_filename = quote(filename)
+                                download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
+                                found_files.append({
+                                    'url': download_url,
+                                    'filename': filename,
+                                    'emumovies_type': emumovies_type,
+                                    'emumovies_system': emumovies_system
+                                })
+                    else:
+                        # Single file
+                        filename = matched_value
+                        file_key = f"{emumovies_type}:{filename}"
+                        if file_key not in seen_files:
+                            seen_files.add(file_key)
+                            from urllib.parse import quote
+                            encoded_filename = quote(matched_value)
+                            download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
+                            found_files.append({
+                                'url': download_url,
+                                'filename': matched_value,
+                                'emumovies_type': emumovies_type,
+                                'emumovies_system': emumovies_system
+                            })
+            
+            if found_files:
+                urls = [f.get('url', '') for f in found_files if f.get('url')]
+                if urls:
+                    results.append({
+                        'scraper': 'emumovies',
+                        'game_name': game_name,
+                        'game_id': normalized_gamename,
+                        'similarity_score': 1.0,
+                        f'{media_type}_urls': urls,
+                        'region': 'Unknown',
+                        'platform': system_name
+                    })
 
     except Exception as e:
         print(f"🔧 DEBUG: Error in search_media_by_scraper for {scraper_name}: {e}")
@@ -19274,11 +19490,17 @@ async def scrape_screenscraper_manual(game, system_name, system_config, target_m
                         break
                 
                 # Fallback heuristics if no mapping found
+                # Only use fallbacks for well-known ScreenScraper types that don't have mappings
                 if not mapped_field:
                     if media_type in ['ss', 'sstitle']:
                         mapped_field = 'image'
-                    elif media_type in ['screenmarquee', 'fanart']:
+                    elif media_type == 'screenmarquee':
+                        # screenmarquee is a ScreenScraper-specific type that could map to marquee
+                        # But prefer using image_type_mappings configuration
                         mapped_field = 'marquee'
+                    elif media_type == 'fanart':
+                        # fanart should map to fanart, not marquee
+                        mapped_field = 'fanart'
                     elif media_type in ['video', 'video-normalized']:
                         mapped_field = 'video'
                 
