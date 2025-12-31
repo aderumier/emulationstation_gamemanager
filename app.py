@@ -12791,7 +12791,13 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 for game_id, game, platform_id in matching_games:
                     has_media = False
                     if igdb_field and igdb_field in game:
-                        has_media = game[igdb_field] and isinstance(game[igdb_field], dict) and len(game[igdb_field]) > 0
+                        field_value = game[igdb_field]
+                        # Check both old format (string) and new format (dict)
+                        if field_value:
+                            if isinstance(field_value, dict):
+                                has_media = len(field_value) > 0
+                            elif isinstance(field_value, str):
+                                has_media = True  # Old format: string image_id
                     
                     if has_media:
                         best_game = game
