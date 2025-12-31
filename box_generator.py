@@ -992,24 +992,31 @@ class BoxGenerator:
                 except Exception as e:
                     logging.warning(f"Could not remove temp file {temp_file}: {e}")
 
-    def generate_spine_background(self, box2d_path, spine_width, output_path, debug=False, crop_width=None):
+    def generate_spine_background(self, box2d_path, spine_width, output_path, debug=False, crop_width=None, spine_color=None):
         """
-        Generate a spine background by cropping the left side of a 2D box and mirroring it.
+        Generate a spine background by cropping the left side of a 2D box and mirroring it,
+        or by creating a solid color background.
         
         Args:
-            box2d_path: Path to the 2D box image
+            box2d_path: Path to the 2D box image (required if spine_color not provided)
             spine_width: Width of the spine in template coordinates (will be used directly as pixel width if crop_width not provided)
             output_path: Path where the generated spine will be saved
             debug: If True, log the command
             crop_width: Optional width of the 2D box crop in pixels (defaults to spine_width, min 1, max box_width)
+            spine_color: Optional hex color (e.g., "#FF0000") - if provided, creates solid color spine
         """
-        if not os.path.exists(box2d_path):
-            raise Exception(f"2D box image not found: {box2d_path}")
-        
         if spine_width <= 0:
             raise Exception(f"Invalid spine width: {spine_width}")
         
-        # Get the dimensions of the 2D box
+        # Get the dimensions of the 2D box (needed for height even if using color)
+        if spine_color:
+            # If using color, we still need box2d_path to get the height
+            if not os.path.exists(box2d_path):
+                raise Exception(f"2D box image not found: {box2d_path} (needed for dimensions)")
+        else:
+            if not os.path.exists(box2d_path):
+                raise Exception(f"2D box image not found: {box2d_path}")
+        
         cmd_info = [
             'identify',
             '-format', '%wx%h',
@@ -1020,32 +1027,51 @@ class BoxGenerator:
         box_width = int(box_dims[0])
         box_height = int(box_dims[1])
         
-        # Use crop_width if provided and not empty/None, otherwise default to spine_width
-        if crop_width is None or crop_width == '' or crop_width == 0:
-            crop_width = int(spine_width)
+        # If spine_color is provided, create a solid color image
+        if spine_color:
+            # Validate color format (should be hex like #FF0000 or #ff0000)
+            if not spine_color.startswith('#'):
+                spine_color = '#' + spine_color
+            # Create solid color image
+            cmd = [
+                'convert',
+                '-size', f'{int(spine_width)}x{box_height}',
+                f'xc:{spine_color}',
+                output_path
+            ]
+            
+            if debug:
+                logging.info(f"Generating solid color spine background: spine_width={spine_width}, box_height={box_height}, color={spine_color}")
+                logging.info(f"Generating spine background: {' '.join(cmd)}")
+            
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
         else:
-            crop_width = int(crop_width)
-            # Ensure crop_width is within bounds: min 1, max box_width
-            if crop_width < 1:
-                crop_width = 1
-            if crop_width > box_width:
-                crop_width = box_width
-        
-        # Crop left side: crop from (0,0) with width=crop_width, height=box_height
-        # Then flip horizontally with -flop
-        cmd = [
-            'convert',
-            box2d_path,
-            '-crop', f'{crop_width}x{box_height}+0+0',  # Crop from left: width x height +x +y
-            '-flop',  # Mirror horizontally
-            output_path
-        ]
-        
-        if debug:
-            logging.info(f"Generating spine background: box={box_width}x{box_height}, spine_width={spine_width}, crop_width={crop_width}")
-            logging.info(f"Generating spine background: {' '.join(cmd)}")
-        
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+            # Use crop_width if provided and not empty/None, otherwise default to spine_width
+            if crop_width is None or crop_width == '' or crop_width == 0:
+                crop_width = int(spine_width)
+            else:
+                crop_width = int(crop_width)
+                # Ensure crop_width is within bounds: min 1, max box_width
+                if crop_width < 1:
+                    crop_width = 1
+                if crop_width > box_width:
+                    crop_width = box_width
+            
+            # Crop left side: crop from (0,0) with width=crop_width, height=box_height
+            # Then flip horizontally with -flop
+            cmd = [
+                'convert',
+                box2d_path,
+                '-crop', f'{crop_width}x{box_height}+0+0',  # Crop from left: width x height +x +y
+                '-flop',  # Mirror horizontally
+                output_path
+            ]
+            
+            if debug:
+                logging.info(f"Generating spine background: box={box_width}x{box_height}, spine_width={spine_width}, crop_width={crop_width}")
+                logging.info(f"Generating spine background: {' '.join(cmd)}")
+            
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
         
         if not os.path.exists(output_path):
             raise Exception(f"Generated spine background file was not created: {output_path}")

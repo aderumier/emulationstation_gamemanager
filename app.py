@@ -2084,6 +2084,7 @@ tasks = {}  # task_id -> task_info
 task_queue = []
 current_task_id = 0  # Deprecated: kept for backward compatibility, use running_tasks_by_system instead
 running_tasks_by_system = {}  # Maps system_name -> task_id for per-system concurrency control
+task_queue_lock = threading.Lock()  # Thread safety for task queue operations
 
 def load_existing_tasks_from_logs():
     """Load existing tasks from log files on server startup"""
@@ -2725,6 +2726,36 @@ def add_task_to_queue(task_type, task_data, username=None):
     """Add a task to the queue for later processing"""
     global task_queue
     
+    # Extract system_name from task_data
+    system_name = get_system_name_from_task_data(task_data)
+    
+    # Check if a task is already running for this system before adding to queue
+    if system_name and is_task_running_for_system(system_name):
+        running_task_id = running_tasks_by_system.get(system_name)
+        current_task_type = tasks[running_task_id].type if running_task_id and running_task_id in tasks else 'unknown'
+        print(f"DEBUG: Task {task_type} for system '{system_name}' blocked - {current_task_type} already running")
+        # Still create the task and add to queue, but don't process immediately
+        if username:
+            task = Task(task_type, task_data, username)
+            tasks[task.id] = task
+        else:
+            task = create_task(task_type, task_data)
+        task.status = TASK_STATUS_QUEUED
+        
+        # Add to queue
+        task_info = {
+            'task_id': task.id,
+            'type': task_type,
+            'data': task_data,
+            'system_name': system_name,
+            'username': task.username,
+            'timestamp': time.time()
+        }
+        with task_queue_lock:
+            task_queue.append(task_info)
+        print(f"DEBUG: Added {task_type} task to queue for system '{system_name}'. Position: {len(task_queue)}")
+        return task
+    
     # Create a queued task with specific username if provided
     if username:
         task = Task(task_type, task_data, username)
@@ -2732,9 +2763,6 @@ def add_task_to_queue(task_type, task_data, username=None):
     else:
         task = create_task(task_type, task_data)
     task.status = TASK_STATUS_QUEUED
-    
-    # Extract system_name from task_data
-    system_name = get_system_name_from_task_data(task_data)
     
     # Add to queue
     task_info = {
@@ -2745,7 +2773,8 @@ def add_task_to_queue(task_type, task_data, username=None):
         'username': task.username,  # Include username in queued task info
         'timestamp': time.time()
     }
-    task_queue.append(task_info)
+    with task_queue_lock:
+        task_queue.append(task_info)
     print(f"DEBUG: Added {task_type} task to queue for system '{system_name}'. Position: {len(task_queue)}")
     
     # Try to process immediately if no task is running for this system
@@ -2761,36 +2790,55 @@ def process_next_queued_task():
     """Process the next available task in the queue (allows parallel execution for different systems)"""
     global current_task_id, task_queue
     
-    # Clean up any stuck tasks first
-    cleanup_stuck_tasks()
-    
-    if not task_queue:
-        print(f"DEBUG: No tasks in queue")
-        return
-    
-    # Find the first task in queue that can run (no task running for its system)
+    # Variables to use outside the lock
     next_task = None
-    task_index = -1
-    for i, queued_task in enumerate(task_queue):
-        system_name = queued_task.get('system_name') or get_system_name_from_task_data(queued_task.get('data', {}))
-        if not is_task_running_for_system(system_name):
-            next_task = queued_task
-            task_index = i
-            break
+    task_type = None
+    task_data = None
+    system_name = None
     
-    if not next_task:
-        print(f"DEBUG: All queued tasks are blocked by running tasks for their systems")
-        return
+    # Use lock to prevent race conditions when processing queue
+    with task_queue_lock:
+        # Clean up any stuck tasks first
+        cleanup_stuck_tasks()
+        
+        if not task_queue:
+            print(f"DEBUG: No tasks in queue")
+            return
+        
+        # Find the first task in queue that can run (no task running for its system)
+        task_index = -1
+        for i, queued_task in enumerate(task_queue):
+            queued_system_name = queued_task.get('system_name') or get_system_name_from_task_data(queued_task.get('data', {}))
+            if not is_task_running_for_system(queued_system_name):
+                next_task = queued_task
+                task_index = i
+                break
+        
+        if not next_task:
+            print(f"DEBUG: All queued tasks are blocked by running tasks for their systems")
+            return
+        
+        # Double-check before removing from queue (prevent race condition)
+        task_type = next_task['type']
+        task_data = next_task.get('data', {})
+        system_name = next_task.get('system_name') or get_system_name_from_task_data(task_data)
+        
+        # Check again if a task is running for this system (race condition protection)
+        if is_task_running_for_system(system_name):
+            print(f"DEBUG: Task {task_type} for system '{system_name}' blocked - another task started running")
+            return
+        
+        # Set as running immediately BEFORE removing from queue to prevent race conditions
+        task_id = next_task.get('task_id')
+        if task_id and task_id in tasks:
+            set_running_task_for_system(system_name, task_id)
+        
+        # Remove the selected task from queue
+        task_queue.pop(task_index)
+        
+        print(f"DEBUG: Processing next queued task: {task_type} for system '{system_name}'")
     
-    # Remove the selected task from queue
-    task_queue.pop(task_index)
-    task_type = next_task['type']
-    task_data = next_task.get('data', {})
-    system_name = next_task.get('system_name') or get_system_name_from_task_data(task_data)
-    
-    print(f"DEBUG: Processing next queued task: {task_type} for system '{system_name}'")
-    
-    # Start the next task based on its type
+    # Start the next task based on its type (outside lock to avoid blocking)
     if task_type == 'media_scan':
         # Start media scan task
         system_name = task_data.get('system_name')
@@ -2916,11 +2964,11 @@ def process_next_queued_task():
         # For youtube_download, task_data is flat (not nested under 'data')
         data = task_data
         if data:
-            # Use the existing queued task instead of creating a new one
+            # Use the existing queued task (task_id already set as running in lock above)
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                set_running_task_for_system(system_name, task.id)
+                # Task already marked as running in process_next_queued_task, just start it
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
@@ -3022,7 +3070,8 @@ def process_next_queued_task():
             spine_crop_width = task_data.get('spine_crop_width')
             spine_logo_zone = task_data.get('spine_logo_zone')
             spine_logo_corners = task_data.get('spine_logo_corners')
-            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field, use_marquee_field, use_text_logo, text_logo_settings, use_generate_spine_background, spine_crop_width, spine_logo_zone, spine_logo_corners))
+            spine_color = task_data.get('spine_color')
+            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field, use_marquee_field, use_text_logo, text_logo_settings, use_generate_spine_background, spine_crop_width, spine_logo_zone, spine_logo_corners, spine_color))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -3168,11 +3217,11 @@ def process_next_queued_task():
         overwrite_existing = task_data.get('overwrite_existing', False)
         playlist_index = task_data.get('playlist_index', 1)
         if system_name and selected_games:
-            # Use the existing queued task instead of creating a new one
+            # Use the existing queued task (task_id already set as running in lock above)
             task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
-                set_running_task_for_system(system_name, task.id)
+                # Task already marked as running in process_next_queued_task, just start it
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
@@ -25234,7 +25283,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].complete(False, f"Template box generation failed: {str(e)}")
 
-def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None, use_generate_spine_background=True, spine_crop_width=None, spine_logo_zone=None, spine_logo_corners=None):
+def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None, use_generate_spine_background=True, spine_crop_width=None, spine_logo_zone=None, spine_logo_corners=None, spine_color=None):
     """Run 3D box generation task in background thread"""
     global current_task_id
     
@@ -25378,13 +25427,15 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     if spine_width > 0:
                         generated_spine_path = os.path.join(temp_dir, f'generated_spine_{processed}_{failed}.png')
                         try:
-                            # Use the original 2D box from the source field to generate the spine
+                            # Priority: spine_color > spine_crop_width > default
+                            # If spine_color is provided, use it; otherwise use crop_width
                             generator.generate_spine_background(
-                                box2d_path=source_2dbox_path,  # Original 2D box from source_field
+                                box2d_path=source_2dbox_path,  # Original 2D box from source_field (needed for dimensions)
                                 spine_width=spine_width,
                                 output_path=generated_spine_path,
                                 debug=(processed == 0 and failed == 0),  # Debug for first game only
-                                crop_width=spine_crop_width
+                                crop_width=spine_crop_width if not spine_color else None,  # Only use crop_width if no color
+                                spine_color=spine_color  # Use color if provided
                             )
                             game_spine_path = generated_spine_path
                             # When using generated spine, set using_uploaded_spine to False
@@ -27596,9 +27647,10 @@ def save_3dbox_template():
         spine_logo_corners_json = request.form.get('spine_logo_corners')
         spine_logo_corners = json.loads(spine_logo_corners_json) if spine_logo_corners_json else None
         
-        # Get spine source field, spine crop width, and logo source settings if provided
+        # Get spine source field, spine crop width, spine color, and logo source settings if provided
         spine_source_field = request.form.get('spine_source_field')
         spine_crop_width = request.form.get('spine_crop_width')
+        spine_color = request.form.get('spine_color', '').strip()
         use_marquee_field = request.form.get('use_marquee_field', 'false').lower() == 'true'
         use_text_logo = request.form.get('use_text_logo', 'false').lower() == 'true'
         text_logo_settings = None
@@ -27626,6 +27678,9 @@ def save_3dbox_template():
         
         # Always save spine_crop_width, even if empty, to properly restore undefined state
         template_data['spine_crop_width'] = spine_crop_width if spine_crop_width else ''
+        
+        # Always save spine_color, even if empty, to properly restore undefined state
+        template_data['spine_color'] = spine_color if spine_color else ''
         
         # Save spine logo zone and corners if provided
         if spine_logo_zone:
@@ -27727,6 +27782,10 @@ def load_3dbox_template():
         spine_crop_width = template_data.get('spine_crop_width')
         if spine_crop_width:
             response_data['spine_crop_width'] = spine_crop_width
+        
+        spine_color = template_data.get('spine_color')
+        if spine_color:
+            response_data['spine_color'] = spine_color
         
         use_marquee_field = template_data.get('use_marquee_field', False)
         if use_marquee_field:
@@ -27955,17 +28014,24 @@ def preview_3dbox():
             spine_tr = spine_corners.get('topRight', {'x': 0, 'y': 0})
             spine_width = spine_tr.get('x', 0) - spine_tl.get('x', 0)
             
-            # Get crop width parameter (defaults to spine_width if empty or 0)
-            spine_crop_width = request.form.get('spine_crop_width')
-            if spine_crop_width:
-                try:
-                    spine_crop_width = int(spine_crop_width)
-                    if spine_crop_width == 0:
-                        spine_crop_width = None  # Use spine width if 0
-                except (ValueError, TypeError):
-                    spine_crop_width = None
-            else:
-                spine_crop_width = None  # Use spine width if empty
+            # Get spine color parameter (takes priority over crop_width)
+            spine_color = request.form.get('spine_color', '').strip()
+            if not spine_color:
+                spine_color = None
+            
+            # Get crop width parameter (defaults to spine_width if empty or 0, only used if no color)
+            spine_crop_width = None
+            if not spine_color:
+                spine_crop_width = request.form.get('spine_crop_width')
+                if spine_crop_width:
+                    try:
+                        spine_crop_width = int(spine_crop_width)
+                        if spine_crop_width == 0:
+                            spine_crop_width = None  # Use spine width if 0
+                    except (ValueError, TypeError):
+                        spine_crop_width = None
+                else:
+                    spine_crop_width = None  # Use spine width if empty
             
             if spine_width > 0:
                 from box_generator import BoxGenerator
@@ -27978,7 +28044,8 @@ def preview_3dbox():
                         spine_width=spine_width,
                         output_path=generated_spine_path,
                         debug=False,
-                        crop_width=spine_crop_width
+                        crop_width=spine_crop_width,
+                        spine_color=spine_color
                     )
                     logging.info(f"Generated spine background for preview: {generated_spine_path}")
                     # When using generated spine, set using_uploaded_spine to False
@@ -28173,16 +28240,24 @@ def generate_3dbox():
         use_text_logo = request.form.get('use_text_logo', 'false').lower() == 'true'
         use_marquee_field = request.form.get('use_marquee_field', 'false').lower() == 'true'
         use_generate_spine_background = request.form.get('generate_spine_background', 'true').lower() == 'true'
-        spine_crop_width = request.form.get('spine_crop_width')
-        if spine_crop_width:
-            try:
-                spine_crop_width = int(spine_crop_width)
-                if spine_crop_width == 0:
-                    spine_crop_width = None  # Use spine width if 0
-            except (ValueError, TypeError):
-                spine_crop_width = None
-        else:
-            spine_crop_width = None  # Use spine width if empty
+        # Get spine color parameter (takes priority over crop_width)
+        spine_color = request.form.get('spine_color', '').strip()
+        if not spine_color:
+            spine_color = None
+        
+        # Get crop width parameter (defaults to spine_width if empty or 0, only used if no color)
+        spine_crop_width = None
+        if not spine_color:
+            spine_crop_width = request.form.get('spine_crop_width')
+            if spine_crop_width:
+                try:
+                    spine_crop_width = int(spine_crop_width)
+                    if spine_crop_width == 0:
+                        spine_crop_width = None  # Use spine width if 0
+                except (ValueError, TypeError):
+                    spine_crop_width = None
+            else:
+                spine_crop_width = None  # Use spine width if empty
         text_logo_settings = None
         if use_text_logo:
             text_logo_settings_json = request.form.get('text_logo_settings')
@@ -28252,6 +28327,7 @@ def generate_3dbox():
             'text_logo_settings': text_logo_settings,  # Text logo settings if using text logo
             'use_generate_spine_background': use_generate_spine_background,  # Flag indicating if spine background should be generated from 2D box
             'spine_crop_width': spine_crop_width,  # Width of 2D box crop in pixels for spine generation
+            'spine_color': spine_color,  # Optional hex color for solid color spine background
             'spine_logo_zone': spine_logo_zone,  # Optional spine logo zone for positioning
             'spine_logo_corners': spine_logo_corners,  # Optional spine logo corners for perspective placement
             'temp_dir': temp_dir,

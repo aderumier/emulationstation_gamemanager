@@ -475,9 +475,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openMoveMediasModal">
                             <i class="bi bi-folder-arrow-up me-2"></i>Move Medias
                         </a></li>
-                        <li><a class="dropdown-item" href="#" id="openResizeMediasModal">
-                            <i class="bi bi-arrows-fullscreen me-2"></i>Resize Medias
-                        </a></li>
                         <li><a class="dropdown-item" href="#" id="openReencodeMediasModal">
                             <i class="bi bi-arrow-repeat me-2"></i>Medias Reencoding
                         </a></li>
@@ -4724,6 +4721,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </div>
                             
                             <div class="mb-3">
+                                <label class="form-label">Spine Color (Optional)</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control d-none" id="template3DSpineColor" placeholder="No color selected" readonly>
+                                    <div id="template3DSpineColorPreview" class="d-flex align-items-center border rounded px-3" style="min-height: 38px; background-color: #f8f9fa;">
+                                        <span class="text-muted">No color selected</span>
+                                    </div>
+                                    <button class="btn btn-outline-primary" type="button" id="template3DSpineColorPicker">
+                                        <i class="bi bi-palette"></i> Choose Color
+                                    </button>
+                                    <button class="btn btn-outline-info" type="button" id="template3DSpineColorPickFromCover" disabled>
+                                        <i class="bi bi-eyedropper"></i> Pick from Cover
+                                    </button>
+                                    <button class="btn btn-outline-danger" type="button" id="template3DSpineColorClear" style="display: none;">
+                                        <i class="bi bi-x"></i> Clear
+                                    </button>
+                                </div>
+                                <input type="color" class="form-control form-control-color d-none" id="template3DSpineColorInput" value="#ffffff">
+                                <div class="form-text">Choose a color for the spine background. Overrides "Spine from 2D cover crop size" when set.</div>
+                            </div>
+                            
+                            <div class="mb-3">
                                 <label for="template3DSpineCropWidth" class="form-label">Spine from 2D cover crop size</label>
                                 <input type="number" class="form-control" id="template3DSpineCropWidth" min="1" value="5" placeholder="Auto (spine width)">
                                 <div class="form-text">Width of the 2D box crop in pixels (min: 1, max: 2D cover width). Leave empty to use spine width.</div>
@@ -5935,59 +5953,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     </button>
                     <button type="button" class="btn btn-secondary" id="closeMoveMediasBtn" style="display: none;" data-bs-dismiss="modal">
                         <i class="bi bi-x-circle me-2"></i>Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Resize Medias Modal -->
-    <div class="modal fade" id="resizeMediasModal" tabindex="-1" aria-labelledby="resizeMediasModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="resizeMediasModalLabel">
-                        <i class="bi bi-arrows-fullscreen me-2"></i>Resize Medias
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
-                        This tool will process all media files for the selected media field, converting and resizing them according to your media field configuration.
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-12">
-                            <label for="resizeMediaFieldSelect" class="form-label">
-                                <i class="bi bi-folder me-1"></i>Media Field
-                            </label>
-                            <select class="form-select" id="resizeMediaFieldSelect">
-                                <option value="">Select media field...</option>
-                                <option value="all">All Media Fields</option>
-                            </select>
-                            <div class="form-text">Select the media field to process, or 'All Media Fields' to process all media types</div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-4">
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            <strong>Warning:</strong> This operation will:
-                            <ul class="mb-0 mt-2">
-                                <li>Convert media files to the target extension if configured</li>
-                                <li>Resize media files to the configured dimensions</li>
-                                <li>Update gamelist.xml with new file paths if conversion changes the extension</li>
-                                <li>This action cannot be undone</li>
-                            </ul>
-                        </div>
-                    </div>
-                    
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="startResizeMediasBtn">
-                        <i class="bi bi-arrows-fullscreen me-2"></i>Start Resize
                     </button>
                 </div>
             </div>

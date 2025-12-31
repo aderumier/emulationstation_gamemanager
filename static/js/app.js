@@ -3655,6 +3655,8 @@ class GameCollectionManager {
 
         // Add selection change listener
         this.gridApi.addEventListener('selectionChanged', () => {
+            // Update "Pick from Cover" button state when selection changes
+            this.updateSpineColorPickFromCoverButton();
             const selectedRows = this.gridApi.getSelectedRows();
             this.selectedGames = selectedRows;
 
@@ -14327,6 +14329,9 @@ class GameCollectionManager {
         // Load media fields
         this.load3DBoxGeneratorFields();
         
+        // Update "Pick from Cover" button state
+        this.updateSpineColorPickFromCoverButton();
+        
         // Load fonts for 3D box generator logo font selector
         const template3DLogoFont = document.getElementById('template3DLogoFont');
         if (template3DLogoFont) {
@@ -15565,6 +15570,43 @@ class GameCollectionManager {
                         }
                     }
                     
+                    // Load spine color (explicitly set to empty if not present or empty)
+                    const spineColor = document.getElementById('template3DSpineColor');
+                    const spineColorHiddenInput = document.getElementById('template3DSpineColorInput');
+                    const spineColorPreview = document.getElementById('template3DSpineColorPreview');
+                    const spineColorClearBtn = document.getElementById('template3DSpineColorClear');
+                    if (spineColor) {
+                        if (data.spine_color && data.spine_color !== '') {
+                            spineColor.value = data.spine_color;
+                            if (spineColorHiddenInput) {
+                                spineColorHiddenInput.value = data.spine_color;
+                            }
+                            if (spineColorPreview) {
+                                spineColorPreview.style.backgroundColor = data.spine_color;
+                                // Calculate contrast color (white or black text based on background brightness)
+                                const rgb = this.hexToRgb(data.spine_color);
+                                const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+                                const textColor = brightness > 128 ? '#000000' : '#ffffff';
+                                spineColorPreview.innerHTML = `<span style="color: ${textColor};">${data.spine_color.toUpperCase()}</span>`;
+                            }
+                            if (spineColorClearBtn) {
+                                spineColorClearBtn.style.display = 'inline-block';
+                            }
+                        } else {
+                            spineColor.value = ''; // Explicitly reset to empty/undefined
+                            if (spineColorHiddenInput) {
+                                spineColorHiddenInput.value = '#ffffff';
+                            }
+                            if (spineColorPreview) {
+                                spineColorPreview.style.backgroundColor = '#f8f9fa';
+                                spineColorPreview.innerHTML = '<span class="text-muted">No color selected</span>';
+                            }
+                            if (spineColorClearBtn) {
+                                spineColorClearBtn.style.display = 'none';
+                            }
+                        }
+                    }
+                    
                     // Load spine crop width (explicitly set to empty if not present or empty)
                     const spineCropWidth = document.getElementById('template3DSpineCropWidth');
                     if (spineCropWidth) {
@@ -15845,6 +15887,12 @@ class GameCollectionManager {
             formData.append('spine_source_field', spineSourceField.value || '');
         }
         
+        // Add spine color (always send, even if empty, to properly restore undefined state)
+        const spineColor = document.getElementById('template3DSpineColor');
+        if (spineColor) {
+            formData.append('spine_color', spineColor.value || '');
+        }
+        
         // Add spine crop width (always send, even if empty, to properly restore undefined state)
         const spineCropWidth = document.getElementById('template3DSpineCropWidth');
         if (spineCropWidth) {
@@ -16040,6 +16088,13 @@ class GameCollectionManager {
             
             // Always generate spine background from 2D box (enabled by default)
             formData.append('generate_spine_background', 'true');
+            
+            // Add spine color if set
+            const spineColor = document.getElementById('template3DSpineColor');
+            if (spineColor && spineColor.value) {
+                formData.append('spine_color', spineColor.value);
+            }
+            
             const spineCropWidth = document.getElementById('template3DSpineCropWidth');
             if (spineCropWidth) {
                 // Always send the value, even if empty (empty means use spine width)
@@ -16253,6 +16308,13 @@ class GameCollectionManager {
             
             // Always generate spine background from 2D box (enabled by default)
             formData.append('generate_spine_background', 'true');
+            
+            // Add spine color if set
+            const spineColor = document.getElementById('template3DSpineColor');
+            if (spineColor && spineColor.value) {
+                formData.append('spine_color', spineColor.value);
+            }
+            
             const spineCropWidth = document.getElementById('template3DSpineCropWidth');
             if (spineCropWidth) {
                 // Always send the value, even if empty (empty means use spine width)
@@ -16301,6 +16363,197 @@ class GameCollectionManager {
             console.error('Error starting 3D box generation:', error);
             this.showAlert('Error starting 3D box generation: ' + error.message, 'danger');
         }
+    }
+    
+    updateSpineColorPickFromCoverButton() {
+        const spineColorPickFromCoverBtn = document.getElementById('template3DSpineColorPickFromCover');
+        if (spineColorPickFromCoverBtn) {
+            const hasSelectedGames = this.selectedGames && this.selectedGames.length > 0;
+            spineColorPickFromCoverBtn.disabled = !hasSelectedGames;
+        }
+    }
+    
+    hexToRgb(hex) {
+        // Remove # if present
+        hex = hex.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return { r, g, b };
+    }
+    
+    pickSpineColorFromCover() {
+        // Get the first selected game
+        if (!this.selectedGames || this.selectedGames.length === 0) {
+            this.showAlert('Please select at least one game first', 'warning');
+            return;
+        }
+        
+        const sourceField = document.getElementById('template3DSourceField')?.value;
+        if (!sourceField) {
+            this.showAlert('Please select a 2D box source field first', 'warning');
+            return;
+        }
+        
+        // Get the first game - selectedGames contains game objects
+        const firstGame = this.selectedGames[0];
+        
+        // Check if the game has the source field
+        if (!firstGame[sourceField] || !firstGame[sourceField].trim()) {
+            this.showAlert('First game does not have a cover image in the selected source field', 'warning');
+            return;
+        }
+        
+        // Build image URL
+        let imagePath = firstGame[sourceField];
+        if (imagePath && !imagePath.startsWith('roms/')) {
+            imagePath = `roms/${this.currentSystem}/${imagePath}`;
+        }
+        
+        // Create a modal to display the image for color picking
+        const modalHtml = `
+            <div class="modal fade" id="spineColorPickModal" tabindex="-1" aria-labelledby="spineColorPickModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="spineColorPickModalLabel">
+                                <i class="bi bi-eyedropper me-2"></i>Pick Color from Cover
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <p class="mb-3">Click on the image to pick a color</p>
+                            <div class="position-relative d-inline-block">
+                                <img id="spineColorPickImage" src="${imagePath}" style="max-width: 100%; max-height: 70vh; cursor: crosshair; border: 2px solid #dee2e6; border-radius: 4px;" alt="Cover image">
+                                <div id="spineColorPickCursor" style="position: absolute; width: 20px; height: 20px; border: 2px solid #fff; border-radius: 50%; pointer-events: none; display: none; box-shadow: 0 0 0 2px #000;"></div>
+                            </div>
+                            <div class="mt-3">
+                                <div id="spineColorPickPreview" class="d-inline-block border rounded p-2" style="background-color: #ffffff; width: 100px; height: 50px; margin-right: 10px;"></div>
+                                <span id="spineColorPickHex" class="align-middle">#FFFFFF</span>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="spineColorPickConfirm" disabled>Use This Color</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('spineColorPickModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const modal = new bootstrap.Modal(document.getElementById('spineColorPickModal'));
+        const pickImage = document.getElementById('spineColorPickImage');
+        const pickCursor = document.getElementById('spineColorPickCursor');
+        const pickPreview = document.getElementById('spineColorPickPreview');
+        const pickHex = document.getElementById('spineColorPickHex');
+        const pickConfirm = document.getElementById('spineColorPickConfirm');
+        
+        let pickedColor = null;
+        let canvas = null;
+        
+        // Create canvas to read pixel data
+        pickImage.addEventListener('load', () => {
+            canvas = document.createElement('canvas');
+            canvas.width = pickImage.naturalWidth;
+            canvas.height = pickImage.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(pickImage, 0, 0);
+        });
+        
+        // Handle image click
+        pickImage.addEventListener('click', (e) => {
+            if (!canvas) return;
+            
+            const rect = pickImage.getBoundingClientRect();
+            const scaleX = pickImage.naturalWidth / rect.width;
+            const scaleY = pickImage.naturalHeight / rect.height;
+            
+            const x = Math.floor((e.clientX - rect.left) * scaleX);
+            const y = Math.floor((e.clientY - rect.top) * scaleY);
+            
+            // Get pixel color
+            const imageData = canvas.getContext('2d').getImageData(x, y, 1, 1);
+            const r = imageData.data[0];
+            const g = imageData.data[1];
+            const b = imageData.data[2];
+            
+            // Convert to hex
+            const hex = '#' + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+            
+            pickedColor = hex;
+            
+            // Update preview
+            pickPreview.style.backgroundColor = hex;
+            pickHex.textContent = hex;
+            pickConfirm.disabled = false;
+            
+            // Update cursor position
+            pickCursor.style.left = (e.clientX - rect.left - 10) + 'px';
+            pickCursor.style.top = (e.clientY - rect.top - 10) + 'px';
+            pickCursor.style.display = 'block';
+        });
+        
+        // Handle mouse move to show cursor
+        pickImage.addEventListener('mousemove', (e) => {
+            const rect = pickImage.getBoundingClientRect();
+            pickCursor.style.left = (e.clientX - rect.left - 10) + 'px';
+            pickCursor.style.top = (e.clientY - rect.top - 10) + 'px';
+            pickCursor.style.display = 'block';
+        });
+        
+        pickImage.addEventListener('mouseleave', () => {
+            pickCursor.style.display = 'none';
+        });
+        
+        // Confirm color selection
+        pickConfirm.addEventListener('click', () => {
+            if (pickedColor) {
+                const spineColorInput = document.getElementById('template3DSpineColor');
+                const spineColorHiddenInput = document.getElementById('template3DSpineColorInput');
+                const spineColorPreview = document.getElementById('template3DSpineColorPreview');
+                const spineColorClearBtn = document.getElementById('template3DSpineColorClear');
+                
+                if (spineColorInput) {
+                    spineColorInput.value = pickedColor;
+                }
+                if (spineColorHiddenInput) {
+                    spineColorHiddenInput.value = pickedColor;
+                }
+                if (spineColorPreview) {
+                    spineColorPreview.style.backgroundColor = pickedColor;
+                    // Calculate contrast color (white or black text based on background brightness)
+                    const rgb = this.hexToRgb(pickedColor);
+                    const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+                    const textColor = brightness > 128 ? '#000000' : '#ffffff';
+                    spineColorPreview.innerHTML = `<span style="color: ${textColor};">${pickedColor.toUpperCase()}</span>`;
+                }
+                if (spineColorClearBtn) {
+                    spineColorClearBtn.style.display = 'inline-block';
+                }
+                
+                this.autoRefresh3DPreview();
+            }
+            modal.hide();
+        });
+        
+        // Clean up modal on hide
+        document.getElementById('spineColorPickModal').addEventListener('hidden.bs.modal', () => {
+            document.getElementById('spineColorPickModal').remove();
+        }, { once: true });
+        
+        modal.show();
     }
     
     // ==================== End 3D Box Generator Methods ====================
@@ -28937,6 +29190,60 @@ class GameCollectionManager {
         if (template3DSpineCropWidth) {
             template3DSpineCropWidth.addEventListener('input', () => {
                 this.autoRefresh3DPreview();
+            });
+        }
+        
+        // Spine color picker functionality
+        const spineColorPickerBtn = document.getElementById('template3DSpineColorPicker');
+        const spineColorInput = document.getElementById('template3DSpineColor');
+        const spineColorHiddenInput = document.getElementById('template3DSpineColorInput');
+        const spineColorClearBtn = document.getElementById('template3DSpineColorClear');
+        const spineColorPreview = document.getElementById('template3DSpineColorPreview');
+        const spineColorPickFromCoverBtn = document.getElementById('template3DSpineColorPickFromCover');
+        
+        if (spineColorPickerBtn && spineColorInput && spineColorHiddenInput) {
+            // Open color picker
+            spineColorPickerBtn.addEventListener('click', () => {
+                spineColorHiddenInput.click();
+            });
+            
+            // Update color when picker changes
+            spineColorHiddenInput.addEventListener('input', (e) => {
+                const color = e.target.value;
+                spineColorInput.value = color;
+                if (spineColorPreview) {
+                    spineColorPreview.style.backgroundColor = color;
+                    // Calculate contrast color (white or black text based on background brightness)
+                    const rgb = this.hexToRgb(color);
+                    const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+                    const textColor = brightness > 128 ? '#000000' : '#ffffff';
+                    spineColorPreview.innerHTML = `<span style="color: ${textColor};">${color.toUpperCase()}</span>`;
+                }
+                if (spineColorClearBtn) {
+                    spineColorClearBtn.style.display = 'inline-block';
+                }
+                this.autoRefresh3DPreview();
+            });
+            
+            // Clear color
+            if (spineColorClearBtn) {
+                spineColorClearBtn.addEventListener('click', () => {
+                    spineColorInput.value = '';
+                    spineColorHiddenInput.value = '#ffffff';
+                    if (spineColorPreview) {
+                        spineColorPreview.style.backgroundColor = '#f8f9fa';
+                        spineColorPreview.innerHTML = '<span class="text-muted">No color selected</span>';
+                    }
+                    spineColorClearBtn.style.display = 'none';
+                    this.autoRefresh3DPreview();
+                });
+            }
+        }
+        
+        // Pick color from cover image
+        if (spineColorPickFromCoverBtn) {
+            spineColorPickFromCoverBtn.addEventListener('click', () => {
+                this.pickSpineColorFromCover();
             });
         }
         
