@@ -12785,18 +12785,9 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 
                 # Process ALL matching games (not just the first one)
                 # This allows returning results from all platforms/systems
+                # Note: The index includes both main names and alternative names, so we accept all matches
                 for game_id, game, platform_id in matching_games:
                     print(f"🔧 DEBUG: Processing game_id {game_id} from platform {platform_id}")
-                    
-                    # Verify that the game's actual name matches the search term
-                    # (The index may include alternative names, so we need to check the main name)
-                    game_name_actual = game.get('name', '')
-                    if game_name_actual:
-                        normalized_game_name = normalize_game_name(game_name_actual, remove_paranthesis=True, remove_articles=True)
-                        if normalized_game_name != normalized_name:
-                            print(f"🔧 DEBUG: IGDB game {game_id} name '{game_name_actual}' (normalized: '{normalized_game_name}') doesn't match search '{normalized_name}', skipping")
-                            continue
-                    
                     urls = []
                     seen_image_ids = set()  # Track seen image IDs to avoid duplicates
                     
