@@ -37182,6 +37182,15 @@ class GameCollectionManager {
     }
 
     async performFanartSearch() {
+        // Cancel any previous running search first
+        if (this.currentFanartSearchStream) {
+            this.currentFanartSearchStream.close();
+            this.currentFanartSearchStream = null;
+        }
+        
+        // Reset loading state
+        document.getElementById('fanartSearchLoading').style.display = 'none';
+        
         const gameName = document.getElementById('fanartGameName').value.trim();
         const scraper = document.getElementById('fanartScraper').value;
         const directMatch = document.getElementById('fanartDirectMatch').checked;
@@ -37189,12 +37198,6 @@ class GameCollectionManager {
         if (!gameName) {
             this.showAlert('Please enter a game name', 'warning');
             return;
-        }
-
-        // Close any existing stream
-        if (this.currentFanartSearchStream) {
-            this.currentFanartSearchStream.close();
-            this.currentFanartSearchStream = null;
         }
 
         // Clear previous results
@@ -37808,6 +37811,15 @@ class GameCollectionManager {
     }
 
     async performMarqueeSearch() {
+        // Cancel any previous running search first
+        if (this.currentMarqueeSearchStream) {
+            this.currentMarqueeSearchStream.close();
+            this.currentMarqueeSearchStream = null;
+        }
+        
+        // Reset loading state
+        document.getElementById('marqueeSearchLoading').style.display = 'none';
+        
         const gameName = document.getElementById('marqueeGameName').value.trim();
         const selectedScraper = document.getElementById('marqueeScraper').value;
         const directMatch = document.getElementById('marqueeDirectMatch').checked;
@@ -37815,12 +37827,6 @@ class GameCollectionManager {
         if (!gameName) {
             this.showAlert('Please enter a game name', 'warning');
             return;
-        }
-
-        // Close any existing stream
-        if (this.currentMarqueeSearchStream) {
-            this.currentMarqueeSearchStream.close();
-            this.currentMarqueeSearchStream = null;
         }
 
         // Clear previous results
