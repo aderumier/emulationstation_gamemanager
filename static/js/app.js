@@ -6057,7 +6057,7 @@ class GameCollectionManager {
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
                                 ${isImageField ? `
-                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)} across all systems" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-binoculars"></i>
                                 </button>
                                 <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -6169,7 +6169,7 @@ class GameCollectionManager {
                             </button>
                             ` : ''}
                     ${isImageField ? `
-                    <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                    <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)} across all systems" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-binoculars"></i>
                     </button>
                     <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -18264,7 +18264,7 @@ class GameCollectionManager {
                                     <small class="text-center flex-grow-1">${field}</small>
                                     <div class="d-flex gap-1">
                                         ${isImageField ? `
-                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)} across all systems" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-binoculars"></i>
                                         </button>
                                         <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -18368,7 +18368,7 @@ class GameCollectionManager {
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
                                 ${isImageField ? `
-                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)} across all systems" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-binoculars"></i>
                                 </button>
                                 <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -18476,7 +18476,7 @@ class GameCollectionManager {
                             </button>
                             ` : ''}
                             ${isImageField ? `
-                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)} across all systems" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-binoculars"></i>
                             </button>
                             <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -18541,7 +18541,7 @@ class GameCollectionManager {
                     </button>
                     ` : ''}
                     ${isImageField ? `
-                    <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)}" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                    <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)} across all systems" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-binoculars"></i>
                     </button>
                     <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
