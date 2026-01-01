@@ -37049,8 +37049,10 @@ class GameCollectionManager {
             modalTitle.innerHTML = `<i class="bi bi-binoculars me-2"></i>Search ${fieldName} across all systems`;
         }
         
-        // Pre-fill the game name
-        document.getElementById('fanartGameName').value = game.name || '';
+        // Pre-fill the game name (remove parentheses and their contents)
+        let gameName = game.name || '';
+        gameName = gameName.replace(/\s*\([^)]*\)/g, '').trim();
+        document.getElementById('fanartGameName').value = gameName;
         
         // Set the current system and field for the search
         this.currentFanartSearchGame = game;
@@ -37060,8 +37062,22 @@ class GameCollectionManager {
         // Populate scrapers dropdown for this field
         await this.populateMediaScrapersDropdown(field);
         
+        // Set scraper to "all" to search all scrapers
+        const scraperSelect = document.getElementById('fanartScraper');
+        if (scraperSelect) {
+            scraperSelect.value = 'all';
+        }
+        
         // Show the modal
+        const modalElement = document.getElementById('fanartSearchModal');
         modal.show();
+        
+        // Automatically trigger search when modal is shown
+        const handleModalShown = () => {
+            this.performFanartSearch();
+            modalElement.removeEventListener('shown.bs.modal', handleModalShown);
+        };
+        modalElement.addEventListener('shown.bs.modal', handleModalShown, { once: true });
     }
 
     async populateMediaScrapersDropdown(fieldType) {
@@ -37104,8 +37120,10 @@ class GameCollectionManager {
     async openFanartSearchModal(game) {
         const modal = new bootstrap.Modal(document.getElementById('fanartSearchModal'));
         
-        // Pre-fill the game name
-        document.getElementById('fanartGameName').value = game.name || '';
+        // Pre-fill the game name (remove parentheses and their contents)
+        let gameName = game.name || '';
+        gameName = gameName.replace(/\s*\([^)]*\)/g, '').trim();
+        document.getElementById('fanartGameName').value = gameName;
         
         // Set the current system for the search
         this.currentFanartSearchGame = game;
@@ -37114,8 +37132,22 @@ class GameCollectionManager {
         // Populate fanart scrapers dropdown
         await this.populateFanartScrapersDropdown();
         
+        // Set scraper to "all" to search all scrapers
+        const scraperSelect = document.getElementById('fanartScraper');
+        if (scraperSelect) {
+            scraperSelect.value = 'all';
+        }
+        
         // Show the modal
+        const modalElement = document.getElementById('fanartSearchModal');
         modal.show();
+        
+        // Automatically trigger search when modal is shown
+        const handleModalShown = () => {
+            this.performFanartSearch();
+            modalElement.removeEventListener('shown.bs.modal', handleModalShown);
+        };
+        modalElement.addEventListener('shown.bs.modal', handleModalShown, { once: true });
     }
 
     async populateFanartScrapersDropdown() {
