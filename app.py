@@ -12989,6 +12989,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
 
         elif scraper_name == 'steamgriddb':
             from steamgrid_service import SteamGridService
+            from game_utils import normalize_game_name, calculate_similarity
             sgdb_service = SteamGridService()
             api_key = sgdb_service.get_api_key()
             if not api_key:
@@ -13002,29 +13003,52 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 if gid and gid not in seen:
                     seen.add(gid)
                     unique_games.append(g)
+            
+            # Calculate similarity scores for all games
+            normalized_search_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+            games_with_similarity = []
+            for g in unique_games:
+                game_name_actual = g.get('name', '')
+                normalized_game_name_actual = normalize_game_name(game_name_actual, remove_paranthesis=True, remove_articles=True)
+                similarity = calculate_similarity(normalized_search_name, normalized_game_name_actual)
+                g['similarity_score'] = similarity
+                games_with_similarity.append(g)
+            
+            # Sort by similarity score (highest first)
+            games_with_similarity.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
+            
             # Get SteamGridDB media key from config mapping
             steamgriddb_key = None
             if scraper_config and 'image_type_mappings' in scraper_config:
                 steamgriddb_key = scraper_config['image_type_mappings'].get(media_type)
             
             if steamgriddb_key:
-                for g in unique_games:
+                for g in games_with_similarity:
+                    similarity_score = g.get('similarity_score', 0.0)
+                    # Only process games with reasonable similarity (>= 0.7)
+                    if similarity_score < 0.7:
+                        continue
+                    
                     gid = g.get('id')
                     if not gid:
                         continue
                     media = run_async_safely(sgdb_service.get_steamgrid_media(gid, [steamgriddb_key], api_key=api_key))
                     if media and steamgriddb_key in media and media[steamgriddb_key]:
+                        urls = []
                         for item in media[steamgriddb_key]:
                             url = item.get('url', '')
                             if url:
-                                results.append({
-                                    'scraper': 'steamgriddb',
-                                    'game_name': g.get('name', ''),
-                                    'game_id': gid,
-                                    'similarity_score': 1.0,
-                                    f'{media_type}_urls': [url],
-                                    'region': 'Unknown'
-                                })
+                                urls.append(url)
+                        
+                        if urls:
+                            results.append({
+                                'scraper': 'steamgriddb',
+                                'game_name': g.get('name', ''),
+                                'game_id': gid,
+                                'similarity_score': similarity_score,
+                                f'{media_type}_urls': urls,
+                                'region': 'Unknown'
+                            })
 
         elif scraper_name == 'screenscraper':
             from screenscraper_service import ScreenScraperService
