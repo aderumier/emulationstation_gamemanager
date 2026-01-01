@@ -18465,11 +18465,6 @@ class GameCollectionManager {
                                 <i class="bi bi-youtube"></i>
                             </button>
                             ` : ''}
-                            ${field === 'fanart' ? `
-                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                <i class="bi bi-image"></i>
-                            </button>
-                            ` : ''}
                             ${field === 'marquee' ? `
                             <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-badge-ad"></i>
