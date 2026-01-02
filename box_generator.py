@@ -1548,8 +1548,8 @@ class BoxGenerator:
                                         temp_files.append(temp_text_logo_resized)
                                         
                                         if keep_aspect_ratio:
-                                            # Keep aspect ratio: use topY && bottomY (effective_zone_height) as maximum width
-                                            # Don't stretch if logo is smaller than effective_zone_height
+                                            # Keep aspect ratio: if text logo is bigger than topY-bottomY area (effective_zone_height),
+                                            # fix width to effective_zone_height and adapt height to maintain aspect ratio
                                             # Get original dimensions
                                             orig_dim_cmd = ['identify', '-format', '%wx%h', generated_text_logo]
                                             orig_dim_result = subprocess.run(orig_dim_cmd, capture_output=True, text=True, timeout=5)
@@ -1559,14 +1559,13 @@ class BoxGenerator:
                                                 orig_height = int(orig_dims[1])
                                                 orig_aspect = orig_width / orig_height if orig_height > 0 else 1
                                                 
-                                                # Use min(natural_width, effective_zone_height) as the width constraint
-                                                # Don't stretch if logo is smaller
+                                                # If text logo width is bigger than effective_zone_height (topY-bottomY),
+                                                # fix width to effective_zone_height and calculate height from aspect ratio
                                                 max_width = effective_zone_height  # This is zone_height_resized if zone exists, or spine_resize_height if no zone
-                                                text_logo_width = min(orig_width, max_width)
                                                 
-                                                # Only resize if the logo is larger than the constraint
                                                 if orig_width > max_width:
-                                                    # Calculate height from aspect ratio
+                                                    # Fix width to max_width (topY-bottomY), adapt height
+                                                    text_logo_width = max_width
                                                     text_logo_height = int(text_logo_width / orig_aspect) if orig_aspect > 0 else max_width
                                                     
                                                     # Resize by width to maintain aspect ratio
@@ -1578,11 +1577,12 @@ class BoxGenerator:
                                                         '-resize', f'{text_logo_width}x',  # Scale by width only, maintain aspect ratio
                                                         temp_text_logo_resized
                                                     ]
-                                                    logging.info(f"3D Box Spine: Resizing text logo with keep ratio - width: {text_logo_width} (capped at {max_width}, original: {orig_width}), height: {text_logo_height} (from aspect ratio {orig_aspect:.3f})")
+                                                    logging.info(f"3D Box Spine: Text logo bigger than zone height ({orig_width} > {max_width}), fixing width to {max_width}, height: {text_logo_height} (aspect: {orig_aspect:.3f})")
                                                     subprocess.run(cmd_resize, check=True)
                                                     generated_text_logo = temp_text_logo_resized
                                                 else:
                                                     # Logo is smaller than constraint, use natural size (no resize)
+                                                    text_logo_width = orig_width
                                                     logging.info(f"3D Box Spine: Text logo is smaller than max width ({orig_width} < {max_width}), using natural size without stretching")
                                                     # No resize needed, logo is already at the correct size
                                                 
