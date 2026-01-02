@@ -18404,8 +18404,9 @@ class GameCollectionManager {
                     
                     // Skip the rest of the loop iteration since we handled PDF/CBZ asynchronously
                     return;
-                } else if (mediaPath.toLowerCase().endsWith('.zip')) {
+                } else if (mediaPath.toLowerCase().endsWith('.zip') || field === 'themehb' || field === 'themehs') {
                     // ZIP file - show zip icon instead of preview
+                    // Also handle themehb/themehs fields even if extension is wrong (e.g., .php from earlier bug)
                     mediaItem.innerHTML = `
                         <div style="position: relative; width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; background-color: ${this.getMediaCardBackgroundColor()}; border: 1px solid #dee2e6; border-radius: 4px;">
                             <i class="bi bi-file-earmark-zip" style="font-size: 4rem; color: #6c757d;"></i>
