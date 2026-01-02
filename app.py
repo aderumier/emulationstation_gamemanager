@@ -2166,12 +2166,14 @@ def load_existing_tasks_from_logs():
                             pass
                     elif line.startswith('Status: '):
                         status_str = line.replace('Status: ', '').strip()
-                        if status_str in [TASK_STATUS_COMPLETED, TASK_STATUS_ERROR, TASK_STATUS_STOPPED, TASK_STATUS_IDLE]:
+                        if status_str in [TASK_STATUS_COMPLETED, TASK_STATUS_ERROR, TASK_STATUS_STOPPED, TASK_STATUS_IDLE, TASK_STATUS_RUNNING]:
                             task.status = status_str
                         elif 'stopped' in status_str.lower():
                             task.status = TASK_STATUS_STOPPED
                         elif 'completed' in status_str.lower():
                             task.status = TASK_STATUS_COMPLETED
+                        elif 'running' in status_str.lower():
+                            task.status = TASK_STATUS_RUNNING
                 
                 # Parse progress data from JSON lines in log file
                 task.progress = []
@@ -2233,6 +2235,17 @@ def load_existing_tasks_from_logs():
                     task.duration = task.end_time - task.start_time
                 else:
                     task.duration = 0
+                
+                # Reset tasks that were interrupted (running when server crashed)
+                # If a task has start_time but no end_time, and status is not a final state,
+                # it means the task was interrupted and should be marked as error
+                if task.start_time and not task.end_time:
+                    if task.status not in [TASK_STATUS_COMPLETED, TASK_STATUS_ERROR, TASK_STATUS_STOPPED]:
+                        # Task was interrupted - mark as error
+                        task.status = TASK_STATUS_ERROR
+                        task.error_message = "Task interrupted by server restart"
+                        task.end_time = task.start_time  # Set end_time to start_time to mark it as ended
+                        print(f"  ⚠️ Task {task_id} was interrupted (no end_time), reset to error")
                 
                 # Add to tasks dictionary
                 tasks[task_id] = task
@@ -37117,11 +37130,12 @@ if __name__ == '__main__':
     # Load existing tasks from log files
     load_existing_tasks_from_logs()
     
-    # Process any tasks that were in "queued" state when server restarted
+    # Process any tasks that were in "queued" or "running" state when server restarted
     # Note: The in-memory queue is empty after restart, but we check for tasks with "queued" status
     # and reset them to "idle" or "error" as appropriate
-    print("🔄 Checking for tasks that were queued before server restart...")
+    print("🔄 Checking for tasks that were queued or running before server restart...")
     queued_tasks_found = 0
+    running_tasks_found = 0
     for task_id, task in list(tasks.items()):
         if task.status == TASK_STATUS_QUEUED:
             queued_tasks_found += 1
@@ -37129,9 +37143,23 @@ if __name__ == '__main__':
             # They will need to be manually restarted or re-queued
             task.status = TASK_STATUS_IDLE
             print(f"  ⚠️ Task {task_id} ({task.type}) was queued before restart, reset to idle")
+        elif task.status == TASK_STATUS_RUNNING:
+            running_tasks_found += 1
+            # Reset running tasks to error since they were interrupted
+            task.status = TASK_STATUS_ERROR
+            task.error_message = "Task interrupted by server restart"
+            if task.start_time and not task.end_time:
+                task.end_time = task.start_time
+            # Clear from running_tasks_by_system if it was there
+            system_name = get_system_name_from_task_data(task.data)
+            if system_name:
+                clear_running_task_for_system(system_name)
+            print(f"  ⚠️ Task {task_id} ({task.type}) was running before restart, reset to error")
     
     if queued_tasks_found > 0:
         print(f"  ℹ️ Found {queued_tasks_found} task(s) that were queued before restart (reset to idle)")
+    if running_tasks_found > 0:
+        print(f"  ℹ️ Found {running_tasks_found} task(s) that were running before restart (reset to error)")
     
     # Start cache loading in a separate thread
     def load_cache_background():
