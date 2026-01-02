@@ -2093,22 +2093,62 @@ class BoxGenerator:
                                         # Skip resize if this is a generated text logo that's already been resized with keep_aspect_ratio
                                         logo_x = None  # Initialize logo_x
                                         if is_generated_text_logo and keep_aspect_ratio:
-                                            # Generated text logo is already correctly sized, just use it as-is
-                                            # DO NOT resize it again - it's already been resized to maintain aspect ratio
+                                            # For uploaded/field spines, recalculate text logo size using actual zone dimensions
+                                            # The earlier resize might have used fallback dimensions, so we need to check against actual zone
                                             temp_logo_resized = spine_logo_to_use
-                                            # Get dimensions for positioning
+                                            # Get current dimensions
                                             logo_dim_cmd = ['identify', '-format', '%wx%h', spine_logo_to_use]
                                             logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
                                             if logo_dim_result.returncode == 0:
                                                 orig_dims = logo_dim_result.stdout.strip().split('x')
-                                                logo_pre_rotate_width = int(orig_dims[0])
-                                                logo_pre_rotate_height = int(orig_dims[1])
-                                                logging.info(f"3D Box Spine (Uploaded/Field): Using pre-resized generated text logo (skipping resize) - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
+                                                current_width = int(orig_dims[0])
+                                                current_height = int(orig_dims[1])
+                                                current_aspect = current_width / current_height if current_height > 0 else 1
+                                                
+                                                # If zone is defined, recalculate using actual zone_height_resized
+                                                if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
+                                                    # Check if current width is bigger than zone_height_resized (topY-bottomY)
+                                                    if current_width > zone_height_resized:
+                                                        # Fix width to zone_height_resized, adapt height
+                                                        new_width = zone_height_resized
+                                                        new_height = int(new_width / current_aspect) if current_aspect > 0 else zone_height_resized
+                                                        
+                                                        # Resize to correct dimensions
+                                                        temp_text_logo_recalc = os.path.splitext(temp_logo_resized)[0] + '_recalc.png'
+                                                        temp_files.append(temp_text_logo_recalc)
+                                                        cmd_recalc = [
+                                                            'convert',
+                                                            spine_logo_to_use,
+                                                            '-background', 'transparent',
+                                                            '-alpha', 'set',
+                                                            '-resize', f'{new_width}x',  # Scale by width only, maintain aspect ratio
+                                                            temp_text_logo_recalc
+                                                        ]
+                                                        logging.info(f"3D Box Spine (Uploaded/Field): Recalculating text logo size - current: {current_width}x{current_height}, new: {new_width}x{new_height} (zone_height_resized: {zone_height_resized})")
+                                                        subprocess.run(cmd_recalc, check=True)
+                                                        temp_logo_resized = temp_text_logo_recalc
+                                                        logo_pre_rotate_width = new_width
+                                                        logo_pre_rotate_height = new_height
+                                                    else:
+                                                        # Current size is fine, use as-is
+                                                        logo_pre_rotate_width = current_width
+                                                        logo_pre_rotate_height = current_height
+                                                        logging.info(f"3D Box Spine (Uploaded/Field): Text logo size is correct ({current_width} <= {zone_height_resized}), using as-is")
+                                                else:
+                                                    # No zone, use current dimensions
+                                                    logo_pre_rotate_width = current_width
+                                                    logo_pre_rotate_height = current_height
+                                                    logging.info(f"3D Box Spine (Uploaded/Field): No zone defined, using current text logo dimensions - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
                                             else:
                                                 # Fallback: treat as normal logo
                                                 logging.warning(f"3D Box Spine (Uploaded/Field): Could not get generated text logo dimensions, treating as normal logo")
                                                 is_generated_text_logo = False
+                                                temp_logo_resized = None  # Will be set in resize step below
                                             # logo_x will be calculated after rotation when we have the actual logo dimensions
+                                            
+                                            # Update spine_logo_to_use to use recalculated logo if it was recalculated
+                                            if temp_logo_resized and temp_logo_resized != spine_logo_to_use:
+                                                spine_logo_to_use = temp_logo_resized
                                         
                                         # Only resize if this is NOT a generated text logo with keep_aspect_ratio
                                         should_resize_logo = not (is_generated_text_logo and keep_aspect_ratio)
