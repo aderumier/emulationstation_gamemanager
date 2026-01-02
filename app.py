@@ -9928,24 +9928,6 @@ def rom_system_gamelist(system_name):
                 rom_path = data['rom_path']
                 updated_game = data['game']
                 
-                # Protection: Never allow blank game name
-                game_name = updated_game.get('name', '').strip() if updated_game.get('name') else ''
-                if not game_name:
-                    # Load existing gamelist to get original name
-                    games = parse_gamelist_xml(gamelist_path)
-                    original_game = next((g for g in games if g.get('path') == rom_path), None)
-                    
-                    if original_game and original_game.get('name'):
-                        # Use original name as fallback
-                        updated_game['name'] = original_game.get('name').strip()
-                        print(f"⚠️ Protection: Blank game name detected for {rom_path}, using original name: {updated_game['name']}")
-                    else:
-                        # Generate name from filename as last resort
-                        filename = os.path.basename(rom_path).replace('\\', '/').split('/')[-1]
-                        filename_without_ext = os.path.splitext(filename)[0]
-                        updated_game['name'] = filename_without_ext
-                        print(f"⚠️ Protection: Blank game name detected for {rom_path}, generating from filename: {updated_game['name']}")
-                
                 # Load existing gamelist
                 games = parse_gamelist_xml(gamelist_path)
                 
@@ -9955,15 +9937,6 @@ def rom_system_gamelist(system_name):
                     if game.get('path') == rom_path:
                         # Update the game in place
                         games[i].update(updated_game)
-                        # Ensure name is never blank after update
-                        if not games[i].get('name') or not games[i].get('name').strip():
-                            # Fallback to original name or filename
-                            original_name = game.get('name', '').strip()
-                            if original_name:
-                                games[i]['name'] = original_name
-                            else:
-                                filename = os.path.basename(rom_path).replace('\\', '/').split('/')[-1]
-                                games[i]['name'] = os.path.splitext(filename)[0]
                         game_found = True
                         break
                 
