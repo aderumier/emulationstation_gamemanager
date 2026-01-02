@@ -1551,9 +1551,9 @@ class BoxGenerator:
                                         temp_files.append(temp_text_logo_resized)
                                         
                                         if keep_aspect_ratio:
-                                            # Keep aspect ratio: scale by width only to match spine width after rotation
-                                            # After rotation, width should be effective_zone_width (spine width)
-                                            # So before rotation, height should be effective_zone_width
+                                            # Keep aspect ratio: force use topY && bottomY (zone_height_resized) for the width
+                                            # Width (before rotation) = zone_height_resized (bottomY - topY)
+                                            # Height (before rotation) = calculated from aspect ratio
                                             # Get original dimensions
                                             orig_dim_cmd = ['identify', '-format', '%wx%h', generated_text_logo]
                                             orig_dim_result = subprocess.run(orig_dim_cmd, capture_output=True, text=True, timeout=5)
@@ -1563,22 +1563,21 @@ class BoxGenerator:
                                                 orig_height = int(orig_dims[1])
                                                 orig_aspect = orig_width / orig_height if orig_height > 0 else 1
                                                 
-                                                # After rotation, width should be effective_zone_width
-                                                # So before rotation, height should be effective_zone_width
-                                                # Calculate width before rotation to maintain aspect ratio
-                                                text_logo_height = effective_zone_width  # This becomes width after rotation
-                                                text_logo_width = int(text_logo_height * orig_aspect)  # Maintain aspect ratio
+                                                # Force use zone_height_resized (bottomY - topY) as the width constraint
+                                                text_logo_width = zone_height_resized  # Width = bottomY - topY
+                                                # Calculate height from aspect ratio
+                                                text_logo_height = int(text_logo_width / orig_aspect) if orig_aspect > 0 else zone_height_resized
                                                 
-                                                # Resize by height only to maintain aspect ratio
+                                                # Resize by width to maintain aspect ratio
                                                 cmd_resize = [
                                                     'convert',
                                                     generated_text_logo,
                                                     '-background', 'transparent',
                                                     '-alpha', 'set',
-                                                    '-resize', f'x{text_logo_height}',  # Scale by height only, maintain aspect ratio
+                                                    '-resize', f'{text_logo_width}x',  # Scale by width only, maintain aspect ratio
                                                     temp_text_logo_resized
                                                 ]
-                                                logging.info(f"3D Box Spine: Resizing text logo to maintain aspect ratio - height: {text_logo_height}, width: {text_logo_width} (zone: {effective_zone_width}x{effective_zone_height})")
+                                                logging.info(f"3D Box Spine: Resizing text logo with keep ratio - width: {text_logo_width} (zone_height_resized, bottomY-topY), height: {text_logo_height} (from aspect ratio {orig_aspect:.3f})")
                                                 is_generated_text_logo = True  # Mark as already resized
                                             else:
                                                 # Fallback: use zone dimensions
