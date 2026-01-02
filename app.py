@@ -2129,8 +2129,9 @@ def load_existing_tasks_from_logs():
                             data_str = line.replace('Data: ', '').strip()
                             task.data = json.loads(data_str) if data_str and data_str != 'None' else {}
                             break
-                except Exception:
+                except Exception as e:
                     task.data = {}
+                    print(f"  ⚠️ Warning: Could not parse task data for task {task_id}: {e}")
                 
                 # Parse start time from log content
                 task.start_time = None
@@ -2217,6 +2218,15 @@ def load_existing_tasks_from_logs():
                                     pass
                 except Exception:
                     pass
+                
+                # Ensure system_name is set from task.data if not already set from "System: " line
+                # This handles cases where the task crashed before writing the "System: " line
+                if not task.data.get('system_name'):
+                    # Try to extract from task.data if it was parsed from the "Data: " line
+                    if task.data and isinstance(task.data, dict):
+                        system_name = task.data.get('system_name')
+                        if system_name:
+                            task.data['system_name'] = system_name
                 
                 # Calculate duration if both times are available
                 if task.start_time and task.end_time:
@@ -37107,6 +37117,21 @@ if __name__ == '__main__':
     # Load existing tasks from log files
     load_existing_tasks_from_logs()
     
+    # Process any tasks that were in "queued" state when server restarted
+    # Note: The in-memory queue is empty after restart, but we check for tasks with "queued" status
+    # and reset them to "idle" or "error" as appropriate
+    print("🔄 Checking for tasks that were queued before server restart...")
+    queued_tasks_found = 0
+    for task_id, task in list(tasks.items()):
+        if task.status == TASK_STATUS_QUEUED:
+            queued_tasks_found += 1
+            # Reset queued tasks to idle since the queue was lost on restart
+            # They will need to be manually restarted or re-queued
+            task.status = TASK_STATUS_IDLE
+            print(f"  ⚠️ Task {task_id} ({task.type}) was queued before restart, reset to idle")
+    
+    if queued_tasks_found > 0:
+        print(f"  ℹ️ Found {queued_tasks_found} task(s) that were queued before restart (reset to idle)")
     
     # Start cache loading in a separate thread
     def load_cache_background():
