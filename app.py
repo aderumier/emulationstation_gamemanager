@@ -2110,24 +2110,49 @@ def load_existing_tasks_from_logs():
                 task.id = task_id
                 task.log_file = log_file_path
                 
+                # Initialize all required attributes to prevent AttributeError
+                task.type = 'unknown'
+                task.username = 'Unknown'
+                task.status = TASK_STATUS_IDLE
+                task.progress = []
+                task.stats = {}
+                task.start_time = None
+                task.end_time = None
+                task.error_message = None
+                task.data = {}  # Initialize data attribute
+                task.progress_percentage = 0
+                task.total_steps = 0
+                task.current_step = 0
+                task.grid_refresh_needed = False
+                task.duration = 0
+                
                 # Read the log file to extract task information
                 with open(log_file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
                 # Parse task type and username from log content
-                task.type = 'unknown'
-                task.username = 'Unknown'
                 for line in content.split('\n'):
                     if line.startswith('Type: '):
                         task.type = line.replace('Type: ', '').strip()
                     elif line.startswith('User: '):
                         task.username = line.replace('User: ', '').strip()
+                
                 # Parse task data (including system_name) from header
                 try:
                     for line in content.split('\n'):
                         if line.startswith('Data: '):
                             data_str = line.replace('Data: ', '').strip()
-                            task.data = json.loads(data_str) if data_str and data_str != 'None' else {}
+                            if data_str and data_str != 'None' and data_str.strip():
+                                # Try to parse JSON, handle malformed JSON gracefully
+                                try:
+                                    task.data = json.loads(data_str)
+                                except json.JSONDecodeError as json_err:
+                                    # If JSON is malformed, try to extract what we can
+                                    print(f"  ⚠️ Warning: Malformed JSON in task data for task {task_id}: {json_err}")
+                                    print(f"  ⚠️ Data string: {data_str[:100]}...")  # Show first 100 chars
+                                    task.data = {}  # Use empty dict as fallback
+                            else:
+                                task.data = {}
                             break
                 except Exception as e:
                     task.data = {}
@@ -2176,12 +2201,14 @@ def load_existing_tasks_from_logs():
                             task.status = TASK_STATUS_RUNNING
                 
                 # Parse progress data from JSON lines in log file
+                # Ensure data is initialized (should already be set above, but double-check)
+                if not hasattr(task, 'data') or task.data is None:
+                    task.data = {}
                 task.progress = []
                 task.stats = {}
                 task.progress_percentage = 0
                 task.total_steps = 0
                 task.current_step = 0
-                task.data = task.data or {}
                 
                 # Parse final task data from log file
                 try:
