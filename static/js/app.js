@@ -7905,7 +7905,7 @@ class GameCollectionManager {
         }
         
         // Update the game object with form values, using original values as fallback
-        game.name = getFieldValue('editName', originalGame.name || '');
+        game.name = getFieldValue('editName', originalGame.name || '').trim();
         game.desc = getFieldValue('editDescription', originalGame.desc || '');
         game.note = getFieldValue('editNote', originalGame.note || '');
         game.genre = getFieldValue('editGenre', originalGame.genre || '');
@@ -7927,6 +7927,21 @@ class GameCollectionManager {
         // MD5 is readonly, but we can read it if it was updated elsewhere
         game.md5 = getFieldValue('editMd5', originalGame.md5 || '');
         game.youtubeurl = getFieldValue('editYoutubeurl', originalGame.youtubeurl || '');
+        
+        // Protection: Never save a blank game name
+        // If name is blank, use original name or generate from filename
+        if (!game.name || game.name.trim() === '') {
+            if (originalGame.name && originalGame.name.trim() !== '') {
+                // Use original name as fallback
+                console.warn('Protection: Game name is blank, using original name:', originalGame.name);
+                game.name = originalGame.name.trim();
+            } else {
+                // Generate name from filename as last resort
+                const filename = game.path ? game.path.split('/').pop().replace(/\.[^/.]+$/, '') : 'Unknown Game';
+                console.warn('Protection: Game name is blank and no original name, generating from filename:', filename);
+                game.name = filename;
+            }
+        }
         
         // Protection: Don't save if all critical fields are blank (would delete game data)
         // At minimum, name should exist (even if empty, it's valid)
