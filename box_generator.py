@@ -1502,13 +1502,11 @@ class BoxGenerator:
                                 # After rotation, this will become zone width x zone height
                                 if zone_height_resized and zone_height_resized > 0 and zone_width_resized and zone_width_resized > 0:
                                     if keep_aspect_ratio:
-                                        # Keep aspect ratio: generate with width that matches spine width after rotation
-                                        # After rotation, width should be zone_width_resized
-                                        # So before rotation, height should be zone_width_resized
-                                        # Generate text logo with appropriate width to maintain aspect after rotation
-                                        text_logo_width = zone_height_resized  # Zone height becomes logo width (before rotation)
-                                        # Height will be determined by text logo generation (maintains aspect)
-                                        logging.info(f"3D Box Spine: Generating text logo with width {text_logo_width} (keeping aspect ratio)")
+                                        # Keep aspect ratio: generate without width constraint to get natural size
+                                        # Then use min(natural_width, zone_height_resized) as maximum
+                                        # Don't stretch if logo is smaller than zone_height_resized
+                                        text_logo_width = None  # Generate with natural width first
+                                        logging.info(f"3D Box Spine: Generating text logo with natural width (keeping aspect ratio, max: {zone_height_resized})")
                                     else:
                                         # Generate with zone height as width (will become height after rotation)
                                         # and zone width as height (will become width after rotation)
@@ -1518,12 +1516,11 @@ class BoxGenerator:
                                 else:
                                     # No zone: use spine dimensions swapped
                                     if keep_aspect_ratio:
-                                        # Keep aspect ratio: generate with width that matches spine width after rotation
-                                        # After rotation, width should be spine_resize_width
-                                        # So before rotation, height should be spine_resize_width
-                                        text_logo_width = spine_resize_height  # Spine height becomes logo width (before rotation)
-                                        # Height will be determined by text logo generation (maintains aspect)
-                                        logging.info(f"3D Box Spine: No zone, generating text logo with width {text_logo_width} (keeping aspect ratio)")
+                                        # Keep aspect ratio: generate without width constraint to get natural size
+                                        # Then use min(natural_width, spine_resize_height) as maximum
+                                        # Don't stretch if logo is smaller than spine_resize_height
+                                        text_logo_width = None  # Generate with natural width first
+                                        logging.info(f"3D Box Spine: No zone, generating text logo with natural width (keeping aspect ratio, max: {spine_resize_height})")
                                     else:
                                         text_logo_width = spine_resize_height  # Spine height becomes logo width
                                         text_logo_height = spine_resize_width  # Spine width becomes logo height
@@ -1551,9 +1548,8 @@ class BoxGenerator:
                                         temp_files.append(temp_text_logo_resized)
                                         
                                         if keep_aspect_ratio:
-                                            # Keep aspect ratio: force use topY && bottomY (zone_height_resized) for the width
-                                            # Width (before rotation) = zone_height_resized (bottomY - topY)
-                                            # Height (before rotation) = calculated from aspect ratio
+                                            # Keep aspect ratio: use topY && bottomY (effective_zone_height) as maximum width
+                                            # Don't stretch if logo is smaller than effective_zone_height
                                             # Get original dimensions
                                             orig_dim_cmd = ['identify', '-format', '%wx%h', generated_text_logo]
                                             orig_dim_result = subprocess.run(orig_dim_cmd, capture_output=True, text=True, timeout=5)
@@ -1563,21 +1559,32 @@ class BoxGenerator:
                                                 orig_height = int(orig_dims[1])
                                                 orig_aspect = orig_width / orig_height if orig_height > 0 else 1
                                                 
-                                                # Force use zone_height_resized (bottomY - topY) as the width constraint
-                                                text_logo_width = zone_height_resized  # Width = bottomY - topY
-                                                # Calculate height from aspect ratio
-                                                text_logo_height = int(text_logo_width / orig_aspect) if orig_aspect > 0 else zone_height_resized
+                                                # Use min(natural_width, effective_zone_height) as the width constraint
+                                                # Don't stretch if logo is smaller
+                                                max_width = effective_zone_height  # This is zone_height_resized if zone exists, or spine_resize_height if no zone
+                                                text_logo_width = min(orig_width, max_width)
                                                 
-                                                # Resize by width to maintain aspect ratio
-                                                cmd_resize = [
-                                                    'convert',
-                                                    generated_text_logo,
-                                                    '-background', 'transparent',
-                                                    '-alpha', 'set',
-                                                    '-resize', f'{text_logo_width}x',  # Scale by width only, maintain aspect ratio
-                                                    temp_text_logo_resized
-                                                ]
-                                                logging.info(f"3D Box Spine: Resizing text logo with keep ratio - width: {text_logo_width} (zone_height_resized, bottomY-topY), height: {text_logo_height} (from aspect ratio {orig_aspect:.3f})")
+                                                # Only resize if the logo is larger than the constraint
+                                                if orig_width > max_width:
+                                                    # Calculate height from aspect ratio
+                                                    text_logo_height = int(text_logo_width / orig_aspect) if orig_aspect > 0 else max_width
+                                                    
+                                                    # Resize by width to maintain aspect ratio
+                                                    cmd_resize = [
+                                                        'convert',
+                                                        generated_text_logo,
+                                                        '-background', 'transparent',
+                                                        '-alpha', 'set',
+                                                        '-resize', f'{text_logo_width}x',  # Scale by width only, maintain aspect ratio
+                                                        temp_text_logo_resized
+                                                    ]
+                                                    logging.info(f"3D Box Spine: Resizing text logo with keep ratio - width: {text_logo_width} (capped at {max_width}, original: {orig_width}), height: {text_logo_height} (from aspect ratio {orig_aspect:.3f})")
+                                                    subprocess.run(cmd_resize, check=True)
+                                                    generated_text_logo = temp_text_logo_resized
+                                                else:
+                                                    # Logo is smaller than constraint, use natural size (no resize)
+                                                    logging.info(f"3D Box Spine: Text logo is smaller than max width ({orig_width} < {max_width}), using natural size without stretching")
+                                                
                                                 is_generated_text_logo = True  # Mark as already resized
                                             else:
                                                 # Fallback: use zone dimensions
@@ -1838,12 +1845,7 @@ class BoxGenerator:
                                         logging.info(f"3D Box Spine: Resizing logo to {logo_pre_rotate_width}x{logo_pre_rotate_height}: {' '.join(cmd_logo_resize)}")
                                         subprocess.run(cmd_logo_resize, check=True)
                                     
-                                    # Set logo_x for generated text logo if zone is defined
-                                    if is_generated_text_logo and keep_aspect_ratio:
-                                        if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
-                                            logo_x = zone_x_resized
-                                        else:
-                                            logo_x = 0
+                                    # logo_x will be calculated after rotation when we have the actual logo dimensions
                                     
                                     # Step 2: Rotate 90 degrees (preserve transparency)
                                     # For generated text logos with keep_aspect_ratio, the logo is already correctly sized
@@ -1895,7 +1897,24 @@ class BoxGenerator:
                                             else:
                                                 logging.warning(f"3D Box Spine: ⚠️ Logo width mismatch - got {logo_width}, expected {expected_width}")
                                         
-                                        # Calculate position: use zone if provided, otherwise default
+                                        # Calculate position: center horizontally and vertically
+                                        # Center horizontally between leftX and rightX of spine
+                                        if is_generated_text_logo and keep_aspect_ratio:
+                                            # For generated text logos with keep_aspect_ratio, center horizontally
+                                            if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0 and zone_x_resized is not None:
+                                                # Center within zone
+                                                logo_x = zone_x_resized + (zone_width_resized - logo_width) // 2
+                                            else:
+                                                # Center within full spine width
+                                                logo_x = (spine_resize_width - logo_width) // 2
+                                        elif zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0 and zone_x_resized is not None:
+                                            # Use zone x position (existing behavior for non-generated logos)
+                                            logo_x = zone_x_resized
+                                        else:
+                                            # Default: start at 0
+                                            logo_x = 0
+                                        
+                                        # Center vertically
                                         if zone_height_resized and zone_y_resized is not None:
                                             # Center vertically within zone
                                             logo_y = zone_y_resized + (zone_height_resized - logo_height) // 2
@@ -2064,11 +2083,7 @@ class BoxGenerator:
                                                 # Fallback: treat as normal logo
                                                 logging.warning(f"3D Box Spine (Uploaded/Field): Could not get generated text logo dimensions, treating as normal logo")
                                                 is_generated_text_logo = False
-                                            # Set logo_x for generated text logo
-                                            if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
-                                                logo_x = zone_x_resized
-                                            else:
-                                                logo_x = 0
+                                            # logo_x will be calculated after rotation when we have the actual logo dimensions
                                         
                                         # Only resize if this is NOT a generated text logo with keep_aspect_ratio
                                         should_resize_logo = not (is_generated_text_logo and keep_aspect_ratio)
@@ -2169,17 +2184,7 @@ class BoxGenerator:
                                             logging.info(f"3D Box Spine: Resizing logo to {logo_pre_rotate_width}x{logo_pre_rotate_height}: {' '.join(cmd_logo_resize)}")
                                             subprocess.run(cmd_logo_resize, check=True)
                                         
-                                        # Set logo_x for logos with keep_aspect_ratio if zone is defined and logo_x not already set
-                                        # (applies to both generated text logos and regular logos)
-                                        if keep_aspect_ratio and logo_x is None:
-                                            if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
-                                                logo_x = zone_x_resized
-                                            else:
-                                                logo_x = 0
-                                        
-                                        # Ensure logo_x is always set (fallback)
-                                        if logo_x is None:
-                                            logo_x = 0
+                                        # logo_x will be calculated after rotation when we have the actual logo dimensions
                                         
                                         # Step 2: Rotate 90 degrees (preserve transparency)
                                         # For generated text logos with keep_aspect_ratio, the logo is already correctly sized
@@ -2231,7 +2236,32 @@ class BoxGenerator:
                                                 else:
                                                     logging.warning(f"3D Box Spine (Uploaded/Field): ⚠️ Logo width mismatch - got {logo_rotated_width}, expected {expected_width}")
                                             
-                                            # Calculate position: use zone if provided, otherwise default
+                                            # Calculate position: center horizontally and vertically
+                                            # Center horizontally between leftX and rightX of spine
+                                            if is_generated_text_logo and keep_aspect_ratio:
+                                                # For generated text logos with keep_aspect_ratio, center horizontally
+                                                if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0 and zone_x_resized is not None:
+                                                    # Center within zone
+                                                    logo_x = zone_x_resized + (zone_width_resized - logo_rotated_width) // 2
+                                                else:
+                                                    # Center within full spine width
+                                                    logo_x = (spine_resize_width - logo_rotated_width) // 2
+                                            elif keep_aspect_ratio:
+                                                # For regular logos with keep_aspect_ratio, center horizontally
+                                                if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0 and zone_x_resized is not None:
+                                                    # Center within zone
+                                                    logo_x = zone_x_resized + (zone_width_resized - logo_rotated_width) // 2
+                                                else:
+                                                    # Center within full spine width
+                                                    logo_x = (spine_resize_width - logo_rotated_width) // 2
+                                            elif zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0 and zone_x_resized is not None:
+                                                # Use zone x position (existing behavior for non-keep-aspect-ratio logos)
+                                                logo_x = zone_x_resized
+                                            else:
+                                                # Default: start at 0
+                                                logo_x = 0
+                                            
+                                            # Center vertically
                                             if zone_height_resized and zone_y_resized is not None:
                                                 # Center vertically within zone
                                                 logo_y = zone_y_resized + (zone_height_resized - logo_rotated_height) // 2
