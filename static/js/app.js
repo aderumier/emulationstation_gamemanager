@@ -5664,6 +5664,66 @@ class GameCollectionManager {
         */
     }
 
+    /**
+     * Check if a field is a zip field based on its configuration
+     * @param {string} field - The field name to check
+     * @returns {boolean} - True if the field has zip as target_extension or zip in extensions
+     */
+    isZipField(field) {
+        // Use cached config if available
+        let media_fields = null;
+        if (this.mediaFieldsConfigCache && typeof this.mediaFieldsConfigCache === 'object' && Object.keys(this.mediaFieldsConfigCache).length > 0) {
+            media_fields = this.mediaFieldsConfigCache;
+        }
+        
+        // If no config available, return false
+        if (!media_fields) {
+            return false;
+        }
+        
+        const fieldConfig = media_fields[field];
+        // If field not in config, return false
+        if (!fieldConfig) {
+            return false;
+        }
+        
+        // Check target_extension
+        const targetExtension = fieldConfig.target_extension;
+        if (targetExtension && targetExtension.toLowerCase() === 'zip') {
+            return true;
+        }
+        
+        // Check extensions list
+        const extensions = fieldConfig.extensions;
+        if (extensions) {
+            let field_extensions = [];
+            if (Array.isArray(extensions)) {
+                field_extensions = extensions.map(ext => {
+                    let normalized = ext.toString().toLowerCase().trim();
+                    if (normalized.startsWith('.')) {
+                        normalized = normalized.substring(1);
+                    }
+                    return normalized;
+                });
+            } else if (typeof extensions === 'string') {
+                field_extensions = extensions.split(',').map(ext => {
+                    let normalized = ext.trim().toLowerCase();
+                    if (normalized.startsWith('.')) {
+                        normalized = normalized.substring(1);
+                    }
+                    return normalized;
+                });
+            }
+            
+            // Check if zip is in the extensions list
+            if (field_extensions.includes('zip')) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
     async getMediaMappings() {
         // Use cached mappings if available
         if (this.mediaMappingsCache) {
@@ -18404,9 +18464,9 @@ class GameCollectionManager {
                     
                     // Skip the rest of the loop iteration since we handled PDF/CBZ asynchronously
                     return;
-                } else if (mediaPath.toLowerCase().endsWith('.zip') || field === 'themehb' || field === 'themehs') {
+                } else if (mediaPath.toLowerCase().endsWith('.zip') || this.isZipField(field)) {
                     // ZIP file - show zip icon instead of preview
-                    // Also handle themehb/themehs fields even if extension is wrong (e.g., .php from earlier bug)
+                    // Check file extension or field configuration (target_extension or extensions)
                     mediaItem.innerHTML = `
                         <div style="position: relative; width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; background-color: ${this.getMediaCardBackgroundColor()}; border: 1px solid #dee2e6; border-radius: 4px;">
                             <i class="bi bi-file-earmark-zip" style="font-size: 4rem; color: #6c757d;"></i>
