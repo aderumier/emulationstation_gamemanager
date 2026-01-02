@@ -1561,7 +1561,7 @@ class ScreenScraperService:
         
         return results
     
-    async def download_media(self, media_url: str, file_path: str, client: httpx.AsyncClient, media_type: str = None) -> bool:
+    async def download_media(self, media_url: str, file_path: str, client: httpx.AsyncClient, media_type: str = None, media_item: Dict = None) -> bool:
         """
         Download a media file from URL to local path.
         
@@ -1570,6 +1570,7 @@ class ScreenScraperService:
             file_path: Local path to save the file (without extension)
             client: httpx client for downloading
             media_type: ScreenScraper media type (e.g., 'manuel', 'ss', 'wheel')
+            media_item: Optional media item dict containing metadata like 'format' field
             
         Returns:
             True if successful, False otherwise
@@ -1584,17 +1585,41 @@ class ScreenScraperService:
                     content_type = response.headers.get('content-type', '').lower()
                     print(f"Content-Type: {content_type}")
                     
-                    # Determine file extension from content type
-                    extension = self.get_extension_from_content_type(content_type)
+                    # Try to get extension from Content-Disposition header first
+                    extension = None
+                    content_disposition = response.headers.get('content-disposition', '')
+                    if content_disposition:
+                        # Extract filename from Content-Disposition: attachment; filename="Road Blaster-themehb.zip"
+                        import re
+                        filename_match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^\s;]+)', content_disposition, re.IGNORECASE)
+                        if filename_match:
+                            filename = filename_match.group(1).strip('"\'')
+                            extension = os.path.splitext(filename)[1]
+                            if extension:
+                                print(f"Using extension from Content-Disposition: {extension}")
+                    
+                    # If not found, try to get extension from content type
                     if not extension:
-                        # Special case: manual files are always PDF
-                        if media_type == 'manuel':
-                            extension = '.pdf'
-                            print(f"Using PDF extension for manual file")
-                        else:
-                            # Fallback to URL extension if content type is not recognized
-                            extension = os.path.splitext(urlparse(media_url).path)[1] or '.bin'
-                            print(f"Using fallback extension from URL: {extension}")
+                        extension = self.get_extension_from_content_type(content_type)
+                        if extension:
+                            print(f"Using extension from Content-Type: {extension}")
+                    
+                    # If still not found, try to use format field from media metadata
+                    if not extension and media_item and media_item.get('format'):
+                        format_value = media_item.get('format', '').lower()
+                        if format_value:
+                            extension = f'.{format_value}' if not format_value.startswith('.') else format_value
+                            print(f"Using extension from media format field: {extension}")
+                    
+                    # Special case: manual files are always PDF
+                    if not extension and media_type == 'manuel':
+                        extension = '.pdf'
+                        print(f"Using PDF extension for manual file")
+                    
+                    # Fallback to URL extension if content type is not recognized
+                    if not extension:
+                        extension = os.path.splitext(urlparse(media_url).path)[1] or '.bin'
+                        print(f"Using fallback extension from URL: {extension}")
                     
                     # Add extension to file path
                     final_file_path = f"{file_path}{extension}"
@@ -1915,8 +1940,8 @@ class ScreenScraperService:
             # Create client for downloading
             import httpx
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # Download the media (extension will be added based on content-type)
-                if await self.download_media(media_url, file_path_base, client, media_type):
+                # Download the media (extension will be added based on content-type, Content-Disposition, or format field)
+                if await self.download_media(media_url, file_path_base, client, media_type, media_item=media):
                     # Find the actual downloaded file (with correct extension)
                     actual_file_path = self.find_downloaded_file(file_path_base)
                     if actual_file_path:
