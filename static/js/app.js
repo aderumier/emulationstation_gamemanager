@@ -7885,35 +7885,77 @@ class GameCollectionManager {
         // Store original values to detect changes
         const originalGame = { ...game };
         
-        // Update the game object with form values
-        game.name = document.getElementById('editName').value;
-        game.desc = document.getElementById('editDescription').value;
-        game.note = document.getElementById('editNote').value;
-        game.genre = document.getElementById('editGenre').value;
-        game.developer = document.getElementById('editDeveloper').value;
-        game.publisher = document.getElementById('editPublisher').value;
-        game.family = document.getElementById('editFamily').value;
-        game.rating = document.getElementById('editRating').value;
-        game.players = document.getElementById('editPlayers').value;
+        // Helper function to safely get field value with fallback to original
+        const getFieldValue = (fieldId, fallbackValue = '') => {
+            const element = document.getElementById(fieldId);
+            if (!element) {
+                // Field doesn't exist, use original value as fallback
+                console.warn(`Field ${fieldId} not found, using original value: ${fallbackValue}`);
+                return fallbackValue;
+            }
+            return element.value || fallbackValue;
+        };
+        
+        // Check if form is properly loaded by checking for at least the name field
+        const nameField = document.getElementById('editName');
+        if (!nameField) {
+            console.error('Game edit form not properly loaded - name field missing. Aborting save to prevent data loss.');
+            this.showAlert('Error: Game edit form not fully loaded. Please wait a moment and try again.', 'error');
+            return;
+        }
+        
+        // Update the game object with form values, using original values as fallback
+        game.name = getFieldValue('editName', originalGame.name || '');
+        game.desc = getFieldValue('editDescription', originalGame.desc || '');
+        game.note = getFieldValue('editNote', originalGame.note || '');
+        game.genre = getFieldValue('editGenre', originalGame.genre || '');
+        game.developer = getFieldValue('editDeveloper', originalGame.developer || '');
+        game.publisher = getFieldValue('editPublisher', originalGame.publisher || '');
+        game.family = getFieldValue('editFamily', originalGame.family || '');
+        game.rating = getFieldValue('editRating', originalGame.rating || '');
+        game.players = getFieldValue('editPlayers', originalGame.players || '');
         // Get date from Flatpickr if available, otherwise parse the input value
-        game.releasedate = this.getDateValueFromFlatpickr('editReleasedate');
-        game.launchboxid = document.getElementById('editLaunchboxId').value;
-        game.igdbid = document.getElementById('editIgdbId').value;
-        game.screenscraperid = document.getElementById('editScreenscraperId').value;
-        game.steamid = document.getElementById('editSteamId').value;
-        game.steamgridid = document.getElementById('editSteamgridid').value;
-        game.mobygamesid = document.getElementById('editMobygamesid').value;
-        game.customid = document.getElementById('editCustomid').value;
+        const dateValue = this.getDateValueFromFlatpickr('editReleasedate');
+        game.releasedate = dateValue || originalGame.releasedate || '';
+        game.launchboxid = getFieldValue('editLaunchboxId', originalGame.launchboxid || '');
+        game.igdbid = getFieldValue('editIgdbId', originalGame.igdbid || '');
+        game.screenscraperid = getFieldValue('editScreenscraperId', originalGame.screenscraperid || '');
+        game.steamid = getFieldValue('editSteamId', originalGame.steamid || '');
+        game.steamgridid = getFieldValue('editSteamgridid', originalGame.steamgridid || '');
+        game.mobygamesid = getFieldValue('editMobygamesid', originalGame.mobygamesid || '');
+        game.customid = getFieldValue('editCustomid', originalGame.customid || '');
         // MD5 is readonly, but we can read it if it was updated elsewhere
-        game.md5 = document.getElementById('editMd5').value;
-        game.youtubeurl = document.getElementById('editYoutubeurl').value;
+        game.md5 = getFieldValue('editMd5', originalGame.md5 || '');
+        game.youtubeurl = getFieldValue('editYoutubeurl', originalGame.youtubeurl || '');
+        
+        // Protection: Don't save if all critical fields are blank (would delete game data)
+        // At minimum, name should exist (even if empty, it's valid)
+        // But if we're about to clear all data that previously existed, warn the user
+        const hasOriginalData = originalGame.name || originalGame.desc || originalGame.genre || originalGame.developer;
+        const hasNewData = game.name || game.desc || game.genre || game.developer;
+        
+        if (hasOriginalData && !hasNewData) {
+            // All data would be cleared - this is likely a bug, prevent save
+            console.error('Protection: Attempted to save blank data when original data existed. Aborting save.');
+            this.showAlert('Error: Cannot save - form appears to be empty. Please refresh and try again.', 'error');
+            return;
+        }
         
         // Handle favorite field (star icon)
         const favoriteIcon = document.getElementById('editFavorite');
-        game.favorite = favoriteIcon.classList.contains('bi-star-fill');
+        if (favoriteIcon) {
+            game.favorite = favoriteIcon.classList.contains('bi-star-fill');
+        } else {
+            game.favorite = originalGame.favorite || false;
+        }
         
         // Handle kidgame field (smiley icon)
-        game.kidgame = this.isKidgameActive();
+        try {
+            game.kidgame = this.isKidgameActive();
+        } catch (e) {
+            console.warn('Could not get kidgame status, using original value:', e);
+            game.kidgame = originalGame.kidgame || false;
+        }
 
         // Detect which fields changed
         const changedFields = [];
