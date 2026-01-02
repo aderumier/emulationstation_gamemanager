@@ -18519,6 +18519,9 @@ class GameCollectionManager {
         const placeholderSize = '150px'; // Use same size for all media types including video
         const iconClass = field === 'video' ? 'bi-exclamation-triangle' : 'bi-exclamation-triangle';
         
+        // Check if field is an image field
+        const isImageField = this.isImageField(field);
+        
         mediaItem.innerHTML = `
             <div class="media-placeholder" style="width: ${placeholderSize}; height: ${placeholderSize}; background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #856404; font-size: 0.8rem; text-align: center; cursor: pointer; transition: all 0.2s ease;">
                 <div>
