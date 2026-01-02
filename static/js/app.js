@@ -18404,6 +18404,64 @@ class GameCollectionManager {
                     
                     // Skip the rest of the loop iteration since we handled PDF/CBZ asynchronously
                     return;
+                } else if (mediaPath.toLowerCase().endsWith('.zip')) {
+                    // ZIP file - show zip icon instead of preview
+                    mediaItem.innerHTML = `
+                        <div style="position: relative; width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; background-color: ${this.getMediaCardBackgroundColor()}; border: 1px solid #dee2e6; border-radius: 4px;">
+                            <i class="bi bi-file-earmark-zip" style="font-size: 4rem; color: #6c757d;"></i>
+                            <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                            <small class="text-center flex-grow-1">${field}</small>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add hover effects to show replace overlay
+                    mediaItem.addEventListener('mouseenter', () => {
+                        const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                        if (replaceOverlay) {
+                            replaceOverlay.style.opacity = '1';
+                        }
+                    });
+                    
+                    mediaItem.addEventListener('mouseleave', () => {
+                        const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                        if (replaceOverlay) {
+                            replaceOverlay.style.opacity = '0';
+                        }
+                    });
+                    
+                    // Add click handler for replace overlay
+                    const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                    if (replaceOverlay) {
+                        replaceOverlay.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this.uploadMediaForGame(game, field);
+                        });
+                    }
+                    
+                    // Add click functionality for media selection
+                    mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
+                    
+                    // Add double-click functionality for uploading/replacing zip
+                    mediaItem.addEventListener('dblclick', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.uploadMediaForGame(game, field);
+                    });
+                    
+                    mediaItem.style.cursor = 'pointer';
+                    mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
+                    
+                    // Skip the rest of the loop iteration since we handled ZIP
+                    return;
                 } else {
                     // Add cache-busting parameter to force image refresh
                     const cacheBuster = new Date().getTime();
