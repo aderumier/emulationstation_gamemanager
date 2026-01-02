@@ -10090,21 +10090,6 @@ def rom_system_gamelist(system_name):
                 
                 app.logger.info(f'File deletion completed: {len(deleted_files)} files deleted, {len(failed_deletions)} failed')
             
-            # Protection: Ensure no game has a blank name before writing
-            for i, game in enumerate(games):
-                game_name = game.get('name', '').strip() if game.get('name') else ''
-                if not game_name:
-                    # Generate name from filename as fallback
-                    game_path = game.get('path', '')
-                    if game_path:
-                        filename = os.path.basename(game_path).replace('\\', '/').split('/')[-1]
-                        filename_without_ext = os.path.splitext(filename)[0]
-                        games[i]['name'] = filename_without_ext
-                        print(f"⚠️ Protection: Blank game name detected for {game_path}, generating from filename: {games[i]['name']}")
-                    else:
-                        games[i]['name'] = 'Unknown Game'
-                        print(f"⚠️ Protection: Blank game name and no path, using default: Unknown Game")
-            
             # Write the updated games back to gamelist.xml with verification
             try:
                 write_gamelist_xml(games, gamelist_path)
