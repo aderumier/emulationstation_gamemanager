@@ -1584,6 +1584,7 @@ class BoxGenerator:
                                                 else:
                                                     # Logo is smaller than constraint, use natural size (no resize)
                                                     logging.info(f"3D Box Spine: Text logo is smaller than max width ({orig_width} < {max_width}), using natural size without stretching")
+                                                    # No resize needed, logo is already at the correct size
                                                 
                                                 is_generated_text_logo = True  # Mark as already resized
                                             else:
@@ -1600,6 +1601,9 @@ class BoxGenerator:
                                                     '-extent', f'{text_logo_width}x{text_logo_height}',
                                                     temp_text_logo_resized
                                                 ]
+                                                logging.info(f"3D Box Spine: Resizing text logo to {text_logo_width}x{text_logo_height}: {' '.join(cmd_resize)}")
+                                                subprocess.run(cmd_resize, check=True)
+                                                generated_text_logo = temp_text_logo_resized
                                         else:
                                             # Resize to exact dimensions: zone height (width) x zone width (height)
                                             # Center horizontally, use full height (preserve transparency)
@@ -1616,9 +1620,8 @@ class BoxGenerator:
                                                 temp_text_logo_resized
                                             ]
                                             logging.info(f"3D Box Spine: Resizing text logo to {text_logo_width}x{text_logo_height}: {' '.join(cmd_resize)}")
-                                        
-                                        subprocess.run(cmd_resize, check=True)
-                                        generated_text_logo = temp_text_logo_resized
+                                            subprocess.run(cmd_resize, check=True)
+                                            generated_text_logo = temp_text_logo_resized
                                 
                                 if generated_text_logo and os.path.exists(generated_text_logo):
                                     spine_logo_to_use = generated_text_logo
