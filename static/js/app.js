@@ -7886,6 +7886,8 @@ class GameCollectionManager {
         const originalGame = { ...game };
         
         // Helper function to safely get field value with fallback to original
+        // For optional fields, empty strings are valid (user can clear them)
+        // Only use fallback if field doesn't exist
         const getFieldValue = (fieldId, fallbackValue = '') => {
             const element = document.getElementById(fieldId);
             if (!element) {
@@ -7893,7 +7895,10 @@ class GameCollectionManager {
                 console.warn(`Field ${fieldId} not found, using original value: ${fallbackValue}`);
                 return fallbackValue;
             }
-            return element.value || fallbackValue;
+            // Return the actual value (even if empty string) - allows clearing optional fields
+            // Only use fallback if field doesn't exist (handled above) or value is null/undefined
+            const value = element.value;
+            return (value !== null && value !== undefined) ? value : fallbackValue;
         };
         
         // Check if form is properly loaded by checking for at least the name field
