@@ -18460,6 +18460,9 @@ class GameCollectionManager {
                     mediaItem.style.cursor = 'pointer';
                     mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
                     
+                    // Append mediaItem to DOM (must be done before returning)
+                    mediaPreviewContent.appendChild(mediaItem);
+                    
                     // Skip the rest of the loop iteration since we handled ZIP
                     return;
                 } else {
