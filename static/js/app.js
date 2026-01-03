@@ -7456,9 +7456,14 @@ class GameCollectionManager {
                 if (modal) {
                     modal.hide();
                 }
-                // Refresh media preview
-                if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
-                    this.showMediaPreview(this.currentMediaPreviewGame);
+                // Refresh the game grid with latest data from server
+                await this.refreshGameGridWithData();
+                
+                // Find the updated game from the refreshed games array
+                const updatedGame = this.games.find(g => g.path === game.path);
+                if (updatedGame && this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
+                    // Refresh the media preview to show the new media
+                    this.showMediaPreview(updatedGame);
                 }
             } else {
                 this.showAlert(data.error || 'Failed to download media', 'danger');
@@ -37748,8 +37753,18 @@ class GameCollectionManager {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('fanartSearchModal'));
                 modal.hide();
                 
-                // Refresh the media preview
-                this.showMediaPreview(game);
+                // Refresh the game grid with latest data from server
+                await this.refreshGameGridWithData();
+                
+                // Find the updated game from the refreshed games array
+                const updatedGame = this.games.find(g => g.path === game.path);
+                if (updatedGame) {
+                    // Refresh the media preview to show the new image
+                    this.showMediaPreview(updatedGame);
+                } else {
+                    // Fallback to original game if not found
+                    this.showMediaPreview(game);
+                }
             } else {
                 this.showAlert(`Error downloading fanart: ${result.error || 'Unknown error'}`, 'error');
             }
