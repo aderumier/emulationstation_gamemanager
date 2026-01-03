@@ -1032,10 +1032,11 @@ class BoxGenerator:
             # Validate color format (should be hex like #FF0000 or #ff0000)
             if not spine_color.startswith('#'):
                 spine_color = '#' + spine_color
-            # Create solid color image
+            # Create solid color image in sRGB color space to ensure proper color handling
             cmd = [
                 'convert',
                 '-size', f'{int(spine_width)}x{box_height}',
+                '-colorspace', 'sRGB',
                 f'xc:{spine_color}',
                 output_path
             ]
@@ -1951,13 +1952,15 @@ class BoxGenerator:
                                             logo_y = int(spine_resize_height * 2 / 3) - (logo_height // 2)
                                         
                                         # Composite logo onto resized spine (before perspective transformation)
-                                        # Use composite with alpha channel to preserve transparency
+                                        # Use convert with composite to ensure sRGB color space is preserved
+                                        # This prevents greyscale conversion on white backgrounds
                                         cmd_logo_composite = [
-                                            'composite',
-                                            '-alpha', 'set',
-                                            '-geometry', f'+{logo_x}+{logo_y}',
-                                            temp_logo_rotated_resized,
+                                            'convert',
                                             temp_spine_resized,
+                                            temp_logo_rotated_resized,
+                                            '-colorspace', 'sRGB',
+                                            '-geometry', f'+{logo_x}+{logo_y}',
+                                            '-composite',
                                             temp_spine_resized
                                         ]
                                         logging.info(f"3D Box Spine: Composite logo at ({logo_x}, {logo_y}): {' '.join(cmd_logo_composite)}")
@@ -2360,13 +2363,15 @@ class BoxGenerator:
                                                 logo_y = int(spine_resize_height * 2 / 3) - (logo_rotated_height // 2)
                                             
                                             # Composite logo onto resized spine (before perspective transformation)
-                                            # Use composite with alpha channel to preserve transparency
+                                            # Use convert with composite to ensure sRGB color space is preserved
+                                            # This prevents greyscale conversion on white backgrounds
                                             cmd_logo_composite = [
-                                                'composite',
-                                                '-alpha', 'set',
-                                                '-geometry', f'+{logo_x}+{logo_y}',
-                                                temp_logo_rotated_resized,
+                                                'convert',
                                                 temp_spine_resized,
+                                                temp_logo_rotated_resized,
+                                                '-colorspace', 'sRGB',
+                                                '-geometry', f'+{logo_x}+{logo_y}',
+                                                '-composite',
                                                 temp_spine_resized
                                             ]
                                             logging.info(f"3D Box Spine: Composite logo at ({logo_x}, {logo_y}): {' '.join(cmd_logo_composite)}")
@@ -2528,11 +2533,15 @@ class BoxGenerator:
                                         subprocess.run(cmd_logo_perspective, check=True)
                                         
                                         # Step 3: Composite transformed logo onto final output
+                                        # Use convert with composite to ensure sRGB color space is preserved
+                                        # This prevents greyscale conversion on white backgrounds
                                         cmd_logo_composite = [
-                                            'composite',
-                                            '-geometry', f'+{logo_min_x}+{logo_min_y}',
-                                            temp_logo_transformed,
+                                            'convert',
                                             output_path,
+                                            temp_logo_transformed,
+                                            '-colorspace', 'sRGB',
+                                            '-geometry', f'+{logo_min_x}+{logo_min_y}',
+                                            '-composite',
                                             output_path
                                         ]
                                         logging.info(f"3D Box Spine Logo: Composite at ({logo_min_x}, {logo_min_y}): {' '.join(cmd_logo_composite)}")
