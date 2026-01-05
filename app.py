@@ -388,6 +388,11 @@ def is_discord_auth_enabled():
     discord_config = credential_manager.get_discord_credentials()
     return bool(discord_config.get('client_id') and discord_config.get('client_secret'))
 
+def is_registration_enabled():
+    """Check if user registration is enabled"""
+    auth_config = config.get('authentication', {})
+    return auth_config.get('allow_registration', False)
+
 def should_bypass_auth():
     """Check if authentication should be bypassed (disable_local_auth=true and no Discord config)"""
     local_auth_disabled = is_local_auth_disabled()
@@ -27206,15 +27211,15 @@ def login():
             
             if not username or not password or not confirm_password:
                 flash('Please fill in all required fields', 'error')
-                return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled())
+                return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled(), registration_enabled=is_registration_enabled())
             
             if password != confirm_password:
                 flash('Passwords do not match', 'error')
-                return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled())
+                return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled(), registration_enabled=is_registration_enabled())
             
             if len(password) < 6:
                 flash('Password must be at least 6 characters long', 'error')
-                return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled())
+                return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled(), registration_enabled=is_registration_enabled())
             
             # Create the first admin user
             admin_user, error = create_user(username, password, email)
@@ -27231,7 +27236,7 @@ def login():
             else:
                 flash(f'Failed to create admin user: {error}', 'error')
         
-        return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled())
+        return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled(), registration_enabled=is_registration_enabled())
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -27240,7 +27245,7 @@ def login():
         
         if not username or not password:
             flash('Please fill in all fields', 'error')
-            return render_template('login.html', discord_only=False, discord_enabled=is_discord_auth_enabled())
+            return render_template('login.html', discord_only=False, discord_enabled=is_discord_auth_enabled(), registration_enabled=is_registration_enabled())
         
         # Check if user exists and password is correct
         users = load_users()
@@ -27275,7 +27280,56 @@ def login():
         else:
             flash('Invalid username or password', 'error')
     
-    return render_template('login.html', discord_only=False, discord_enabled=is_discord_auth_enabled())
+    return render_template('login.html', discord_only=False, discord_enabled=is_discord_auth_enabled(), registration_enabled=is_registration_enabled())
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """User registration page"""
+    # Check if local authentication is disabled
+    if is_local_auth_disabled():
+        flash('Local registration is disabled. Please use Discord to authenticate.', 'error')
+        return redirect(url_for('login'))
+    
+    # Check if registration is enabled
+    if not is_registration_enabled():
+        flash('Registration is currently disabled. Please contact an administrator.', 'error')
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        email = request.form.get('email', '')
+        
+        if not username or not password or not confirm_password:
+            flash('Please fill in all required fields', 'error')
+            return render_template('register.html', discord_enabled=is_discord_auth_enabled())
+        
+        if password != confirm_password:
+            flash('Passwords do not match', 'error')
+            return render_template('register.html', discord_enabled=is_discord_auth_enabled())
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long', 'error')
+            return render_template('register.html', discord_enabled=is_discord_auth_enabled())
+        
+        # Check if username already exists
+        users = load_users()
+        for user_id, user_data in users.items():
+            if user_data['username'].lower() == username.lower():
+                flash('Username already exists', 'error')
+                return render_template('register.html', discord_enabled=is_discord_auth_enabled())
+        
+        # Create the user
+        user, error = create_user(username, password, email)
+        if user:
+            flash('Registration successful! Your account is pending validation. Please contact an administrator.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash(f'Registration failed: {error}', 'error')
+    
+    return render_template('register.html', discord_enabled=is_discord_auth_enabled())
 
 
 @app.route('/logout')

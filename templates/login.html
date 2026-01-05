@@ -251,6 +251,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </a>
                 
             {% endif %}
+            
+            {% if not is_first_user and not discord_only and registration_enabled %}
+                <div class="register-link">
+                    <p class="mb-0">Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+                </div>
+            {% endif %}
         </div>
     </div>
     

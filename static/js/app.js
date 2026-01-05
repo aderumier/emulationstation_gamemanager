@@ -29920,6 +29920,7 @@ class GameCollectionManager {
                 
                 // Authentication settings
                 document.getElementById('disableLocalAuth').checked = config.authentication?.disable_local_auth || false;
+                document.getElementById('allowRegistration').checked = config.authentication?.allow_registration || false; // Default to false if not set
                 
             } else {
             }
@@ -29975,7 +29976,8 @@ class GameCollectionManager {
                 },
                 max_tasks_to_keep: parseInt(document.getElementById('maxTasksToKeep').value),
                 authentication: {
-                    disable_local_auth: document.getElementById('disableLocalAuth').checked
+                    disable_local_auth: document.getElementById('disableLocalAuth').checked,
+                    allow_registration: document.getElementById('allowRegistration').checked
                 }
             };
 

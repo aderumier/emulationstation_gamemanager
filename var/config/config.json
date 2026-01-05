@@ -12,7 +12,8 @@
         "file": "app.log"
     },
     "authentication": {
-        "disable_local_auth": true
+        "disable_local_auth": true,
+        "allow_registration": false
     },
     "media": {
         "scan_settings": {
@@ -124,6 +125,15 @@
                 ".png"
             ],
             "target_extension": ".png",
+            "width": 0,
+            "height": 0
+        },
+        "themehb": {
+            "directory": "themehb",
+            "extensions": [
+                ".zip"
+            ],
+            "target_extension": ".zip",
             "width": 0,
             "height": 0
         }
