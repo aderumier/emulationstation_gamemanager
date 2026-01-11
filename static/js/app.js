@@ -5913,7 +5913,10 @@ class GameCollectionManager {
                         cleanMediaPath = cleanMediaPath.substring(2);
                     }
                     const cacheBuster = new Date().getTime();
-                    const videoUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                    // Properly encode path segments to handle special characters like #
+                    const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
+                    const encodedPath = pathParts.join('/');
+                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`;
                     
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaContent.appendChild(mediaItem);
@@ -7545,10 +7548,17 @@ class GameCollectionManager {
                 // Fix video URL by adding roms/<system>/ prefix if missing
                 // Use the current system that was set when loading the games
                 let videoPath = game[field];
-                if (videoPath && !videoPath.startsWith('roms/')) {
+                // Remove leading ./ if present
+                if (videoPath && videoPath.startsWith('./')) {
+                    videoPath = videoPath.substring(2);
+                }
+                if (videoPath && !videoPath.startsWith('roms/') && !videoPath.startsWith('/roms/')) {
                     videoPath = `roms/${this.currentSystem}/${videoPath}`;
                 }
-                video.src = videoPath;
+                // Properly encode path segments to handle special characters like #
+                const pathParts = videoPath.split('/').filter(part => part && part !== '.').map(part => encodeURIComponent(part));
+                const encodedPath = '/' + pathParts.join('/');
+                video.src = encodedPath;
                 video.title = `${field}: ${game[field]}`;
                 
                 // Set video dimensions after metadata loads to ensure proper fullscreen and screenshot behavior
@@ -18312,7 +18322,10 @@ class GameCollectionManager {
                         cleanMediaPath = cleanMediaPath.substring(2);
                     }
                     const cacheBuster = new Date().getTime();
-                    const videoUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                    // Properly encode path segments to handle special characters like #
+                    const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
+                    const encodedPath = pathParts.join('/');
+                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`;
                     
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaPreviewContent.appendChild(mediaItem);
