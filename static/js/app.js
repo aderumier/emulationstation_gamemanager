@@ -108,6 +108,7 @@ class GameCollectionManager {
             emumoviesSystems: null,
             datscrapperFiles: null,
             customDatabases: null,
+            myrientDatabases: null,
             lastUpdated: null,
             cacheTimeout: 5 * 60 * 1000 // 5 minutes
         };
@@ -885,6 +886,7 @@ class GameCollectionManager {
             oldGame.launchboxid !== newGame.launchboxid ||
             oldGame.mobygamesid !== newGame.mobygamesid ||
             oldGame.customid !== newGame.customid ||
+            oldGame.myrient !== newGame.myrient ||
             oldGame.steamid !== newGame.steamid ||
             oldGame.screenscraperid !== newGame.screenscraperid ||
             oldGame.steamgridid !== newGame.steamgridid ||
@@ -1870,6 +1872,10 @@ class GameCollectionManager {
         document.getElementById('scrapCustomBtn').addEventListener('click', async () => {
             await this.ensurePanelGameSavedIfOpen();
             this.scrapCustom();
+        });
+        document.getElementById('scrapMyrientBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.scrapMyrient();
         });
         
         // Add event listeners for find best match dropdown options
@@ -3310,7 +3316,7 @@ class GameCollectionManager {
                         color: '#000'
                     }
                 },
-                {
+                { 
                     field: 'customid', 
                     headerName: 'Custom', 
                     editable: false, 
@@ -3333,9 +3339,38 @@ class GameCollectionManager {
                         color: '#000'
                     }
                 },
+                { 
+                    field: 'myrient', 
+                    headerName: 'Myrient', 
+                    editable: true, 
+                    sortable: true, 
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 200,
+                    minWidth: 100,
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
+                    headerTooltip: 'Myrient download URL. Auto-populated when scraping.',
+                    valueGetter: function(params) {
+                        const value = params.data?.myrient;
+                        return value ? String(value) : '';
+                    },
+                    cellRenderer: function(params) {
+                        if (!params.value || params.value === '') {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        const url = params.value;
+                        const displayUrl = url.length > 40 ? url.substring(0, 40) + '...' : url;
+                        return `<a href="${url}" target="_blank" title="${url}">${displayUrl}</a>`;
+                    },
+                    cellStyle: { 
+                        backgroundColor: '#d1ecf1',
+                        fontSize: '0.85em'
+                    }
+                },
 
                 { 
-                    field: 'path', 
+                    field: 'path',
                     headerName: 'Path', 
                     editable: false,
                     sortable: true, 
@@ -3756,6 +3791,7 @@ class GameCollectionManager {
                             'steamgridid': 'editSteamgridid',
                             'mobygamesid': 'editMobygamesid',
                             'customid': 'editCustomid',
+                            'myrient': 'editMyrient',
                             'youtubeurl': 'editYoutubeurl'
                         };
                         
@@ -4750,6 +4786,7 @@ class GameCollectionManager {
             steamgridid: String(game.steamgridid || '').trim(),
             mobygamesid: String(game.mobygamesid || '').trim(),
             customid: String(game.customid || '').trim(),
+            myrient: String(game.myrient || '').trim(),
             youtubeurl: String(game.youtubeurl || '').trim(),
             favorite: game.favorite === true || game.favorite === 'true',
             kidgame: game.kidgame === true || game.kidgame === 'true'
@@ -4848,6 +4885,7 @@ class GameCollectionManager {
         clearField('editSteamgridid');
         clearField('editMobygamesid');
         clearField('editCustomid');
+        clearField('editMyrient');
            clearField('editMd5');
            clearField('editYoutubeurl');
            
@@ -7994,6 +8032,7 @@ class GameCollectionManager {
         game.steamgridid = getFieldValue('editSteamgridid', originalGame.steamgridid || '');
         game.mobygamesid = getFieldValue('editMobygamesid', originalGame.mobygamesid || '');
         game.customid = getFieldValue('editCustomid', originalGame.customid || '');
+        game.myrient = getFieldValue('editMyrient', originalGame.myrient || '');
         // MD5 is readonly, but we can read it if it was updated elsewhere
         game.md5 = getFieldValue('editMd5', originalGame.md5 || '');
         game.youtubeurl = getFieldValue('editYoutubeurl', originalGame.youtubeurl || '');
@@ -8060,6 +8099,7 @@ class GameCollectionManager {
         if (originalGame.steamgridid !== game.steamgridid) changedFields.push('steamgridid');
         if (originalGame.mobygamesid !== game.mobygamesid) changedFields.push('mobygamesid');
         if (originalGame.customid !== game.customid) changedFields.push('customid');
+        if (originalGame.myrient !== game.myrient) changedFields.push('myrient');
         if (originalGame.youtubeurl !== game.youtubeurl) changedFields.push('youtubeurl');
         if (originalGame.favorite !== game.favorite) changedFields.push('favorite');
         if (originalGame.kidgame !== game.kidgame) changedFields.push('kidgame');
@@ -8116,6 +8156,7 @@ class GameCollectionManager {
                             steamgridid: String(savedGame.steamgridid || '').trim(),
                             mobygamesid: String(savedGame.mobygamesid || '').trim(),
                             customid: String(savedGame.customid || '').trim(),
+                            myrient: String(savedGame.myrient || '').trim(),
                             youtubeurl: String(savedGame.youtubeurl || '').trim(),
                             favorite: savedGame.favorite === true || savedGame.favorite === 'true',
                             kidgame: savedGame.kidgame === true || savedGame.kidgame === 'true'
@@ -8153,6 +8194,7 @@ class GameCollectionManager {
                             steamgridid: String(savedGame.steamgridid || '').trim(),
                             mobygamesid: String(savedGame.mobygamesid || '').trim(),
                             customid: String(savedGame.customid || '').trim(),
+                            myrient: String(savedGame.myrient || '').trim(),
                             youtubeurl: String(savedGame.youtubeurl || '').trim(),
                             favorite: savedGame.favorite === true || savedGame.favorite === 'true',
                             kidgame: savedGame.kidgame === true || savedGame.kidgame === 'true'
@@ -17014,6 +17056,9 @@ class GameCollectionManager {
             // Populate Custom Database combobox
             await this.populateCustomCombobox();
             
+            // Populate Myrient Database combobox
+            await this.populateMyrientCombobox();
+            
             // Load current system mappings
             const response = await fetch('/api/systems');
             const data = await response.json();
@@ -17030,6 +17075,7 @@ class GameCollectionManager {
                 document.getElementById('emumoviesMapping').value = systemConfig.emumovies || '';
                 document.getElementById('datscrapperMapping').value = systemConfig.dat_file || '';
                 document.getElementById('customMapping').value = systemConfig.custom || '';
+                document.getElementById('myrientMapping').value = systemConfig.myrient || '';
                 
                 // Set extensions value (empty if system doesn't exist)
                 const extensions = systemConfig.extensions || [];
@@ -17134,9 +17180,38 @@ class GameCollectionManager {
         }
     }
 
+    async populateMyrientCombobox() {
+        try {
+            const response = await fetch('/api/myrient-databases');
+            const data = await response.json();
+            
+            const select = document.getElementById('myrientMapping');
+            if (!select) return;
+            
+            // Clear existing options except the first one
+            select.innerHTML = '<option value="">Select Myrient database...</option>';
+            
+            if (data.success && data.databases) {
+                // Sort databases alphabetically
+                const sortedDatabases = [...data.databases].sort((a, b) => {
+                    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                });
+                
+                sortedDatabases.forEach(db => {
+                    const option = document.createElement('option');
+                    option.value = db;
+                    option.textContent = db;
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading Myrient databases:', error);
+        }
+    }
+
     highlightScraperField(scraperType) {
         // Remove existing highlights
-        const fields = ['launchboxMapping', 'igdbMapping', 'mobygamesMapping', 'screenscraperMapping', 'emumoviesMapping', 'datscrapperMapping', 'customMapping'];
+        const fields = ['launchboxMapping', 'igdbMapping', 'mobygamesMapping', 'screenscraperMapping', 'emumoviesMapping', 'datscrapperMapping', 'customMapping', 'myrientMapping'];
         fields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
             if (field) {
@@ -17154,7 +17229,8 @@ class GameCollectionManager {
             'screenscraper': 'screenscraperMapping',
             'emumovies': 'emumoviesMapping',
             'datscrapper': 'datscrapperMapping',
-            'custom': 'customMapping'
+            'custom': 'customMapping',
+            'myrient': 'myrientMapping'
         };
         
         const targetFieldId = fieldMap[scraperType];
@@ -19949,7 +20025,10 @@ class GameCollectionManager {
                     
                     // Set image source with cache busting to ensure fresh load
                     const cacheBuster = new Date().getTime();
-                    const imageUrl = `/roms/${result.frame_path}?v=${cacheBuster}`;
+                    // Properly encode path segments to handle special characters like #
+                    const pathParts = result.frame_path.split('/').map(part => part ? encodeURIComponent(part) : '');
+                    const encodedPath = pathParts.join('/');
+                    const imageUrl = `/roms/${encodedPath}?v=${cacheBuster}`;
                     console.log('Setting video frame src:', imageUrl);
                     
                     // Set up event handlers and flags
@@ -20361,7 +20440,10 @@ class GameCollectionManager {
         
         // Set image source if we have a frame path
         if (this.currentFramePath && !cropperImage.src) {
-            cropperImage.src = `/roms/${this.currentFramePath}`;
+            // Properly encode path segments to handle special characters like #
+            const pathParts = this.currentFramePath.split('/').map(part => part ? encodeURIComponent(part) : '');
+            const encodedPath = pathParts.join('/');
+            cropperImage.src = `/roms/${encodedPath}`;
         }
         
         // Wait for image to load, then setup Cropper.js v1
@@ -25939,6 +26021,7 @@ class GameCollectionManager {
                                 <th style="width: 11%">EmuMovies</th>
                                 <th style="width: 11%">DAT File</th>
                                 <th style="width: 11%">Custom</th>
+                                <th style="width: 11%">Myrient</th>
                                 <th style="width: 24%">Extensions</th>
                             </tr>
                         </thead>
@@ -25980,7 +26063,8 @@ class GameCollectionManager {
                 screenscraper: document.getElementById('screenscraperMapping').value,
                 emumovies: document.getElementById('emumoviesMapping').value,
                 dat_file: document.getElementById('datscrapperMapping').value,
-                custom: document.getElementById('customMapping') ? document.getElementById('customMapping').value : ''
+                custom: document.getElementById('customMapping') ? document.getElementById('customMapping').value : '',
+                myrient: document.getElementById('myrientMapping') ? document.getElementById('myrientMapping').value : ''
             };
             
             // Get extensions value and convert to array
@@ -26003,6 +26087,7 @@ class GameCollectionManager {
                     emumovies_platform: mappings.emumovies,
                     dat_file: mappings.dat_file,
                     custom: mappings.custom,
+                    myrient: mappings.myrient,
                     extensions: extensions
                 })
             });
@@ -26113,6 +26198,7 @@ class GameCollectionManager {
         this.systemsConfigCache.emumoviesSystems = null;
         this.systemsConfigCache.datscrapperFiles = null;
         this.systemsConfigCache.customDatabases = null;
+        this.systemsConfigCache.myrientDatabases = null;
         this.systemsConfigCache.lastUpdated = null;
         console.log('Cleared systems configuration cache');
     }
@@ -26135,7 +26221,8 @@ class GameCollectionManager {
             this.systemsConfigCache.mobygamesSystems &&
             this.systemsConfigCache.emumoviesSystems &&
             this.systemsConfigCache.datscrapperFiles &&
-            this.systemsConfigCache.customDatabases) {
+            this.systemsConfigCache.customDatabases &&
+            this.systemsConfigCache.myrientDatabases) {
             
             console.log('Using cached systems configuration data');
             // Load systems data for cached version
@@ -26149,6 +26236,7 @@ class GameCollectionManager {
                         this.systemsConfigCache.emumoviesSystems,
                         this.systemsConfigCache.datscrapperFiles,
                         this.systemsConfigCache.customDatabases,
+                        this.systemsConfigCache.myrientDatabases,
                         data.systems
                     );
                 } else {
@@ -26177,18 +26265,38 @@ class GameCollectionManager {
         `;
         
         // Load LaunchBox platforms, ScreenScraper systems, IGDB platforms, MobyGames systems, EmuMovies systems, DAT files, and Custom databases for comboboxes
-        let platforms = [], screenscraperSystems = [], igdbPlatforms = [], mobygamesSystems = [], emumoviesSystems = [], datscrapperFiles = [], customDatabases = [];
+        let platforms = [], screenscraperSystems = [], igdbPlatforms = [], mobygamesSystems = [], emumoviesSystems = [], datscrapperFiles = [], customDatabases = [], myrientDatabases = [];
         
         try {
-            [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, customDatabases] = await Promise.all([
+            // Use allSettled so one failure doesn't prevent others from loading
+            const results = await Promise.allSettled([
                 this.loadLaunchBoxPlatforms(),
                 this.loadScreenScraperSystems(),
                 this.loadIgdbPlatforms(),
                 this.loadMobygamesSystems(),
                 this.loadEmumoviesSystems(),
                 this.loadDatscrapperFiles(),
-                this.loadCustomDatabases()
+                this.loadCustomDatabases(),
+                this.loadMyrientDatabases()
             ]);
+            
+            // Extract results, using empty array if rejected
+            platforms = results[0].status === 'fulfilled' ? results[0].value : [];
+            screenscraperSystems = results[1].status === 'fulfilled' ? results[1].value : [];
+            igdbPlatforms = results[2].status === 'fulfilled' ? results[2].value : [];
+            mobygamesSystems = results[3].status === 'fulfilled' ? results[3].value : [];
+            emumoviesSystems = results[4].status === 'fulfilled' ? results[4].value : [];
+            datscrapperFiles = results[5].status === 'fulfilled' ? results[5].value : [];
+            customDatabases = results[6].status === 'fulfilled' ? results[6].value : [];
+            myrientDatabases = results[7].status === 'fulfilled' ? results[7].value : [];
+            
+            // Log any failures
+            results.forEach((result, index) => {
+                if (result.status === 'rejected') {
+                    const names = ['LaunchBox', 'ScreenScraper', 'IGDB', 'MobyGames', 'EmuMovies', 'DAT Scrapper', 'Custom', 'Myrient'];
+                    console.warn(`Failed to load ${names[index]} data:`, result.reason);
+                }
+            });
 
             // Cache the results
             this.systemsConfigCache.platforms = platforms;
@@ -26198,23 +26306,14 @@ class GameCollectionManager {
             this.systemsConfigCache.emumoviesSystems = emumoviesSystems;
             this.systemsConfigCache.datscrapperFiles = datscrapperFiles;
             this.systemsConfigCache.customDatabases = customDatabases;
+            this.systemsConfigCache.myrientDatabases = myrientDatabases;
             this.systemsConfigCache.lastUpdated = Date.now();
             
             console.log('Cached systems configuration data');
 
         } catch (error) {
-            // Show error message
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="9" class="text-center py-4">
-                        <div class="alert alert-warning mb-0">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            Error loading platform data. Some comboboxes may be empty.
-                        </div>
-                    </td>
-                </tr>
-            `;
-            return;
+            console.error('Unexpected error loading platform data:', error);
+            // Don't return early - still try to load systems even if combobox data fails
         }
         
         // Load systems data and populate table
@@ -26223,7 +26322,7 @@ class GameCollectionManager {
             return fetch('/api/systems').then(response => response.json());
         }).then(data => {
             if (data.success) {
-                this.populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, customDatabases, data.systems);
+                this.populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, customDatabases, myrientDatabases, data.systems);
             } else {
                 throw new Error('Failed to load systems data');
             }
@@ -26231,7 +26330,7 @@ class GameCollectionManager {
             console.error('Error loading systems config:', error);
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="text-center py-4">
+                    <td colspan="10" class="text-center py-4">
                         <div class="alert alert-warning mb-0">
                             <i class="bi bi-exclamation-triangle me-2"></i>
                             Error loading systems configuration.
@@ -26242,7 +26341,7 @@ class GameCollectionManager {
         });
     }
     
-    populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, customDatabases, systems) {
+    populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, customDatabases, myrientDatabases, systems) {
         const tbody = document.getElementById('systemsTableBody');
         if (!tbody) return;
         
@@ -26269,6 +26368,7 @@ class GameCollectionManager {
         const igdbArray = Array.isArray(igdbPlatforms) ? igdbPlatforms : [];
         const mobygamesArray = Array.isArray(mobygamesSystems) ? mobygamesSystems : [];
         const emumoviesArray = Array.isArray(emumoviesSystems) ? emumoviesSystems : [];
+        const myrientArray = Array.isArray(myrientDatabases) ? myrientDatabases : [];
         
         // Use the systems data passed as parameter
         Object.entries(systems).forEach(([systemName, systemData]) => {
@@ -26293,6 +26393,8 @@ class GameCollectionManager {
                     case 'emumovies':
                         return value || 'Not set';
                     case 'custom':
+                        return value || 'Not set';
+                    case 'myrient':
                         return value || 'Not set';
                     default:
                         return value;
@@ -26382,6 +26484,17 @@ class GameCollectionManager {
                          style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
                          title="Click to change Custom database">
                         <span class="platform-display">${getDisplayName(systemData.custom, 'custom')}</span>
+                        <i class="bi bi-chevron-down ms-auto text-muted"></i>
+                    </div>
+                </td>
+                <td>
+                    <div class="platform-field" 
+                         data-system="${systemName}" 
+                         data-field="myrient" 
+                         data-type="myrient"
+                         style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
+                         title="Click to change Myrient database">
+                        <span class="platform-display">${getDisplayName(systemData.myrient || '', 'myrient')}</span>
                         <i class="bi bi-chevron-down ms-auto text-muted"></i>
                     </div>
                 </td>
@@ -26539,6 +26652,28 @@ class GameCollectionManager {
         }
     }
     
+    async loadMyrientDatabases() {
+        try {
+            const response = await fetch('/api/myrient-databases');
+            
+            if (!response.ok) {
+                return [];
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.databases) {
+                // Return database names sorted alphabetically
+                return data.databases.sort((a, b) => a.localeCompare(b));
+            } else {
+                return [];
+            }
+        } catch (error) {
+            console.error('Error loading Myrient databases:', error);
+            return [];
+        }
+    }
+    
     async showPlatformSelector(systemName, fieldType, platformType, fieldElement) {
         try {
             let options = [];
@@ -26572,6 +26707,9 @@ class GameCollectionManager {
                     break;
                 case 'custom':
                     options = await this.loadCustomDatabases();
+                    break;
+                case 'myrient':
+                    options = await this.loadMyrientDatabases();
                     break;
             }
             
@@ -26646,6 +26784,10 @@ class GameCollectionManager {
                     isSelected = option === currentValue;
                     break;
                 case 'custom':
+                    value = text = option;
+                    isSelected = option === currentValue;
+                    break;
+                case 'myrient':
                     value = text = option;
                     isSelected = option === currentValue;
                     break;
@@ -26745,6 +26887,7 @@ class GameCollectionManager {
                 emumovies_platform: currentSystem.emumovies || '',
                 dat_file: currentSystem.dat_file || '',
                 custom: currentSystem.custom || '',
+                myrient: currentSystem.myrient || '',
                 extensions: Array.isArray(currentSystem.extensions) ? currentSystem.extensions : []
             };
             
@@ -26763,6 +26906,8 @@ class GameCollectionManager {
                 updateData.dat_file = value.trim();
             } else if (field === 'custom') {
                 updateData.custom = value.trim();
+            } else if (field === 'myrient') {
+                updateData.myrient = value.trim();
             } else if (field === 'extensions') {
                 // Parse extensions from comma-separated string
                 updateData.extensions = value.trim() ? 
@@ -31042,6 +31187,7 @@ class GameCollectionManager {
             steamgridid: String(game.steamgridid || '').trim(),
             mobygamesid: String(game.mobygamesid || '').trim(),
             customid: String(game.customid || '').trim(),
+            myrient: String(game.myrient || '').trim(),
             youtubeurl: String(game.youtubeurl || '').trim(),
             favorite: game.favorite === true || game.favorite === 'true',
             kidgame: game.kidgame === true || game.kidgame === 'true'
@@ -33343,6 +33489,11 @@ class GameCollectionManager {
         if (customBtn) {
             customBtn.disabled = false; // Allow Custom scraping
         }
+        
+        const myrientBtn = document.getElementById('scrapMyrientBtn');
+        if (myrientBtn) {
+            myrientBtn.disabled = false; // Allow Myrient scraping
+        }
 
         // Update selection display
         this.updateSelectionDisplay();
@@ -34056,6 +34207,71 @@ class GameCollectionManager {
             // Restore button state
             const button = document.getElementById('scrapCustomBtn');
             button.innerHTML = '<i class="bi bi-database"></i> Custom';
+            button.disabled = false;
+        }
+    }
+
+    async scrapMyrient() {
+        if (!this.currentSystem) {
+            this.showAlert('❌ Please select a system first', 'warning');
+            return;
+        }
+
+        // Check if Myrient database is configured for this system
+        const response = await fetch('/api/systems');
+        const data = await response.json();
+        
+        if (!data.success) {
+            this.showAlert('❌ Failed to load systems configuration', 'danger');
+            return;
+        }
+        
+        const systemConfig = data.systems[this.currentSystem];
+        
+        if (!systemConfig || !systemConfig.myrient) {
+            this.showAlert('❌ No Myrient database configured for this system. Please configure it in Systems Configuration.', 'warning');
+            await this.openSystemsConfigForCurrentSystem('myrient');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapMyrientBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Get selected games
+            const selectedGames = this.selectedGames.map(game => game.path);
+            
+            const response = await fetch(`/api/scrap-myrient/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    selected_games: selectedGames
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert(`✅ Myrient scraper task started for ${this.currentSystem}`, 'success');
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Failed to start Myrient scraper task: ${result.error}`, 'danger');
+            }
+            
+        } catch (error) {
+            this.showAlert(`❌ Error starting Myrient scraper task: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapMyrientBtn');
+            button.innerHTML = '<i class="bi bi-database"></i> Myrient';
             button.disabled = false;
         }
     }
@@ -39436,7 +39652,7 @@ class GameCollectionManager {
         
         const imagePath = game[field];
         
-        // Convert relative path to absolute path
+        // Convert relative path to absolute path (keep unencoded for now, will encode when setting src)
         let absoluteImagePath = imagePath;
         if (imagePath.startsWith('./')) {
             absoluteImagePath = `/roms/${this.currentSystem}/${imagePath.substring(2)}`;
@@ -39689,7 +39905,12 @@ class GameCollectionManager {
             
             // Add cache buster
             const cacheBuster = new Date().getTime();
-            const fullPath = `${imagePath}?v=${cacheBuster}`;
+            // Properly encode path segments to handle special characters like #
+            // Split the path at '?' if it already has query params, encode the path part
+            const [basePath, existingQuery] = imagePath.split('?');
+            const pathParts = basePath.split('/').map(part => part ? encodeURIComponent(part) : '');
+            const encodedPath = pathParts.join('/');
+            const fullPath = existingQuery ? `${encodedPath}?${existingQuery}&v=${cacheBuster}` : `${encodedPath}?v=${cacheBuster}`;
             
             console.log('Setting image cropper src:', fullPath);
             cropperImage.src = fullPath;
