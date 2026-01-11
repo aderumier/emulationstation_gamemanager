@@ -651,6 +651,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <button id="scrapCustomBtn" class="btn btn-purple btn-sm ms-2" disabled>
                     <i class="bi bi-database"></i> Custom
                 </button>
+                <button id="scrapMyrientBtn" class="btn btn-info btn-sm ms-2" disabled>
+                    <i class="bi bi-database"></i> Myrient
+                </button>
                 <div class="btn-group ms-2" role="group">
                     <button type="button" class="btn btn-outline-info btn-sm dropdown-toggle" id="globalFindBestMatchBtn" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-offset="0,2" aria-expanded="false" disabled>
                         <i class="bi bi-search"></i> Find Best Match
@@ -1117,6 +1120,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-database me-2"></i>Myrient Database</h6>
+                                </div>
+                                <div class="card-body">
+                                    <label for="myrientMapping" class="form-label">Myrient Database</label>
+                                    <select class="form-select" id="myrientMapping">
+                                        <option value="">Select Myrient database...</option>
+                                    </select>
+                                    <div class="form-text">Select the Myrient database JSON file for this system.</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="row">
@@ -1300,9 +1318,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             <div class="input-group">
                                                 <span class="input-group-text" style="min-width: 140px;">Custom ID</span>
                                                 <input type="text" class="form-control" id="editCustomid">
-                                                <button type="button" class="btn btn-outline-purple" id="modalFindCustomMatchBtn" title="Search for the best matching game in the Custom database">
-                                                    <i class="bi bi-file-earmark-code"></i>
-                                                </button>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="editMyrient" class="form-label">Myrient URL</label>
+                                                <input type="text" class="form-control" id="editMyrient" placeholder="https://myrient.erista.me/files/...">
                                             </div>
                                         </div>
                                     </div>
@@ -3793,6 +3812,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <th style="width: 11%">EmuMovies</th>
                                     <th style="width: 11%">DAT File</th>
                                     <th style="width: 11%">Custom</th>
+                                    <th style="width: 11%">Myrient</th>
                                     <th style="width: 24%">Extensions</th>
                                 </tr>
                             </thead>

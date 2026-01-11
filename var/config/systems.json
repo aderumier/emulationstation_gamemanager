@@ -652,6 +652,7 @@
         "emumovies": "",
         "dat_file": "",
         "custom": "",
+        "myrient": "redump_Panasonic - 3DO Interactive Multiplayer",
         "extensions": [
             ".CUE",
             ".ISO",
@@ -3185,5 +3186,17 @@
         "dat_file": "",
         "custom": "ags",
         "extensions": []
+    },
+    "daphne": {
+        "launchbox": "",
+        "screenscraper": 49,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "extensions": [
+            ".zip"
+        ]
     }
 }

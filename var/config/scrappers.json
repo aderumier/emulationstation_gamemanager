@@ -127,6 +127,9 @@
             ],
             "spine": [
                 "box-2D-side"
+            ],
+            "themehb": [
+                "themehb"
             ]
         }
     },

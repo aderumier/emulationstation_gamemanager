@@ -37,11 +37,12 @@
       "y": 887
     }
   },
+  "spine_image": "bigbox_generated_spine_spine.png",
   "spine_source_field": "",
   "spine_crop_width": "5",
-  "spine_color": "",
+  "spine_color": "#7b6f6f",
   "spine_logo_zone": {
-    "topY": 200,
+    "topY": 500,
     "bottomY": 600,
     "keepAspectRatio": true
   },
