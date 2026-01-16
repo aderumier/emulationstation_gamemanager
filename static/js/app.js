@@ -3117,6 +3117,12 @@ class GameCollectionManager {
                     await this.updateGameGridData(this.games);
                     // Load saved column state
                     this.loadColumnState();
+                    
+                    // Reapply duplicates filter if it was active before reloading
+                    if (this.duplicatesFilterActive) {
+                        const duplicateGames = this.findDuplicateGames();
+                        await this.updateGameGridData(duplicateGames);
+                    }
                 }
                 
                 // Media preview is now always enabled
