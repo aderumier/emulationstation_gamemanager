@@ -10220,6 +10220,63 @@ def rom_system_gamelist(system_name):
                     os.path.abspath(os.path.join(app.root_path, 'media'))
                 ]
                 
+                # Build a map of media files to games that use them (excluding games being deleted)
+                # This includes both existing games and remaining games after deletion
+                media_usage_map = {}
+                # Normalize delete paths for comparison
+                delete_paths_normalized = set()
+                for rom_path in delete_rom_paths:
+                    normalized = normalize_gamelist_path(rom_path)
+                    if normalized:
+                        delete_paths_normalized.add(normalized.lower())
+                
+                # Check existing games (excluding ones being deleted)
+                for game in existing_games:
+                    game_path = normalize_gamelist_path(game.get('path'))
+                    if not game_path or game_path.lower() in delete_paths_normalized:
+                        continue
+                    for field in media_fields:
+                        media_value = game.get(field)
+                        if not media_value:
+                            continue
+                        media_abs_path = resolve_media_path(media_value)
+                        if not media_abs_path:
+                            continue
+                        if media_abs_path not in media_usage_map:
+                            media_usage_map[media_abs_path] = []
+                        media_usage_map[media_abs_path].append({
+                            'game_path': game_path,
+                            'game_name': game.get('name', 'Unknown'),
+                            'field': field
+                        })
+                
+                # Check remaining games after deletion (from the updated games list)
+                for game in games:
+                    game_path = normalize_gamelist_path(game.get('path'))
+                    if not game_path or game_path.lower() in delete_paths_normalized:
+                        continue
+                    for field in media_fields:
+                        media_value = game.get(field)
+                        if not media_value:
+                            continue
+                        media_abs_path = resolve_media_path(media_value)
+                        if not media_abs_path:
+                            continue
+                        # Only add if not already tracked (to avoid duplicates from existing_games)
+                        if media_abs_path not in media_usage_map:
+                            media_usage_map[media_abs_path] = []
+                        # Check if this specific game+field combination is already in the list
+                        already_tracked = any(
+                            entry['game_path'] == game_path and entry['field'] == field
+                            for entry in media_usage_map[media_abs_path]
+                        )
+                        if not already_tracked:
+                            media_usage_map[media_abs_path].append({
+                                'game_path': game_path,
+                                'game_name': game.get('name', 'Unknown'),
+                                'field': field
+                            })
+                
                 for rom_path in delete_rom_paths:
                     try:
                         # Normalize the path: remove leading ./ and normalize separators
@@ -10272,6 +10329,16 @@ def rom_system_gamelist(system_name):
                                     continue
                                 if not any(media_abs_path.startswith(allowed_dir) for allowed_dir in allowed_dirs):
                                     continue
+                                
+                                # Check if this media file is used by other games before deleting
+                                if media_abs_path in media_usage_map and len(media_usage_map[media_abs_path]) > 0:
+                                    using_games = media_usage_map[media_abs_path]
+                                    game_names = [g['game_name'] for g in using_games[:3]]
+                                    if len(using_games) > 3:
+                                        game_names.append(f'and {len(using_games) - 3} more')
+                                    app.logger.info(f'Skipping deletion of {field} media file {os.path.relpath(media_abs_path, system_path)} - still used by {len(using_games)} other game(s): {", ".join(game_names)}')
+                                    continue
+                                
                                 try:
                                     if os.path.exists(media_abs_path):
                                         os.remove(media_abs_path)
