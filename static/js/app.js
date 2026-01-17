@@ -3083,12 +3083,14 @@ class GameCollectionManager {
         this.selectedGames = [];
         }
         
-        // Reset filters when changing systems
-        if (this.duplicatesFilterActive) {
-            await this.resetDuplicatesFilter();
-        }
-        if (this.hiddenFilterActive) {
-            await this.resetHiddenFilter();
+        // Reset filters only when changing systems, not when reloading the same system
+        if (previousSystem && previousSystem !== systemName) {
+            if (this.duplicatesFilterActive) {
+                await this.resetDuplicatesFilter();
+            }
+            if (this.hiddenFilterActive) {
+                await this.resetHiddenFilter();
+            }
         }
         
         this.updateSelectionDisplay();
@@ -3118,10 +3120,28 @@ class GameCollectionManager {
                     // Load saved column state
                     this.loadColumnState();
                     
-                    // Reapply duplicates filter if it was active before reloading
+                    // Reapply filters if they were active before reloading
                     if (this.duplicatesFilterActive) {
                         const duplicateGames = this.findDuplicateGames();
                         await this.updateGameGridData(duplicateGames);
+                        // Update button state
+                        const duplicatesBtn = document.getElementById('showDuplicatesBtn');
+                        if (duplicatesBtn) {
+                            duplicatesBtn.classList.remove('btn-outline-warning');
+                            duplicatesBtn.classList.add('btn-warning');
+                            duplicatesBtn.innerHTML = '<i class="bi bi-dup"></i> Hide Duplicates';
+                        }
+                    }
+                    if (this.hiddenFilterActive) {
+                        // Hidden filter shows all games including hidden ones
+                        await this.updateGameGridData(this.games);
+                        // Update button state
+                        const hiddenBtn = document.getElementById('showHiddenBtn');
+                        if (hiddenBtn) {
+                            hiddenBtn.classList.remove('btn-outline-info');
+                            hiddenBtn.classList.add('btn-info');
+                            hiddenBtn.innerHTML = '<i class="bi bi-eye"></i> Hide Hidden';
+                        }
                     }
                 }
                 
