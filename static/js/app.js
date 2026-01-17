@@ -3346,36 +3346,6 @@ class GameCollectionManager {
                     }
                 },
                 { 
-                    field: 'myrient', 
-                    headerName: 'Myrient', 
-                    editable: true, 
-                    sortable: true, 
-                    filter: true,
-                    resizable: true,
-                    initialWidth: 200,
-                    minWidth: 100,
-                    wrapHeaderText: wrapHeaderText,
-                    autoHeaderHeight: true,
-                    headerTooltip: 'Myrient download URL. Auto-populated when scraping.',
-                    valueGetter: function(params) {
-                        const value = params.data?.myrient;
-                        return value ? String(value) : '';
-                    },
-                    cellRenderer: function(params) {
-                        if (!params.value || params.value === '') {
-                            return '<span class="text-muted">-</span>';
-                        }
-                        const url = params.value;
-                        const displayUrl = url.length > 40 ? url.substring(0, 40) + '...' : url;
-                        return `<a href="${url}" target="_blank" title="${url}">${displayUrl}</a>`;
-                    },
-                    cellStyle: { 
-                        backgroundColor: '#d1ecf1',
-                        fontSize: '0.85em'
-                    }
-                },
-
-                { 
                     field: 'path',
                     headerName: 'Path', 
                     editable: false,
@@ -4698,6 +4668,10 @@ class GameCollectionManager {
 
     async performBulkMove(games, destinationPath) {
         try {
+            // Save current filter state before refreshing
+            const currentFilterModel = this.gridApi ? this.gridApi.getFilterModel() : null;
+            const duplicatesFilterWasActive = this.duplicatesFilterActive;
+            
             const response = await fetch(`/api/rom-system/${this.currentSystem}/move-roms-bulk`, {
                 method: 'POST',
                 headers: {
