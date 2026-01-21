@@ -20140,6 +20140,8 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
                 text_fields['releasedate'] = game_data['release_date']
             if game_data.get('genre'):
                 text_fields['genre'] = game_data['genre']
+            if game_data.get('description'):
+                text_fields['desc'] = game_data['description']
         
         return {
             'text_fields': text_fields,
@@ -34517,7 +34519,8 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
         'release_date': 'releasedate',
         'genre': 'genre',
         'nbplayers': 'players',
-        'rating': 'rating'
+        'rating': 'rating',
+        'description': 'desc'
     }
     
     # Merge defaults with config mappings (config takes precedence)
@@ -34743,7 +34746,8 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                             'publisher': 'publisher',
                             'developer': 'developer',
                             'releasedate': 'releasedate',
-                            'genre': 'genre'
+                            'genre': 'genre',
+                            'description': 'desc'
                         }
                         
                         # Convert selected_text_fields from UI names to gamelist names for checking

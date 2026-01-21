@@ -406,7 +406,26 @@ class ArcadeDBScraper:
         
         # Extract description from "history" field
         if api_data.get('history'):
-            game_info['description'] = api_data['history'].strip()
+            description = api_data['history'].strip()
+            
+            # Replace \r\n with \n
+            description = description.replace('\r\n', '\n')
+            
+            # Remove any line containing "published X years ago" or "(c)"
+            lines = description.split('\n')
+            filtered_lines = [
+                line for line in lines 
+                if not re.search(r'published \d+ years ago', line, re.IGNORECASE)
+                and '(c)' not in line
+            ]
+            description = '\n'.join(filtered_lines)
+            
+            # Remove everything after "- TECHNICAL -\r\n" or "- TECHNICAL -\n"
+            technical_index = description.find('- TECHNICAL -')
+            if technical_index != -1:
+                description = description[:technical_index].rstrip()
+            
+            game_info['description'] = description
         
         # Extract boxfront from "url_image_flyer" field
         if api_data.get('url_image_flyer'):

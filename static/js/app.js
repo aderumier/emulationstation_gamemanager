@@ -28935,7 +28935,7 @@ class GameCollectionManager {
                 textFieldsContainer.innerHTML = '';
                 
                 // Get available text fields - only the ones supported by custom scraper
-                const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre', 'nbplayers', 'rating'];
+                const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre', 'nbplayers', 'rating', 'description'];
                 
                 textFields.forEach(field => {
                     const checkbox = document.createElement('div');
@@ -34274,7 +34274,7 @@ class GameCollectionManager {
             const mappedMediaFields = Object.values(customMappings).filter(field => field);
             
             // Text fields available in custom scraper preferences
-            const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre', 'nbplayers', 'rating'];
+            const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre', 'nbplayers', 'rating', 'description'];
             
             // Read field selections directly from cookies
             const selectedGamelistTextFields = [];

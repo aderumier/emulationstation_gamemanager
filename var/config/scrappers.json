@@ -236,7 +236,9 @@
             "titleshot": "titleshot",
             "boxfront": "boxart",
             "boxback": "boxback",
-            "screenshot": "image"
+            "screenshot": "image",
+            "video": "video",
+            "cartridge": "cartridge"
         }
     }
 }
