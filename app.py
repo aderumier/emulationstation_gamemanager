@@ -62,7 +62,6 @@ from igdb_service import IGDBService
 from datscrapper_service import DATScrapperService
 from emumovies_service import EmuMoviesService
 from custom_scraper_service import CustomScraperService
-from myrient_service import MyrientScraperService
 
 # FFmpeg cropping functions for auto-cropping black borders
 def cropdetect(video_file_path, start_time, duration):
@@ -1219,7 +1218,6 @@ os.makedirs('var/db', exist_ok=True)
 os.makedirs('var/db/launchbox', exist_ok=True)
 os.makedirs('var/db/igdb', exist_ok=True)
 os.makedirs('var/db/emumovies', exist_ok=True)
-os.makedirs('var/db/myrient', exist_ok=True)
 os.makedirs('var/sessions', exist_ok=True)
 
 LOCAL_IMAGE_CACHE_PATH = '/var/cache/local_image.pkl'
@@ -3509,37 +3507,6 @@ def process_next_queued_task():
             print(f"🔧 DEBUG: Custom Scrapper thread started")
         else:
             print(f"🔧 DEBUG: No system_name or custom_db provided for Custom Scrapper task")
-    elif task_type == 'myrient_scraper':
-        # Start Myrient scraper task
-        system_name = task_data.get('system_name')
-        myrient_db = task_data.get('myrient_db')
-        selected_games = task_data.get('selected_games', [])
-        
-        print(f"🔧 DEBUG: Myrient Scraper task data: system_name={system_name}, myrient_db={myrient_db}, selected_games={len(selected_games) if selected_games else 0} games")
-        
-        if system_name and myrient_db:
-            # Use the existing queued task instead of creating a new one
-            task_id = next_task.get('task_id')
-            print(f"🔧 DEBUG: Using task_id: {task_id}")
-            if task_id and task_id in tasks:
-                task = tasks[task_id]
-                set_running_task_for_system(system_name, task.id)
-                task.start()
-                print(f"🔧 DEBUG: Started existing task {task_id}")
-            else:
-                # Fallback: create new task if existing one not found
-                task = create_task('myrient_scraper', task_data)
-                set_running_task_for_system(system_name, task.id)
-                task.start()
-                print(f"🔧 DEBUG: Created and started new task {task.id}")
-            # Start Myrient Scraper in background thread
-            print(f"🔧 DEBUG: Starting Myrient Scraper thread with args: ({system_name}, {myrient_db}, {task.id}, {selected_games})")
-            thread = threading.Thread(target=run_myrient_scraper_task, args=(system_name, myrient_db, task.id, selected_games))
-            thread.daemon = True
-            thread.start()
-            print(f"🔧 DEBUG: Myrient Scraper thread started")
-        else:
-            print(f"🔧 DEBUG: No system_name or myrient_db provided for Myrient Scraper task")
     else:
         print(f"Unknown task type: {task_type}")
         return
@@ -5999,42 +5966,6 @@ def load_custom_scraper_service():
         global_custom_scraper_service_loaded = True  # Mark as loaded to prevent retries
         return None
 
-# Global Myrient service instance
-global_myrient_service = None
-global_myrient_service_loaded = False
-
-def load_myrient_service():
-    """Load Myrient Scraper service"""
-    global global_myrient_service, global_myrient_service_loaded
-    
-    if global_myrient_service_loaded:
-        return global_myrient_service
-    
-    try:
-        print("🔄 Loading Myrient Scraper service...")
-        start_time = time.time()
-        
-        # Load configurations
-        config = load_config()
-        scrappers_config = load_scrappers_config()
-        systems_config = load_systems_config()
-        
-        # Initialize Myrient Scraper service
-        global_myrient_service = MyrientScraperService(config, scrappers_config, systems_config)
-        
-        end_time = time.time()
-        print(f"✅ Myrient Scraper service loaded in {end_time - start_time:.2f} seconds!")
-        global_myrient_service_loaded = True
-        
-        return global_myrient_service
-        
-    except Exception as e:
-        print(f"❌ Failed to load Myrient Scraper service: {e}")
-        import traceback
-        traceback.print_exc()
-        global_myrient_service_loaded = True  # Mark as loaded to prevent retries
-        return None
-
 def load_datscrapper_service():
     """Load DAT Scrapper service"""
     global global_datscrapper_service, global_datscrapper_service_loaded
@@ -6733,8 +6664,6 @@ def parse_gamelist_xml(file_path):
                     game_data['mobygamesid'] = text
                 elif tag == 'customid':
                     game_data['customid'] = text
-                elif tag == 'myrient':
-                    game_data['myrient'] = text
                 elif tag == 'nbvotes':
                     game_data['nbvotes'] = int(text) if text.isdigit() else None
                 elif tag == 'steamid':
@@ -6767,9 +6696,6 @@ def parse_gamelist_xml(file_path):
             # Initialize customid to empty string if not present (for grid display)
             if 'customid' not in game_data:
                 game_data['customid'] = ''
-            # Initialize myrient to empty string if not present (for grid display)
-            if 'myrient' not in game_data:
-                game_data['myrient'] = ''
             
             games.append(game_data)
         
@@ -7740,7 +7666,6 @@ def manage_systems():
                         'igdb': '',
                         'dat_file': '',
                         'custom': '',
-                        'myrient': '',
                         'extensions': []
                     }
                     added_systems.append(system_name)
@@ -7767,7 +7692,6 @@ def manage_systems():
                 igdb_platform = data.get('igdb_platform', '')
                 dat_file = data.get('dat_file', '')
                 custom = data.get('custom', '')
-                myrient = data.get('myrient', '')
                 extensions = data.get('extensions', [])
                 
                 # Convert numeric platforms to integers
@@ -7806,7 +7730,6 @@ def manage_systems():
                     'igdb': igdb_platform,
                     'dat_file': dat_file,
                     'custom': custom,
-                    'myrient': myrient,
                     'extensions': extensions
                 }
                 
@@ -7834,7 +7757,6 @@ def manage_systems():
             emumovies_platform = data.get('emumovies_platform', '')
             dat_file = data.get('dat_file', '')
             custom = data.get('custom', '')
-            myrient = data.get('myrient', '')
             extensions = data.get('extensions', [])
             
             # Debug logging
@@ -7881,7 +7803,6 @@ def manage_systems():
                 'emumovies': emumovies_platform,
                 'dat_file': dat_file,
                 'custom': custom,
-                'myrient': myrient,
                 'extensions': extensions
             }
             
@@ -9044,90 +8965,6 @@ def scrap_custom_system(system_name):
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Failed to start Custom scraper task: {str(e)}'}), 500
-
-@app.route('/api/myrient-databases', methods=['GET'])
-@login_required
-def get_myrient_databases():
-    """Get list of available Myrient JSON databases"""
-    try:
-        myrient_db_path = 'var/db/myrient'
-        
-        if not os.path.exists(myrient_db_path):
-            os.makedirs(myrient_db_path, exist_ok=True)
-            return jsonify({'success': True, 'databases': []})
-        
-        # Get all JSON files
-        json_files = [f for f in os.listdir(myrient_db_path) if f.endswith('.json')]
-        # Return filenames without extension
-        databases = [os.path.splitext(f)[0] for f in json_files]
-        
-        return jsonify({
-            'success': True,
-            'databases': sorted(databases)
-        })
-        
-    except Exception as e:
-        print(f"Error getting Myrient databases: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': f'Failed to get Myrient databases: {str(e)}'}), 500
-
-@app.route('/api/scrap-myrient/<system_name>', methods=['POST'])
-@login_required
-def scrap_myrient_system(system_name):
-    """Start Myrient scraper task for a specific system"""
-    global current_task_id
-    
-    try:
-        if not system_name:
-            return jsonify({'error': 'System name is required'}), 400
-        
-        # Get request data
-        data = request.get_json() or {}
-        selected_games = data.get('selected_games', [])
-        
-        # Get system config to check Myrient database
-        current_systems_config = load_systems_config()
-        system_config = current_systems_config.get(system_name, {})
-        myrient_db = system_config.get('myrient', '')
-        
-        if not myrient_db:
-            return jsonify({'error': f'No Myrient database configured for system {system_name}'}), 400
-        
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Myrient Scraper API - system: {system_name}, db: {myrient_db}, selected_games: {len(selected_games)} games")
-        
-        # Create task object
-        task_data = {
-            'system_name': system_name,
-            'myrient_db': myrient_db,
-            'selected_games': selected_games
-        }
-        username = current_user.username if current_user.is_authenticated else 'anonymous'
-        task = add_task_to_queue('myrient_scraper', task_data, username)
-        
-        # Note: add_task_to_queue() handles task starting via process_next_queued_task()
-        # Only start directly if not already started
-        if task.status == TASK_STATUS_QUEUED:
-            # Task will be started by process_next_queued_task()
-            pass
-        else:
-            # Task was started immediately, set running task for system
-            set_running_task_for_system(system_name, task.id)
-        
-        return jsonify({
-            'success': True, 
-            'message': 'Myrient scraper task started', 
-            'task_id': task.id,
-            'system': system_name
-        })
-        
-    except Exception as e:
-        print(f"Error starting Myrient scraper task: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': f'Failed to start Myrient scraper task: {str(e)}'}), 500
 
 @app.route('/api/datscrapper/search', methods=['POST'])
 @login_required
@@ -16711,6 +16548,7 @@ def delete_files_batch():
                 failed_deletions.append({'file_path': file_path, 'error': error_msg})
                 app.logger.error(f'OS error deleting file {file_path}: {str(e)}')
             except Exception as e:
+                import traceback
                 failed_deletions.append({'file_path': file_path, 'error': f'Failed to delete: {str(e)}'})
                 app.logger.error(f'Error deleting file {file_path}: {str(e)}')
                 app.logger.error(traceback.format_exc())
@@ -34807,141 +34645,6 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
         if task_id in _custom_scrapper_cancel_maps:
             del _custom_scrapper_cancel_maps[task_id]
             logger.info(f"Removed task {task_id} from Custom Scrapper cancel map")
-
-def run_myrient_scraper_task(system_name, myrient_db, task_id, selected_games=None):
-    """Run Myrient Scraper task for a specific system"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    print(f"🔧 DEBUG: run_myrient_scraper_task called with system_name={system_name}, myrient_db={myrient_db}, task_id={task_id}")
-    
-    try:
-        # Load Myrient Scraper service
-        service = load_myrient_service()
-        if not service:
-            t = get_task(task_id)
-            if t:
-                t.complete(False, f"Failed to load Myrient Scraper service")
-            return
-        
-        # Check if database exists
-        if myrient_db not in service.databases:
-            t = get_task(task_id)
-            if t:
-                t.complete(False, f"Myrient database '{myrient_db}' not found")
-            return
-        
-        logger.info(f"🔧 DEBUG: Myrient Scraper service loaded, database '{myrient_db}' found")
-        
-        # Get task object for progress updates
-        t = get_task(task_id)
-        if t:
-            t.update_progress("🔧 Loading Myrient Scraper configuration...")
-        
-        # Load games for the system
-        gamelist_path = get_gamelist_path(system_name)
-        if not os.path.exists(gamelist_path):
-            t = get_task(task_id)
-            if t:
-                t.complete(False, f"Gamelist not found for system: {system_name}")
-            return
-        
-        all_games = parse_gamelist_xml(gamelist_path)
-        if not all_games:
-            t = get_task(task_id)
-            if t:
-                t.complete(False, f"No games found for system: {system_name}")
-            return
-        
-        # Filter games if selection is provided
-        if selected_games:
-            selected_paths = set(selected_games)
-            games_to_process = [game for game in all_games if game['path'] in selected_paths]
-        else:
-            games_to_process = all_games
-        
-        total_games = len(games_to_process)
-        
-        if t:
-            t.update_progress(f"🎮 Processing {total_games} games for Myrient scraping", progress_percentage=0, current_step=0, total_steps=total_games)
-        
-        processed_count = 0
-        updated_count = 0
-        
-        for i, game in enumerate(games_to_process):
-            try:
-                game_path = game.get('path', '')
-                
-                if not game_path:
-                    continue
-                
-                # Extract ROM filename from path
-                rom_filename = os.path.basename(game_path)
-                game_name = game.get('name', rom_filename)
-                
-                # Update progress
-                if t:
-                    progress_percent = int((i / total_games) * 100)
-                    t.update_progress(f"🔍 Processing game {i+1}/{total_games}: {game_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
-                
-                # Check if game already has myrient URL
-                existing_myrient = game.get('myrient', '')
-                
-                # Try to find match in Myrient database
-                myrient_entry = service.find_match(myrient_db, rom_filename)
-                
-                if myrient_entry and myrient_entry.get('url'):
-                    myrient_url = myrient_entry['url']
-                    
-                    # Only update if not already set or if different
-                    if not existing_myrient or existing_myrient != myrient_url:
-                        game['myrient'] = myrient_url
-                        # Also update in all_games
-                        for all_game in all_games:
-                            if all_game['path'] == game['path']:
-                                all_game['myrient'] = myrient_url
-                        updated_count += 1
-                        logger.info(f"✅ Matched '{game_name}' to Myrient: {myrient_url}")
-                        if t:
-                            t.log_message(f"Matched '{game_name}' to Myrient: {myrient_url}")
-                    else:
-                        logger.info(f"⏭️ Game '{game_name}' already has Myrient URL")
-                else:
-                    logger.info(f"❌ No Myrient match found for '{game_name}' (filename: {rom_filename})")
-                
-                processed_count += 1
-                
-            except Exception as e:
-                logger.error(f"❌ Error processing game {game.get('name', 'Unknown')}: {e}")
-                import traceback
-                traceback.print_exc()
-                continue
-        
-        # Complete the task
-        t = get_task(task_id)
-        if t:
-            success_message = f"Myrient Scraper completed: {processed_count} games processed, {updated_count} games updated"
-            t.complete(True, success_message)
-        
-        logger.info(f"✅ Myrient Scraper task completed for {system_name}: {processed_count} processed, {updated_count} updated")
-        
-        # Save the updated gamelist
-        save_gamelist_xml(gamelist_path, all_games)
-        logger.info(f"💾 Saved gamelist for {system_name} (updated: {updated_count}, processed: {processed_count})")
-        
-        # Notify clients of gamelist update
-        notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
-        
-        return True
-        
-    except Exception as e:
-        logger.error(f"❌ Error in run_myrient_scraper_task: {e}")
-        import traceback
-        traceback.print_exc()
-        t = get_task(task_id)
-        if t:
-            t.complete(False, f"Error in Myrient Scraper task: {str(e)}")
-        return False
 
 # =============================================================================
 # IGDB Scraper API Routes

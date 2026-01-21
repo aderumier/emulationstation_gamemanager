@@ -216,6 +216,7 @@ if [ ! -f "debian/opt/gamemanager/custom_scraper_service.py" ]; then
     exit 1
 fi
 
+
 if [ ! -f "debian/opt/gamemanager/var/config/credentials.enc" ]; then
     echo "❌ ERROR: credentials.enc not found in package!"
     exit 1
