@@ -6777,6 +6777,23 @@ class GameCollectionManager {
         }
     }
     
+    /**
+     * Get proxied URL for HTTP media when page is served over HTTPS
+     * Returns the original URL if it's HTTPS or if page is HTTP
+     * Returns proxied URL only if media URL is HTTP and page is HTTPS
+     */
+    getProxiedMediaUrl(url) {
+        if (!url) return url;
+        
+        // Only use proxy if URL is HTTP AND page is HTTPS
+        if (url.startsWith('http://') && window.location.protocol === 'https:') {
+            return `/api/proxy-media?url=${encodeURIComponent(url)}`;
+        }
+        
+        // Return original URL for HTTPS URLs or when page is HTTP
+        return url;
+    }
+
     displayMultiscraperMediaOptions(mediaResults, game, mediaType) {
         const contentDiv = document.getElementById('multiscraperMediaContent');
         contentDiv.innerHTML = '';
@@ -7100,7 +7117,8 @@ class GameCollectionManager {
                     // Skip if URL doesn't look like a PDF (unless it's ScreenScraper which we just constructed)
                     if (!isScreenScraper && (!pdfUrl || (!pdfUrl.toLowerCase().endsWith('.pdf') && !pdfUrl.toLowerCase().includes('.pdf')))) {
                         // Not a valid PDF URL, fall through to regular image handling
-                        img.src = result.url || '';
+                        // Use proxy for HTTP URLs when page is HTTPS
+                        img.src = this.getProxiedMediaUrl(result.url || '');
                         img.alt = `${mediaType} from ${result.source}`;
                         img.onerror = () => {
                             img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
@@ -7300,7 +7318,8 @@ class GameCollectionManager {
                         });
                         
                         // Start loading the image
-                        img.src = result.url;
+                        // Use proxy for HTTP URLs when page is HTTPS
+                        img.src = this.getProxiedMediaUrl(result.url);
                         
                         // Check if image is already loaded (from cache) - do this AFTER setting src and handlers
                         if (img.complete && img.naturalHeight !== 0) {
@@ -8602,8 +8621,8 @@ class GameCollectionManager {
         
         // Check if it's an external URL (starts with http:// or https://)
         if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
-            // External URL, use directly
-            mediaUrl = mediaPath;
+            // External URL, use proxy for HTTP URLs when page is HTTPS
+            mediaUrl = this.getProxiedMediaUrl(mediaPath);
         } else if (mediaPath.startsWith('/api/')) {
             // API endpoint URL, use directly (e.g., /api/emumovies-download-media)
             mediaUrl = mediaPath;
@@ -19408,9 +19427,10 @@ class GameCollectionManager {
                 infoHtml += `<br><strong>Release Date:</strong> ${releaseDate}`;
             }
             
-            // Create image HTML
-            const imageHtml = imageUrl ? 
-                `<img src="${imageUrl}" 
+            // Create image HTML - use proxy for HTTP URLs when page is HTTPS
+            const proxiedImageUrl = imageUrl ? this.getProxiedMediaUrl(imageUrl) : null;
+            const imageHtml = proxiedImageUrl ? 
+                `<img src="${proxiedImageUrl}" 
                      class="card-img-top" 
                      style="height: 200px; object-fit: contain; background-color: #f8f9fa;" 
                      alt="${gameName}"
@@ -37830,13 +37850,15 @@ class GameCollectionManager {
                     };
                     
                     const escapedUrl = escapeHtml(url);
+                    const proxiedUrl = this.getProxiedMediaUrl(url);
+                    const escapedProxiedUrl = escapeHtml(proxiedUrl);
                     const escapedResultJson = escapeHtml(JSON.stringify(result));
                     const escapedGameJson = escapeHtml(JSON.stringify(this.currentFanartSearchGame));
                     
                     resultCard.innerHTML = `
                         <div class="card">
                             <div class="card-body">
-                                <img src="${escapedUrl}" class="img-fluid rounded mb-2" style="width: 100%; height: 200px; object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" 
+                                <img src="${escapedProxiedUrl}" class="img-fluid rounded mb-2" style="width: 100%; height: 200px; object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" 
                                      alt="Fanart" onerror="this.style.display='none'">
                                 <h6 class="card-title">${result.game_name}</h6>
                                 <p class="card-text">
@@ -38454,13 +38476,15 @@ class GameCollectionManager {
                     };
                     
                     const escapedUrl = escapeHtml(url);
+                    const proxiedUrl = this.getProxiedMediaUrl(url);
+                    const escapedProxiedUrl = escapeHtml(proxiedUrl);
                     const escapedResultJson = escapeHtml(JSON.stringify(result));
                     const escapedGameJson = escapeHtml(JSON.stringify(this.currentMarqueeSearchGame));
                     
                     resultCard.innerHTML = `
                         <div class="card h-100">
                             <div class="card-img-top-container" style="height: 200px; overflow: hidden; background-color: ${this.getMediaCardBackgroundColor()};">
-                                <img src="${escapedUrl}" class="card-img-top" style="object-fit: contain; height: 100%; width: 100%;" 
+                                <img src="${escapedProxiedUrl}" class="card-img-top" style="object-fit: contain; height: 100%; width: 100%;" 
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                 <div class="d-flex align-items-center justify-content-center h-100" style="display: none;">
                                     <div class="text-muted text-center">

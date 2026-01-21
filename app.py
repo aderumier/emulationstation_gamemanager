@@ -6977,6 +6977,78 @@ def manage_similarity_config():
     except Exception as e:
         return jsonify({'error': f'Failed to manage similarity configuration: {str(e)}'}), 500
 
+@app.route('/api/proxy-media')
+@login_required
+def proxy_media():
+    """
+    Proxy endpoint for HTTP media URLs to work with HTTPS pages
+    This allows HTTP images/media to be displayed when the application is served over HTTPS
+    """
+    try:
+        from flask import request, Response
+        import requests
+        from urllib.parse import urlparse
+        
+        # Get the media URL from query parameter
+        media_url = request.args.get('url')
+        if not media_url:
+            return jsonify({'error': 'URL parameter is required'}), 400
+        
+        # Validate URL
+        try:
+            parsed = urlparse(media_url)
+            if not parsed.scheme or not parsed.netloc:
+                return jsonify({'error': 'Invalid URL'}), 400
+        except Exception:
+            return jsonify({'error': 'Invalid URL format'}), 400
+        
+        # Set headers with browser User-Agent
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/*,video/*,*/*'
+        }
+        
+        # Fetch the media with a reasonable timeout
+        response = requests.get(media_url, headers=headers, stream=True, timeout=30, allow_redirects=True)
+        response.raise_for_status()
+        
+        # Determine content type from response or URL
+        content_type = response.headers.get('Content-Type', '')
+        if not content_type:
+            # Try to guess from URL extension
+            if media_url.lower().endswith(('.jpg', '.jpeg')):
+                content_type = 'image/jpeg'
+            elif media_url.lower().endswith('.png'):
+                content_type = 'image/png'
+            elif media_url.lower().endswith('.gif'):
+                content_type = 'image/gif'
+            elif media_url.lower().endswith('.webp'):
+                content_type = 'image/webp'
+            elif media_url.lower().endswith('.mp4'):
+                content_type = 'video/mp4'
+            else:
+                content_type = 'application/octet-stream'
+        
+        # Return the streamed media with appropriate content type
+        from flask import stream_with_context
+        return Response(
+            stream_with_context(response.iter_content(chunk_size=8192)),
+            content_type=content_type,
+            headers={
+                'Content-Length': response.headers.get('Content-Length', ''),
+                'Cache-Control': 'public, max-age=3600',
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error proxying media: {e}")
+        return jsonify({'error': f'Failed to proxy media: {str(e)}'}), 500
+    except Exception as e:
+        print(f"❌ Error proxying media: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to proxy media: {str(e)}'}), 500
+
 @app.route('/api/proxy-screenscraper-video/<int:screenscraper_id>/<int:system_id>')
 @login_required
 def proxy_screenscraper_video(screenscraper_id, system_id):
