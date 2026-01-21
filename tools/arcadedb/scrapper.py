@@ -368,7 +368,8 @@ class ArcadeDBScraper:
             'boxfront': None,
             'titleshot': None,
             'screenshot': None,
-            'cabinet': None,
+            'cartridge': None,
+            'video': None,
             'youtubeurl': None,
         }
         
@@ -425,11 +426,22 @@ class ArcadeDBScraper:
             if url:
                 game_info['screenshot'] = url
         
-        # Extract cabinet from "url_image_cabinet" field
+        # Extract cartridge from "url_image_cabinet" field
         if api_data.get('url_image_cabinet'):
             url = api_data['url_image_cabinet'].strip()
             if url:
-                game_info['cabinet'] = url
+                game_info['cartridge'] = url
+        
+        # Extract video from "url_video_shortplay_hd" or "url_video_shortplay" field
+        # Prefer HD version, fall back to standard if HD not available
+        if api_data.get('url_video_shortplay_hd'):
+            url = api_data['url_video_shortplay_hd'].strip()
+            if url:
+                game_info['video'] = url
+        elif api_data.get('url_video_shortplay'):
+            url = api_data['url_video_shortplay'].strip()
+            if url:
+                game_info['video'] = url
         
         # Extract youtubeurl from youtube_video_id field, construct full URL
         if api_data.get('youtube_video_id'):

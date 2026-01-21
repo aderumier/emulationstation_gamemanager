@@ -8310,7 +8310,7 @@ def manage_custom_mappings():
             media_fields = config.get('media_fields', {})
             
             # Custom image types from the database
-            custom_image_types = ['boxfront', 'boxback', 'titleshot', 'screenshot']
+            custom_image_types = ['boxfront', 'boxback', 'titleshot', 'screenshot', 'cartridge', 'video']
             
             return jsonify({
                 'success': True, 
@@ -8333,7 +8333,7 @@ def manage_custom_mappings():
                 return jsonify({'error': 'Invalid media field'}), 400
             
             # Validate custom type
-            valid_custom_types = ['boxfront', 'boxback', 'titleshot', 'screenshot']
+            valid_custom_types = ['boxfront', 'boxback', 'titleshot', 'screenshot', 'cartridge', 'video']
             if custom_type and custom_type not in valid_custom_types:
                 return jsonify({'error': f'Invalid custom type. Must be one of: {", ".join(valid_custom_types)}'}), 400
             
