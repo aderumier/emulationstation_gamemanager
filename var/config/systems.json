@@ -6,6 +6,7 @@
         "mobygames": "Arcade",
         "emumovies": "Arcade",
         "dat_file": "MAME 0.281 ROMs (non-merged).xml",
+        "custom": "arcadedb",
         "extensions": []
     },
     "nes": {

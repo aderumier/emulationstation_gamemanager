@@ -1303,8 +1303,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             <div class="input-group">
                                                 <span class="input-group-text" style="min-width: 140px;">Custom ID</span>
                                                 <input type="text" class="form-control" id="editCustomid">
-                                            </div>
-                                            <div class="mb-3">
+                                                <button type="button" class="btn btn-outline-purple" id="modalFindCustomMatchBtn" title="Search for the best matching game in the Custom database">
+                                                    <i class="bi bi-database"></i>
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -2168,15 +2169,72 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                              <div class="mt-2 text-muted small" id="emumoviesDatabaseStatus"></div>
                                          </div>
                                          <div class="mt-2">
-                                             <small class="text-muted">
-                                                 <i class="bi bi-info-circle"></i> 
-                                                 Building the database will download and cache media lists for all systems. The normalized index will be generated automatically after completion.
-                                             </small>
-                                         </div>
-                                     </div>
-                                 </div>
-                             </div>
-                         </div>
+                                            <small class="text-muted">
+                                                <i class="bi bi-info-circle"></i> 
+                                                Building the database will download and cache media lists for all systems. The normalized index will be generated automatically after completion.
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Custom Scraper Cache Information -->
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0"><i class="bi bi-database-fill-gear me-2"></i>Custom Scraper Cache</h6>
+                                <span class="badge bg-secondary" id="customCacheStatus">Checking...</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="row mb-3">
+                                            <div class="col-md-6">
+                                                <p class="mb-2"><strong>Index Date:</strong></p>
+                                                <span id="customCacheDate" class="badge bg-info">Loading...</span>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <p class="mb-2"><strong>Index Status:</strong></p>
+                                                <span id="customIndexStatus" class="badge bg-secondary">Unknown</span>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="text-center">
+                                                    <div class="h4 text-purple mb-1" id="customDatabasesCount">-</div>
+                                                    <small class="text-muted">Databases</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="text-center">
+                                                    <div class="h4 text-info mb-1" id="customIndexedCount">-</div>
+                                                    <small class="text-muted">Indexed</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="text-center">
+                                                    <div class="h4 text-success mb-1" id="customEntriesCount">-</div>
+                                                    <small class="text-muted">Total Entries</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="d-grid gap-2">
+                                            <button type="button" class="btn btn-purple" id="refreshCustomCacheBtn">
+                                                <i class="bi bi-arrow-clockwise me-2"></i>Rebuild Index
+                                            </button>
+                                        </div>
+                                        <div class="mt-2">
+                                            <small class="text-muted">
+                                                <i class="bi bi-info-circle"></i> 
+                                                Rebuilding will reload all JSON databases from var/db/custom/ and regenerate the partitioned similarity index. Use this after adding new databases.
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -3068,7 +3126,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <label class="form-check-label" for="overwriteTextFieldsCustomModal">
                                     <i class="bi bi-file-text me-2"></i>Overwrite Text Fields
                                 </label>
-                                <div class="form-text">Always overwrite text fields (name, description, year, publisher, developer, genre) during Custom scraping, even if they already have values</div>
+                                <div class="form-text">Always overwrite text fields (name, description, year, publisher, developer, genre, players, rating) during Custom scraping, even if they already have values</div>
                             </div>
                             
                             <!-- Overwrite Media Fields Option -->

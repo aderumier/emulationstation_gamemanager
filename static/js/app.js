@@ -22479,6 +22479,14 @@ class GameCollectionManager {
                 this.refreshSteamCache();
             });
         }
+        
+        // Add event listener for refresh Custom Scraper cache button
+        const refreshCustomCacheBtn = document.getElementById('refreshCustomCacheBtn');
+        if (refreshCustomCacheBtn) {
+            refreshCustomCacheBtn.addEventListener('click', () => {
+                this.refreshCustomCache();
+            });
+        }
 
     }
 
@@ -28907,7 +28915,7 @@ class GameCollectionManager {
                 textFieldsContainer.innerHTML = '';
                 
                 // Get available text fields - only the ones supported by custom scraper
-                const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre'];
+                const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre', 'nbplayers', 'rating'];
                 
                 textFields.forEach(field => {
                     const checkbox = document.createElement('div');
@@ -32224,6 +32232,9 @@ class GameCollectionManager {
             // Load Steam cache information
             await this.loadSteamCacheInformation();
             
+            // Load Custom Scraper cache information
+            await this.loadCustomCacheInformation();
+            
         } catch (error) {
             console.error('Error loading cache information:', error);
             document.getElementById('metadataXmlDate').textContent = 'Error';
@@ -32454,6 +32465,106 @@ class GameCollectionManager {
             // Restore button state
             refreshBtn.disabled = false;
             refreshBtn.innerHTML = originalText;
+        }
+    }
+    
+    async refreshCustomCache() {
+        const refreshBtn = document.getElementById('refreshCustomCacheBtn');
+        const originalText = refreshBtn.innerHTML;
+        
+        try {
+            // Show loading state
+            refreshBtn.disabled = true;
+            refreshBtn.innerHTML = '<i class="spinner-border spinner-border-sm me-2"></i>Rebuilding Index...';
+            
+            // Start the refresh process
+            const response = await fetch('/api/cache/refresh-custom', { method: 'POST' });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    this.showAlert(`Custom Scraper cache refreshed successfully! ${result.message}`, 'success');
+                    // Refresh cache information display
+                    await this.loadCustomCacheInformation();
+                } else {
+                    this.showAlert(`Failed to refresh Custom Scraper cache: ${result.error}`, 'danger');
+                }
+            } else {
+                const error = await response.json();
+                this.showAlert(`Failed to refresh Custom Scraper cache: ${error.error}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error refreshing Custom Scraper cache: ' + error.message, 'danger');
+        } finally {
+            // Restore button state
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = originalText;
+        }
+    }
+    
+    async loadCustomCacheInformation() {
+        try {
+            const response = await fetch('/api/cache/custom-status');
+            const data = await response.json();
+            
+            if (data.success) {
+                // Update cache date
+                const cacheDateEl = document.getElementById('customCacheDate');
+                if (cacheDateEl) {
+                    if (data.cache_exists && data.cache_date) {
+                        const date = new Date(data.cache_date * 1000);
+                        cacheDateEl.textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                        cacheDateEl.className = 'badge bg-info';
+                    } else {
+                        cacheDateEl.textContent = 'Not built';
+                        cacheDateEl.className = 'badge bg-warning';
+                    }
+                }
+                
+                // Update cache status
+                const cacheStatusEl = document.getElementById('customCacheStatus');
+                const indexStatusEl = document.getElementById('customIndexStatus');
+                
+                if (data.total_databases === data.total_indexed && data.total_indexed > 0) {
+                    if (cacheStatusEl) {
+                        cacheStatusEl.textContent = 'Ready';
+                        cacheStatusEl.className = 'badge bg-success';
+                    }
+                    if (indexStatusEl) {
+                        indexStatusEl.textContent = 'All indexed';
+                        indexStatusEl.className = 'badge bg-success';
+                    }
+                } else if (data.total_indexed > 0) {
+                    if (cacheStatusEl) {
+                        cacheStatusEl.textContent = 'Partial';
+                        cacheStatusEl.className = 'badge bg-warning';
+                    }
+                    if (indexStatusEl) {
+                        indexStatusEl.textContent = `${data.total_indexed}/${data.total_databases} indexed`;
+                        indexStatusEl.className = 'badge bg-warning';
+                    }
+                } else {
+                    if (cacheStatusEl) {
+                        cacheStatusEl.textContent = 'Not Ready';
+                        cacheStatusEl.className = 'badge bg-danger';
+                    }
+                    if (indexStatusEl) {
+                        indexStatusEl.textContent = 'Not indexed';
+                        indexStatusEl.className = 'badge bg-danger';
+                    }
+                }
+                
+                // Update counts
+                const databasesCountEl = document.getElementById('customDatabasesCount');
+                const indexedCountEl = document.getElementById('customIndexedCount');
+                const entriesCountEl = document.getElementById('customEntriesCount');
+                
+                if (databasesCountEl) databasesCountEl.textContent = data.total_databases || 0;
+                if (indexedCountEl) indexedCountEl.textContent = data.total_indexed || 0;
+                if (entriesCountEl) entriesCountEl.textContent = data.total_entries ? data.total_entries.toLocaleString() : 0;
+            }
+        } catch (error) {
+            console.error('Error loading custom cache information:', error);
         }
     }
     
@@ -34143,7 +34254,7 @@ class GameCollectionManager {
             const mappedMediaFields = Object.values(customMappings).filter(field => field);
             
             // Text fields available in custom scraper preferences
-            const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre'];
+            const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre', 'nbplayers', 'rating'];
             
             // Read field selections directly from cookies
             const selectedGamelistTextFields = [];

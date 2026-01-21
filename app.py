@@ -16287,6 +16287,113 @@ def refresh_steam_cache_endpoint():
     except Exception as e:
         return jsonify({'error': f'Failed to refresh Steam cache: {str(e)}'}), 500
 
+@app.route('/api/cache/refresh-custom', methods=['POST'])
+@login_required
+def refresh_custom_cache_endpoint():
+    """Refresh Custom Scraper partitioned index cache"""
+    try:
+        # Get the global Custom Scraper service instance
+        custom_service = load_custom_scraper_service()
+        
+        if not custom_service:
+            return jsonify({'error': 'Custom Scraper service not available'}), 500
+        
+        # Force rebuild the partitioned index
+        print("🔄 Refreshing Custom Scraper partitioned index cache...")
+        
+        # Reload databases first to pick up any new JSON files
+        custom_service._load_databases()
+        
+        # Then rebuild the indexes
+        custom_service._build_all_partitioned_indexes()
+        custom_service._save_partitioned_indexes_to_cache()
+        
+        # Get stats for response
+        db_count = len(custom_service.databases)
+        index_count = len(custom_service._global_similarity_index)
+        total_entries = sum(
+            sum(len(partition) for partition in db_index.values())
+            for db_index in custom_service._global_similarity_index.values()
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Custom Scraper cache refreshed successfully - {db_count} databases, {total_entries} entries indexed'
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to refresh Custom Scraper cache: {str(e)}'}), 500
+
+@app.route('/api/cache/custom-status', methods=['GET'])
+@login_required
+def get_custom_cache_status():
+    """Get Custom Scraper cache status information"""
+    try:
+        import os
+        
+        cache_file = 'var/cache/custom_partitioned_index.pkl'
+        db_path = 'var/db/custom'
+        
+        # Check cache file
+        cache_exists = os.path.exists(cache_file)
+        cache_date = None
+        cache_size = 0
+        if cache_exists:
+            cache_stat = os.stat(cache_file)
+            cache_date = cache_stat.st_mtime
+            cache_size = cache_stat.st_size
+        
+        # Get database info
+        databases = []
+        if os.path.exists(db_path):
+            for f in os.listdir(db_path):
+                if f.endswith('.json'):
+                    file_path = os.path.join(db_path, f)
+                    file_stat = os.stat(file_path)
+                    databases.append({
+                        'name': os.path.splitext(f)[0],
+                        'size': file_stat.st_size,
+                        'date': file_stat.st_mtime
+                    })
+        
+        # Get index info from the loaded service
+        custom_service = load_custom_scraper_service()
+        indexed_databases = []
+        total_entries = 0
+        total_partitions = 0
+        
+        if custom_service:
+            for db_name, db_index in custom_service._global_similarity_index.items():
+                partition_count = len(db_index)
+                entry_count = sum(len(partition) for partition in db_index.values())
+                total_entries += entry_count
+                total_partitions += partition_count
+                indexed_databases.append({
+                    'name': db_name,
+                    'partitions': partition_count,
+                    'entries': entry_count
+                })
+        
+        return jsonify({
+            'success': True,
+            'cache_exists': cache_exists,
+            'cache_date': cache_date,
+            'cache_size': cache_size,
+            'databases': databases,
+            'indexed_databases': indexed_databases,
+            'total_databases': len(databases),
+            'total_indexed': len(indexed_databases),
+            'total_entries': total_entries,
+            'total_partitions': total_partitions
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to get Custom cache status: {str(e)}'}), 500
+
 @app.route('/api/cache/regenerate-indexes', methods=['POST'])
 @login_required
 def regenerate_indexes_endpoint():
@@ -34330,6 +34437,22 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
     text_field_mapping = custom_config.get('mapping', {})
     media_field_mapping = custom_config.get('image_type_mappings', {})
     
+    # Add default text field mappings if not present
+    default_text_mappings = {
+        'name': 'name',
+        'publisher': 'publisher',
+        'developer': 'developer',
+        'release_date': 'releasedate',
+        'genre': 'genre',
+        'nbplayers': 'players',
+        'rating': 'rating'
+    }
+    
+    # Merge defaults with config mappings (config takes precedence)
+    for custom_field, gamelist_field in default_text_mappings.items():
+        if custom_field not in text_field_mapping:
+            text_field_mapping[custom_field] = gamelist_field
+    
     print(f"🔧 DEBUG: Custom Scrapper config: {custom_config}")
     print(f"🔧 DEBUG: Text field mapping: {text_field_mapping}")
     print(f"🔧 DEBUG: Media field mapping: {media_field_mapping}")
@@ -34495,6 +34618,22 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                             print(f"✅ DEBUG: Found exact match with rom_name: {game_id}")
                         else:
                             print(f"❌ DEBUG: No exact match found with rom_name_without_ext='{rom_name_without_ext}'")
+                    
+                    # If still no match, try matching ROM filename (without extension) to database ID directly
+                    # This matches cases like "1945kiiipt.zip" -> ID "1945kiiipt" in database
+                    if not match_found and rom_name_without_ext:
+                        print(f"🔍 DEBUG: Trying ID match with rom_name_without_ext='{rom_name_without_ext}'")
+                        # Try to get game by ID directly (ID is the key in the database)
+                        if custom_db in service.databases:
+                            db_data = service.databases[custom_db]
+                            if rom_name_without_ext in db_data:
+                                game_id = rom_name_without_ext
+                                game_data = db_data[rom_name_without_ext]
+                                db_to_use = custom_db
+                                match_found = True
+                                print(f"✅ DEBUG: Found ID match: rom_name='{rom_name_without_ext}' matches database ID '{game_id}'")
+                            else:
+                                print(f"❌ DEBUG: No ID match found - '{rom_name_without_ext}' not found as ID in database '{custom_db}'")
                 
                 if match_found and game_data and game_id:
                     # Get game name from game_data for logging
@@ -34523,8 +34662,26 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     # Extract text fields - only process selected fields
                     text_fields = {}
                     if selected_text_fields:
+                        # Map UI field names to gamelist field names for checking
+                        # UI uses 'nbplayers' and 'rating', but we need to check against gamelist field names
+                        ui_to_gamelist_map = {
+                            'nbplayers': 'players',
+                            'rating': 'rating',
+                            'name': 'name',
+                            'publisher': 'publisher',
+                            'developer': 'developer',
+                            'releasedate': 'releasedate',
+                            'genre': 'genre'
+                        }
+                        
+                        # Convert selected_text_fields from UI names to gamelist names for checking
+                        selected_gamelist_fields = set()
+                        for ui_field in selected_text_fields:
+                            gamelist_field = ui_to_gamelist_map.get(ui_field, ui_field)
+                            selected_gamelist_fields.add(gamelist_field)
+                        
                         for custom_field, gamelist_field in text_field_mapping.items():
-                            if gamelist_field in selected_text_fields:
+                            if gamelist_field in selected_gamelist_fields:
                                 value = game_data.get(custom_field)
                                 if value:
                                     text_fields[gamelist_field] = value
