@@ -177,7 +177,8 @@ class CustomScraperService:
                                 break
                     
                     if game_name:
-                        normalized_title = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=False)
+                        # Don't remove parentheses to preserve version info (e.g., "Game (ECS)" vs "Game (AGA)")
+                        normalized_title = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
                         if normalized_title:
                             normalized_title = normalized_title.strip()  # Ensure no leading/trailing whitespace
                             first_char = normalized_title[0] if normalized_title else 'other'
@@ -312,8 +313,8 @@ class CustomScraperService:
             self.logger.warning(f"No index found for database {db_name}")
             return None
         
-        # Normalize the search name (remove parentheses but keep articles for exact matching)
-        normalized_search = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=False)
+        # Normalize the search name (keep parentheses to match versioned games)
+        normalized_search = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
         if not normalized_search:
             self.logger.debug(f"Normalized search is empty for '{game_name}'")
             return None
@@ -352,8 +353,8 @@ class CustomScraperService:
             self.logger.warning(f"No index found for database {db_name}")
             return []
         
-        # Normalize the search name
-        normalized_search = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+        # Normalize the search name (keep parentheses to match versioned games)
+        normalized_search = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=True)
         if not normalized_search:
             return []
         
@@ -400,7 +401,7 @@ class CustomScraperService:
             media_field: Media field name (e.g., 'boxfront', 'boxback', 'titleshot', 'screenshot', 'image')
         
         Returns:
-            Media URL or None if not found
+            Media URL (first item if array) or None if not found
         """
         game_data = self.get_game_by_id(db_name, game_id)
         if not game_data:
@@ -416,7 +417,51 @@ class CustomScraperService:
         
         for field in field_variations:
             if field in game_data and game_data[field]:
-                return game_data[field]
+                value = game_data[field]
+                # Handle arrays - return first item for backward compatibility
+                if isinstance(value, list):
+                    if len(value) > 0:
+                        return value[0] if isinstance(value[0], str) else None
+                    return None
+                # Return single value as-is
+                return value if isinstance(value, str) else None
         
         return None
+    
+    def get_media_urls(self, db_name: str, game_id: str, media_field: str) -> List[str]:
+        """
+        Get media URLs for a specific game and media field (always returns a list)
+        
+        Args:
+            db_name: Name of the custom database
+            game_id: Game ID
+            media_field: Media field name (e.g., 'boxfront', 'boxback', 'titleshot', 'screenshot', 'image')
+        
+        Returns:
+            List of media URLs (empty list if not found)
+        """
+        game_data = self.get_game_by_id(db_name, game_id)
+        if not game_data:
+            return []
+        
+        # Check common field name variations
+        field_variations = [
+            media_field,
+            media_field.lower(),
+            media_field.upper(),
+            media_field.capitalize(),
+        ]
+        
+        for field in field_variations:
+            if field in game_data and game_data[field]:
+                value = game_data[field]
+                # Handle arrays - return as list
+                if isinstance(value, list):
+                    # Filter to only include string URLs
+                    return [url for url in value if isinstance(url, str)]
+                # Convert single value to list
+                if isinstance(value, str):
+                    return [value]
+        
+        return []
 

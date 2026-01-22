@@ -1301,15 +1301,24 @@ def is_local_image_cache_valid(cache_entry):
     return is_valid
 
 
-def format_customid(database_name, game_id):
-    """Format customid as '<database>/<id>'"""
+def format_customid(database_name, game_id, scraper_type='custom'):
+    """Format customid as '<database>/<id>'
+    
+    Args:
+        database_name: Name of the custom database
+        game_id: Game ID in the database
+        scraper_type: Type of scraper ('custom' or 'custom2'), for consistency (not used in format)
+    
+    Returns:
+        Formatted ID string in format '<database>/<id>'
+    """
     # Ensure both parameters are strings and not empty
     if not database_name or not game_id:
         # If database_name is missing, log warning but still return game_id for backward compatibility
         if not database_name:
             import logging
             logger = logging.getLogger(__name__)
-            logger.warning(f"format_customid called with empty database_name, game_id={game_id}")
+            logger.warning(f"format_customid called with empty database_name, game_id={game_id}, scraper_type={scraper_type}")
         return str(game_id) if game_id else ''
     
     # Ensure both are strings
@@ -1321,9 +1330,16 @@ def format_customid(database_name, game_id):
     
     return f"{database_name}/{game_id}"
 
-def parse_customid(customid):
+def parse_customid(customid, scraper_type='custom'):
     """Parse customid format '<database>/<id>' and return (database, id)
     Returns (None, customid) if format is not recognized (backward compatibility)
+    
+    Args:
+        customid: Custom ID string in format '<database>/<id>' or just '<id>'
+        scraper_type: Type of scraper ('custom' or 'custom2'), for consistency (not used in parsing)
+    
+    Returns:
+        Tuple of (database, id) or (None, customid) for backward compatibility
     """
     if not customid:
         return (None, None)
@@ -3464,8 +3480,9 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_import_roms_task, args=(system_name, source_directory, task.id))
             thread.daemon = True
             thread.start()
-    elif task_type == 'custom_scrapper':
-        # Start Custom scraper task
+    elif task_type == 'custom_scrapper' or task_type == 'custom2_scrapper':
+        # Start Custom or Custom2 scraper task
+        scraper_type = task_data.get('scraper_type', 'custom' if task_type == 'custom_scrapper' else 'custom2')
         system_name = task_data.get('system_name')
         custom_db = task_data.get('custom_db') or task_data.get('custom_database')  # Support both field names
         selected_games = task_data.get('selected_games', [])
@@ -3482,7 +3499,7 @@ def process_next_queued_task():
             overwrite_media_fields = overwrite_media_fields.lower() in ('true', '1', 'yes')
         overwrite_media_fields = bool(overwrite_media_fields)
         
-        print(f"🔧 DEBUG: Custom Scrapper task data: system_name={system_name}, custom_db={custom_db}, selected_games={len(selected_games) if selected_games else 0} games")
+        print(f"🔧 DEBUG: {scraper_type.capitalize()} Scrapper task data: system_name={system_name}, custom_db={custom_db}, selected_games={len(selected_games) if selected_games else 0} games")
         
         if system_name and custom_db:
             # Use the existing queued task instead of creating a new one
@@ -3495,18 +3512,18 @@ def process_next_queued_task():
                 print(f"🔧 DEBUG: Started existing task {task_id}")
             else:
                 # Fallback: create new task if existing one not found
-                task = create_task('custom_scrapper', task_data)
+                task = create_task(task_type, task_data)
                 set_running_task_for_system(system_name, task.id)
                 task.start()
                 print(f"🔧 DEBUG: Created and started new task {task.id}")
             # Start Custom Scrapper in background thread
-            print(f"🔧 DEBUG: Starting Custom Scrapper thread with args: ({system_name}, {custom_db}, {task.id}, {selected_games}, {selected_text_fields}, {selected_media_fields}, {overwrite_text_fields}, {overwrite_media_fields})")
-            thread = threading.Thread(target=run_custom_scrapper_task, args=(system_name, custom_db, task.id, selected_games, selected_text_fields, selected_media_fields, overwrite_text_fields, overwrite_media_fields))
+            print(f"🔧 DEBUG: Starting {scraper_type.capitalize()} Scrapper thread with args: ({system_name}, {custom_db}, {task.id}, {selected_games}, {selected_text_fields}, {selected_media_fields}, {overwrite_text_fields}, {overwrite_media_fields}, {scraper_type})")
+            thread = threading.Thread(target=run_custom_scrapper_task, args=(system_name, custom_db, task.id, selected_games, selected_text_fields, selected_media_fields, overwrite_text_fields, overwrite_media_fields, scraper_type))
             thread.daemon = True
             thread.start()
-            print(f"🔧 DEBUG: Custom Scrapper thread started")
+            print(f"🔧 DEBUG: {scraper_type.capitalize()} Scrapper thread started")
         else:
-            print(f"🔧 DEBUG: No system_name or custom_db provided for Custom Scrapper task")
+            print(f"🔧 DEBUG: No system_name or custom_db provided for {scraper_type.capitalize()} Scrapper task")
     else:
         print(f"Unknown task type: {task_type}")
         return
@@ -6664,6 +6681,8 @@ def parse_gamelist_xml(file_path):
                     game_data['mobygamesid'] = text
                 elif tag == 'customid':
                     game_data['customid'] = text
+                elif tag == 'custom2id':
+                    game_data['custom2id'] = text
                 elif tag == 'nbvotes':
                     game_data['nbvotes'] = int(text) if text.isdigit() else None
                 elif tag == 'steamid':
@@ -6696,6 +6715,9 @@ def parse_gamelist_xml(file_path):
             # Initialize customid to empty string if not present (for grid display)
             if 'customid' not in game_data:
                 game_data['customid'] = ''
+            # Initialize custom2id to empty string if not present (for grid display)
+            if 'custom2id' not in game_data:
+                game_data['custom2id'] = ''
             
             games.append(game_data)
         
@@ -7829,6 +7851,7 @@ def manage_systems():
             emumovies_platform = data.get('emumovies_platform', '')
             dat_file = data.get('dat_file', '')
             custom = data.get('custom', '')
+            custom2 = data.get('custom2', '')
             extensions = data.get('extensions', [])
             
             # Debug logging
@@ -7875,6 +7898,7 @@ def manage_systems():
                 'emumovies': emumovies_platform,
                 'dat_file': dat_file,
                 'custom': custom,
+                'custom2': custom2,
                 'extensions': extensions
             }
             
@@ -8310,7 +8334,7 @@ def manage_custom_mappings():
             media_fields = config.get('media_fields', {})
             
             # Custom image types from the database
-            custom_image_types = ['boxfront', 'boxback', 'titleshot', 'screenshot', 'cartridge', 'video']
+            custom_image_types = ['boxfront', 'boxback', 'titleshot', 'screenshot', 'cartridge', 'video', 'map', 'manual', 'cheats']
             
             return jsonify({
                 'success': True, 
@@ -8333,7 +8357,7 @@ def manage_custom_mappings():
                 return jsonify({'error': 'Invalid media field'}), 400
             
             # Validate custom type
-            valid_custom_types = ['boxfront', 'boxback', 'titleshot', 'screenshot', 'cartridge', 'video']
+            valid_custom_types = ['boxfront', 'boxback', 'titleshot', 'screenshot', 'cartridge', 'video', 'map', 'manual', 'cheats']
             if custom_type and custom_type not in valid_custom_types:
                 return jsonify({'error': f'Invalid custom type. Must be one of: {", ".join(valid_custom_types)}'}), 400
             
@@ -8916,8 +8940,12 @@ def scrap_datscrapper_system(system_name):
 
 @app.route('/api/custom-scraper/search', methods=['POST'])
 @login_required
-def custom_scraper_search():
-    """Search for games in Custom database"""
+def custom_scraper_search(scraper_type='custom'):
+    """Search for games in Custom database
+    
+    Args:
+        scraper_type: Type of scraper ('custom' or 'custom2'), defaults to 'custom'
+    """
     try:
         data = request.get_json()
         if not data:
@@ -8936,7 +8964,7 @@ def custom_scraper_search():
         # Load Custom Scraper service
         service = load_custom_scraper_service()
         if not service:
-            return jsonify({'success': False, 'error': 'Custom Scraper service not available'}), 500
+            return jsonify({'success': False, 'error': f'{scraper_type.capitalize()} Scraper service not available'}), 500
         
         # Check if database exists
         if database_name not in service.databases:
@@ -8953,7 +8981,7 @@ def custom_scraper_search():
             if match.get('similarity', 0) > 0.7:
                 # Format game_id as '<database>/<id>'
                 game_id = match.get('game_id', '')
-                formatted_game_id = format_customid(database_name, game_id)
+                formatted_game_id = format_customid(database_name, game_id, scraper_type)
                 
                 formatted_matches.append({
                     'game_id': formatted_game_id,
@@ -8973,10 +9001,21 @@ def custom_scraper_search():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/custom2-scraper/search', methods=['POST'])
+@login_required
+def custom2_scraper_search():
+    """Search for games in Custom2 database (wrapper for custom_scraper_search)"""
+    return custom_scraper_search(scraper_type='custom2')
+
 @app.route('/api/scrap-custom/<system_name>', methods=['POST'])
 @login_required
-def scrap_custom_system(system_name):
-    """Start Custom scraper task for a specific system"""
+def scrap_custom_system(system_name, scraper_type='custom'):
+    """Start Custom scraper task for a specific system
+    
+    Args:
+        system_name: Name of the system to scrape
+        scraper_type: Type of scraper ('custom' or 'custom2'), defaults to 'custom'
+    """
     global current_task_id
     
     try:
@@ -8994,19 +9033,20 @@ def scrap_custom_system(system_name):
         # Get system config to check custom database
         current_systems_config = load_systems_config()
         system_config = current_systems_config.get(system_name, {})
-        custom_db = system_config.get('custom', '')
+        custom_db = system_config.get(scraper_type, '')
         
         if not custom_db:
-            return jsonify({'error': f'No custom database configured for system {system_name}'}), 400
+            return jsonify({'error': f'No {scraper_type} database configured for system {system_name}'}), 400
         
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"Custom Scraper API - system: {system_name}, db: {custom_db}, selected_games: {len(selected_games)} games, selected_text_fields: {selected_text_fields}, selected_media_fields: {selected_media_fields}, overwrite_text: {overwrite_text_fields}, overwrite_media: {overwrite_media_fields}")
+        logger.info(f"{scraper_type.capitalize()} Scraper API - system: {system_name}, db: {custom_db}, selected_games: {len(selected_games)} games, selected_text_fields: {selected_text_fields}, selected_media_fields: {selected_media_fields}, overwrite_text: {overwrite_text_fields}, overwrite_media: {overwrite_media_fields}")
         
         # Create task object
         task_data = {
             'system_name': system_name,
             'custom_db': custom_db,
+            'scraper_type': scraper_type,
             'selected_games': selected_games,
             'selected_text_fields': selected_text_fields,
             'selected_media_fields': selected_media_fields,
@@ -9014,7 +9054,8 @@ def scrap_custom_system(system_name):
             'overwrite_media_fields': overwrite_media_fields
         }
         username = current_user.username if current_user.is_authenticated else 'anonymous'
-        task = add_task_to_queue('custom_scrapper', task_data, username)
+        task_type = f"{scraper_type}_scrapper"
+        task = add_task_to_queue(task_type, task_data, username)
         
         # Note: add_task_to_queue() handles task starting via process_next_queued_task()
         # Only start directly if not already started
@@ -9027,16 +9068,22 @@ def scrap_custom_system(system_name):
         
         return jsonify({
             'success': True, 
-            'message': 'Custom scraper task started', 
+            'message': f'{scraper_type.capitalize()} scraper task started', 
             'task_id': task.id,
             'system': system_name
         })
         
     except Exception as e:
-        print(f"Error starting Custom scraper task: {e}")
+        print(f"Error starting {scraper_type} scraper task: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': f'Failed to start Custom scraper task: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to start {scraper_type} scraper task: {str(e)}'}), 500
+
+@app.route('/api/scrap-custom2/<system_name>', methods=['POST'])
+@login_required
+def scrap_custom2_system(system_name):
+    """Start Custom2 scraper task for a specific system (wrapper for scrap_custom_system)"""
+    return scrap_custom_system(system_name, scraper_type='custom2')
 
 @app.route('/api/datscrapper/search', methods=['POST'])
 @login_required
@@ -11848,6 +11895,7 @@ def multiscraper_search_endpoint():
         should_run_mobygames = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'mobygames'
         should_run_emumovies = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'emumovies'
         should_run_custom = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'custom'
+        should_run_custom2 = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'custom2'
         
         import time
         total_start_time = time.time()
@@ -12089,7 +12137,7 @@ def multiscraper_search_endpoint():
                 try:
                     print(f"🔧 DEBUG: Running custom scraper...")
                     custom_start_time = time.time()
-                    result = run_async_safely(scrape_custom_manual(current_game, system_name, sys_config, target_media_type=media_type))
+                    result = run_async_safely(scrape_custom_manual(current_game, system_name, sys_config, scraper_type='custom', target_media_type=media_type))
                     custom_end_time = time.time()
                     print(f"⏱️ Custom scraper took {custom_end_time - custom_start_time:.3f} seconds")
                     if result:
@@ -12103,6 +12151,33 @@ def multiscraper_search_endpoint():
                     print(f"🔧 DEBUG: custom traceback: {traceback.format_exc()}")
             else:
                 print(f"🔧 DEBUG: Skipping Custom - no mapping for media type '{media_type}'")
+        
+        # Execute Custom2 scraper if game has custom2id and supports the media type
+        should_run_custom2 = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'custom2'
+        if should_run_custom2 and current_game.get('custom2id'):
+            # Check if Custom2 supports this media type
+            # Mapping structure: {custom_field: gamelist_field}
+            # Example: {'boxfront': 'boxart', 'screenshot': 'image'}
+            # We need to check if media_type (gamelist field) is in the VALUES of the mapping
+            custom_image_mapping = scrappers_config.get('custom', {}).get('image_type_mappings', {})
+            if media_type in custom_image_mapping.values():
+                try:
+                    print(f"🔧 DEBUG: Running custom2 scraper...")
+                    custom2_start_time = time.time()
+                    result = run_async_safely(scrape_custom_manual(current_game, system_name, sys_config, scraper_type='custom2', target_media_type=media_type))
+                    custom2_end_time = time.time()
+                    print(f"⏱️ Custom2 scraper took {custom2_end_time - custom2_start_time:.3f} seconds")
+                    if result:
+                        print(f"🔧 DEBUG: custom2 scraper returned data with keys: {list(result.keys())}")
+                        scrap_results['custom2'] = result
+                    else:
+                        print(f"🔧 DEBUG: custom2 scraper returned None")
+                except Exception as e:
+                    print(f"🔧 DEBUG: custom2 scraper failed: {e}")
+                    import traceback
+                    print(f"🔧 DEBUG: custom2 traceback: {traceback.format_exc()}")
+            else:
+                print(f"🔧 DEBUG: Skipping Custom2 - no mapping for media type '{media_type}'")
         
         # Execute EmuMovies scraper if system has EmuMovies mapping and supports the media type
         if should_run_emumovies:
@@ -12243,7 +12318,14 @@ def multiscraper_search_endpoint():
                         for i, item in enumerate(media_items):
                             if isinstance(item, dict):
                                 # Media object with url, region, type, etc.
+                                # Handle custom/custom2 which may have 'urls' array or 'text' for cheats
                                 url = item.get('url')
+                                if not url:
+                                    # Try to get first URL from 'urls' array (for custom/custom2 arrays)
+                                    urls = item.get('urls', [])
+                                    if urls and isinstance(urls, list) and len(urls) > 0:
+                                        url = urls[0]
+                                
                                 if url:
                                     result_item = {
                                         'url': url,
@@ -12251,6 +12333,9 @@ def multiscraper_search_endpoint():
                                         'type': media_type,
                                         'region': item.get('region', 'Unknown')
                                     }
+                                    # For custom/custom2 with arrays, include all URLs
+                                    if item.get('urls') and isinstance(item.get('urls'), list):
+                                        result_item['urls'] = item.get('urls')
                                     # For LaunchBox video, include VideoURL fields
                                     if media_type == 'video' and scraper_name == 'launchbox':
                                         if item.get('VideoURL'):
@@ -14008,10 +14093,20 @@ def download_and_save_media(media_url, game, media_type, system_name):
         
         # Download the media first to get content type and determine extension if needed
         print(f"🔧 DEBUG: Downloading from URL: {media_url}")
-        import requests
-        response = requests.get(media_url, timeout=30)
-        response.raise_for_status()
-        print(f"🔧 DEBUG: Download successful, content length: {len(response.content)}")
+        
+        # Use Selenium for amigahol URLs
+        media_content = None
+        if _is_amigahol_url(media_url):
+            media_content = download_media_content(media_url, timeout=30)
+            if not media_content:
+                return False
+        else:
+            import requests
+            response = requests.get(media_url, timeout=30)
+            response.raise_for_status()
+            media_content = response.content
+        
+        print(f"🔧 DEBUG: Download successful, content length: {len(media_content)}")
         
         # If target_extension is not defined, determine from URL or Content-Type
         if not target_extension:
@@ -14024,20 +14119,17 @@ def download_and_save_media(media_url, game, media_type, system_name):
                 target_extension = url_ext
                 print(f"🔧 DEBUG: Using extension from URL: {target_extension}")
             else:
-                # Try to get extension from Content-Type
-                content_type = response.headers.get('content-type', '').lower()
-                if 'image/jpeg' in content_type or 'image/jpg' in content_type:
-                    target_extension = '.jpg'
-                elif 'image/png' in content_type:
-                    target_extension = '.png'
-                elif 'image/gif' in content_type:
-                    target_extension = '.gif'
-                elif 'image/webp' in content_type:
-                    target_extension = '.webp'
+                # Try to get extension from URL (since we may not have response headers for Selenium downloads)
+                from urllib.parse import urlparse
+                parsed_url = urlparse(media_url)
+                url_ext = os.path.splitext(parsed_url.path)[1]
+                if url_ext:
+                    target_extension = url_ext
+                    print(f"🔧 DEBUG: Using extension from URL: {target_extension}")
                 else:
                     # Default fallback
                     target_extension = '.png'
-                print(f"🔧 DEBUG: Using extension from Content-Type: {target_extension}")
+                    print(f"🔧 DEBUG: Using default extension: {target_extension}")
         
         # Generate filename with determined extension
         media_filename = create_media_filename(game.get('path', ''), target_extension)
@@ -14046,7 +14138,7 @@ def download_and_save_media(media_url, game, media_type, system_name):
         
         # Save the file
         with open(target_path, 'wb') as f:
-            f.write(response.content)
+            f.write(media_content)
         print(f"🔧 DEBUG: File saved to {target_path}")
         
         # For manual/map (PDF/CBZ) types, skip image processing - these files should not be converted/resized
@@ -14559,8 +14651,12 @@ def find_best_matches_igdb_endpoint():
 
 @app.route('/api/find-best-matches-custom', methods=['POST'])
 @login_required
-def find_best_matches_custom_endpoint():
-    """Find best matches for selected games using Custom database"""
+def find_best_matches_custom_endpoint(scraper_type='custom'):
+    """Find best matches for selected games using Custom database
+    
+    Args:
+        scraper_type: Type of scraper ('custom' or 'custom2'), defaults to 'custom'
+    """
     try:
         data = request.get_json()
         if not data:
@@ -14578,20 +14674,20 @@ def find_best_matches_custom_endpoint():
         # Get system configuration to retrieve custom database name
         systems_config = load_systems_config()
         system_config = systems_config.get(system_name, {})
-        custom_database = system_config.get('custom', '')
+        custom_database = system_config.get(scraper_type, '')
         
         if not custom_database:
-            return jsonify({'error': f'No custom database configured for system "{system_name}"'}), 400
+            return jsonify({'error': f'No {scraper_type} database configured for system "{system_name}"'}), 400
         
         # Get the global Custom Scraper service instance
         custom_service = load_custom_scraper_service()
         
         if not custom_service:
-            return jsonify({'error': 'Custom Scraper service not available'}), 500
+            return jsonify({'error': f'{scraper_type.capitalize()} Scraper service not available'}), 500
         
         # Check if database exists
         if custom_database not in custom_service.databases:
-            return jsonify({'error': f'Custom database "{custom_database}" not found'}), 400
+            return jsonify({'error': f'{scraper_type.capitalize()} database "{custom_database}" not found'}), 400
         
         # Load gamelist to get game details
         gamelist_path = get_gamelist_path(system_name)
@@ -14624,8 +14720,8 @@ def find_best_matches_custom_endpoint():
                     game_data_from_db = match.get('game_data', {})
                     # Format game_id as '<database>/<id>'
                     game_id = match.get('game_id', '')
-                    print(f"🔧 DEBUG find_best_matches_custom: custom_database='{custom_database}', game_id='{game_id}'")
-                    formatted_game_id = format_customid(custom_database, game_id)
+                    print(f"🔧 DEBUG find_best_matches_custom: custom_database='{custom_database}', game_id='{game_id}', scraper_type='{scraper_type}'")
+                    formatted_game_id = format_customid(custom_database, game_id, scraper_type)
                     print(f"🔧 DEBUG find_best_matches_custom: formatted_game_id='{formatted_game_id}'")
                     
                     mapped_match = {
@@ -14645,20 +14741,24 @@ def find_best_matches_custom_endpoint():
                 # Get the best match (first result after sorting)
                 best_match = mapped_matches[0]
                 
+                # Get the field name based on scraper type
+                id_field_name = f"{scraper_type}id"
                 results.append({
                     'game_path': game_data.get('path', ''),
                     'game_name': game_name,
-                    'existing_customid': game_data.get('customid'),
+                    f'existing_{id_field_name}': game_data.get(id_field_name),
                     'game_data': game_data,  # Include full game data
                     'match_found': True,
                     'best_match': best_match,
                     'all_matches': mapped_matches
                 })
             else:
+                # Get the field name based on scraper type
+                id_field_name = f"{scraper_type}id"
                 results.append({
                     'game_path': game_data.get('path', ''),
                     'game_name': game_name,
-                    'existing_customid': game_data.get('customid'),
+                    f'existing_{id_field_name}': game_data.get(id_field_name),
                     'match_found': False,
                     'best_match': None,
                     'all_matches': []
@@ -14675,7 +14775,13 @@ def find_best_matches_custom_endpoint():
         import traceback
         traceback.print_exc()
         print(f"Error in find_best_matches_custom endpoint: {e}")
-        return jsonify({'error': f'Failed to find Custom matches: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to find {scraper_type.capitalize()} matches: {str(e)}'}), 500
+
+@app.route('/api/find-best-matches-custom2', methods=['POST'])
+@login_required
+def find_best_matches_custom2_endpoint():
+    """Find best matches for selected games using Custom2 database (wrapper for find_best_matches_custom_endpoint)"""
+    return find_best_matches_custom_endpoint(scraper_type='custom2')
 
 @app.route('/api/scrap-launchbox-stop', methods=['POST'])
 @login_required
@@ -18084,6 +18190,14 @@ def manual_scrap_game(system_name):
             else:
                 print(f"DEBUG: Custom not enabled or no ID found. Config: {sys_config.get('custom')}, Game ID: {current_game.get('customid')}")
             
+            # Custom2 scraping
+            custom2_database = sys_config.get('custom2', '')
+            if custom2_database and current_game.get('custom2id'):
+                print(f"DEBUG: Adding Custom2 scraper for game: {current_game.get('name')} with ID: {current_game.get('custom2id')}")
+                scraper_tasks.append(('custom2', lambda: asyncio.run(scrape_custom_manual(current_game, system_name, sys_config, scraper_type='custom2'))))
+            else:
+                print(f"DEBUG: Custom2 not enabled or no ID found. Config: {sys_config.get('custom2')}, Game ID: {current_game.get('custom2id')}")
+            
             # Run all scrapers in parallel using ThreadPoolExecutor
             if scraper_tasks:
                 print(f"🚀 MANUAL SCRAP: Starting {len(scraper_tasks)} scrapers in parallel threads at {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
@@ -20053,8 +20167,16 @@ async def scrape_mobygames_manual(game, system_name, system_config, target_media
         logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
-async def scrape_custom_manual(game, system_name, system_config, target_media_type=None):
-    """Scrape Custom database data for manual scrap (returns data without writing files)"""
+async def scrape_custom_manual(game, system_name, system_config, scraper_type='custom', target_media_type=None):
+    """Scrape Custom database data for manual scrap (returns data without writing files)
+    
+    Args:
+        game: Game data dictionary
+        system_name: Name of the system
+        system_config: System configuration dictionary
+        scraper_type: Type of scraper ('custom' or 'custom2'), defaults to 'custom'
+        target_media_type: Optional media type to scrape (None for all)
+    """
     try:
         # Get Custom configuration
         scrappers_config = load_scrappers_config()
@@ -20062,25 +20184,28 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
         if not custom_config:
             return None
         
+        # Get the field name based on scraper type
+        id_field_name = f"{scraper_type}id"
+        
         # Get Custom database name from system config
-        custom_database = system_config.get('custom', '')
+        custom_database = system_config.get(scraper_type, '')
         if not custom_database:
             return None
         
         # Get Custom ID from game
-        customid = game.get('customid')
+        customid = game.get(id_field_name)
         if not customid:
             return None
         
         # Parse customid to extract database and game ID
-        db_from_customid, game_id = parse_customid(customid)
+        db_from_customid, game_id = parse_customid(customid, scraper_type)
         
         # Use database from customid if available, otherwise fall back to system config (backward compatibility)
         if db_from_customid:
             custom_database = db_from_customid
         else:
             # Backward compatibility: use system config database
-            custom_database = system_config.get('custom', '')
+            custom_database = system_config.get(scraper_type, '')
             game_id = customid  # Use full customid as game_id for backward compatibility
         
         if not custom_database or not game_id:
@@ -20100,6 +20225,11 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
         # Example: {'boxfront': 'boxart', 'boxback': 'boxback', 'titleshot': 'titleshot', 'screenshot': 'image'}
         image_type_mappings = custom_config.get('image_type_mappings', {})
         
+        # Get game data (used for both media and text fields)
+        game_data = service.get_game_by_id(custom_database, game_id)
+        if not game_data:
+            return None
+        
         # Extract media fields
         media_fields = {}
         
@@ -20110,24 +20240,61 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
             if target_media_type and gamelist_field != target_media_type:
                 continue
             
-            # Get media URL from custom database using the custom_field (key)
-            media_url = service.get_media_url(custom_database, game_id, custom_field)
-            
-            if media_url:
-                # Add to media_fields using the gamelist_field (value) as the key
-                if gamelist_field not in media_fields:
-                    media_fields[gamelist_field] = []
+            # Handle cheats specially (text field, not URL)
+            if custom_field == 'cheats':
+                cheats_text = None
+                if game_data:
+                    cheats_text = game_data.get('cheats') or game_data.get('cheat')
                 
-                media_fields[gamelist_field].append({
-                    'url': media_url,
-                    'type': custom_field,
-                    'customid': format_customid(custom_database, game_id),
-                    'database': custom_database
-                })
+                if cheats_text:
+                    if gamelist_field not in media_fields:
+                        media_fields[gamelist_field] = []
+                    
+                    media_fields[gamelist_field].append({
+                        'type': 'cheats',
+                        'text': cheats_text,
+                        id_field_name: format_customid(custom_database, game_id, scraper_type),
+                        'database': custom_database
+                    })
+            else:
+                # Get media URLs (may be single or array)
+                media_urls = service.get_media_urls(custom_database, game_id, custom_field)
+                
+                if media_urls:
+                    # Add to media_fields using the gamelist_field (value) as the key
+                    if gamelist_field not in media_fields:
+                        media_fields[gamelist_field] = []
+                    
+                    # For map: include all URLs for PDF generation
+                    # For other fields: include all URLs but note it's an array
+                    if custom_field == 'map':
+                        media_fields[gamelist_field].append({
+                            'urls': media_urls,
+                            'type': custom_field,
+                            id_field_name: format_customid(custom_database, game_id, scraper_type),
+                            'database': custom_database
+                        })
+                    else:
+                        # For image fields, include all URLs (caller can use first)
+                        # For manual, include URL(s)
+                        if len(media_urls) == 1:
+                            media_fields[gamelist_field].append({
+                                'url': media_urls[0],
+                                'type': custom_field,
+                                id_field_name: format_customid(custom_database, game_id, scraper_type),
+                                'database': custom_database
+                            })
+                        else:
+                            media_fields[gamelist_field].append({
+                                'urls': media_urls,
+                                'url': media_urls[0],  # First URL for backward compatibility
+                                'type': custom_field,
+                                id_field_name: format_customid(custom_database, game_id, scraper_type),
+                                'database': custom_database
+                            })
         
         # Extract text fields from custom database
         text_fields = {}
-        game_data = service.get_game_by_id(custom_database, game_id)
         if game_data:
             # Map custom database fields to gamelist fields
             if game_data.get('name'):
@@ -34485,12 +34652,469 @@ def run_datscrapper_task(system_name, task_id, selected_games=None, selected_tex
 # Custom Scrapper cancel maps
 _custom_scrapper_cancel_maps = {}
 
-def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=None, selected_text_fields=None, selected_media_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
-    """Run Custom Scrapper task for a specific system"""
+# Global Selenium driver for amigahol downloads
+_selenium_driver = None
+_selenium_challenge_passed = False  # Track if we've already passed the challenge
+_selenium_session_cookies = None  # Cache cookies after passing challenge
+
+def _init_selenium_driver():
+    """Initialize Selenium WebDriver for amigahol downloads"""
+    global _selenium_driver
+    if _selenium_driver:
+        return _selenium_driver
+    
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        
+        options = Options()
+        options.add_argument('--headless')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+        
+        _selenium_driver = webdriver.Chrome(options=options)
+        _selenium_driver.set_page_load_timeout(60)
+        return _selenium_driver
+    except Exception as e:
+        return None
+
+def _ensure_selenium_challenge_passed():
+    """Ensure we've passed the Anubis challenge at least once"""
+    global _selenium_driver, _selenium_challenge_passed, _selenium_session_cookies
+    
+    if _selenium_challenge_passed:
+        return True
+    
+    driver = _init_selenium_driver()
+    if not driver:
+        return False
+    
+    base_url = "https://amiga.abime.net"
+    
+    try:
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.common.by import By
+        import time
+        
+        driver.get(base_url)
+        
+        # Wait for page to load
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+        except:
+            time.sleep(2)
+        
+        # Check if we hit bot protection
+        if "Making sure you're not a bot" in driver.page_source:
+            for i in range(60):
+                time.sleep(1)
+                if "Making sure you're not a bot" not in driver.page_source:
+                    break
+            else:
+                return False
+        
+        time.sleep(2)
+        
+        # Cache cookies for reuse
+        _selenium_session_cookies = driver.get_cookies()
+        _selenium_challenge_passed = True
+        return True
+        
+    except Exception as e:
+        return False
+
+def _reset_selenium_session():
+    """Reset the Selenium session (useful if driver is closed or needs restart)"""
+    global _selenium_driver, _selenium_challenge_passed, _selenium_session_cookies
+    _selenium_challenge_passed = False
+    _selenium_session_cookies = None
+    if _selenium_driver:
+        try:
+            _selenium_driver.quit()
+        except:
+            pass
+    _selenium_driver = None
+
+def _is_amigahol_url(url: str) -> bool:
+    """Check if URL is from amigahol database (amiga.abime.net)"""
+    if not url:
+        return False
+    return 'amiga.abime.net' in url.lower()
+
+def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) -> bool:
+    """
+    Download media using Selenium (for sites with bot protection like amigahol)
+    Based on the HOL scraper implementation
+    
+    Args:
+        url: URL to download
+        output_path: Path where file should be saved
+        timeout: Timeout in seconds
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        driver = _init_selenium_driver()
+        if not driver:
+            import requests
+            response = requests.get(url, timeout=timeout)
+            if response.status_code == 200:
+                with open(output_path, 'wb') as f:
+                    f.write(response.content)
+                return True
+            return False
+        
+        from urllib.parse import urlparse, urljoin
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.common.by import By
+        import time
+        
+        # Ensure URL is absolute
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme:
+            # Relative URL, make it absolute
+            base_url = "https://amiga.abime.net"
+            url = urljoin(base_url, url)
+        
+        # Ensure we've passed the challenge at least once (reused across all downloads)
+        if not _ensure_selenium_challenge_passed():
+            return False
+        
+        # Now navigate to the actual image URL (challenge already passed, so this should be faster)
+        driver.get(url)
+        
+        # Wait for page to load (for image URLs, this might not have a body tag)
+        try:
+            WebDriverWait(driver, 10).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+            )
+        except:
+            # If readyState check fails, just wait a bit
+            time.sleep(2)
+        
+        # Check if we hit the bot protection page on the image URL
+        # Note: Since we've already passed the challenge once, this should be rare
+        # but we check anyway in case Anubis requires per-URL validation
+        page_source = driver.page_source
+        if "Making sure you're not a bot" in page_source:
+            # Wait for the challenge to complete (shorter timeout since we should already have valid cookies)
+            challenge_completed = False
+            for i in range(30):
+                time.sleep(1)
+                current_url = driver.current_url
+                page_source = driver.page_source
+                
+                # Check if we're no longer on the bot protection page
+                if "Making sure you're not a bot" not in page_source:
+                    # Check if the page source is HTML (bot protection) or if we have an image
+                    # For image URLs, if challenge passes, we should either:
+                    # 1. Get redirected to the image (current_url might change)
+                    # 2. Or the page_source should be very short (just the image data, not HTML)
+                    if len(page_source) < 1000 and "<!doctype" not in page_source.lower() and "<html" not in page_source.lower():
+                        # Likely an image, not HTML
+                        challenge_completed = True
+                        break
+                    elif current_url != url:
+                        # URL changed, might be a redirect after challenge
+                        url = current_url
+                        challenge_completed = True
+                        break
+                    elif i > 5:  # Give it a few seconds after bot protection text disappears
+                        # Re-check if it's still HTML
+                        if "<!doctype" not in page_source.lower() and "<html" not in page_source.lower():
+                            challenge_completed = True
+                            break
+        
+        # Additional wait for dynamic content
+        time.sleep(2)
+        
+        # For image URLs, extract the image directly from Selenium using canvas
+        # This works because Selenium has already passed bot protection and rendered the image
+        try:
+            # Method 1: Try to extract image via canvas (most reliable for rendered images)
+            img_data_url = driver.execute_script("""
+                var img = document.querySelector('img');
+                if (img && img.complete && img.naturalWidth > 0) {
+                    var canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    return canvas.toDataURL('image/png');
+                }
+                return null;
+            """)
+            if img_data_url:
+                import base64
+                header, data = img_data_url.split(",", 1)
+                image_data = base64.b64decode(data)
+                with open(output_path, 'wb') as f:
+                    f.write(image_data)
+                return True
+        except Exception as e:
+            pass
+        
+        # Method 2: Try to find img element with data URL
+        try:
+            img_elements = driver.find_elements(By.TAG_NAME, "img")
+            if img_elements:
+                img_src = img_elements[0].get_attribute("src")
+                if img_src and img_src.startswith("data:image"):
+                    import base64
+                    header, data = img_src.split(",", 1)
+                    image_data = base64.b64decode(data)
+                    with open(output_path, 'wb') as f:
+                        f.write(image_data)
+                    return True
+        except:
+            pass
+        
+        # Use cached cookies if available (from initial challenge pass), otherwise get fresh ones
+        import requests
+        cookies_to_use = _selenium_session_cookies if _selenium_session_cookies else driver.get_cookies()
+        session = requests.Session()
+        
+        # Set cookies in the session with proper domain
+        for cookie in cookies_to_use:
+            # Set cookie with domain if available
+            if 'domain' in cookie and cookie['domain']:
+                session.cookies.set(cookie['name'], cookie['value'], domain=cookie['domain'])
+            else:
+                session.cookies.set(cookie['name'], cookie['value'])
+        
+        # Also set User-Agent and other headers to match Selenium
+        user_agent = driver.execute_script("return navigator.userAgent;")
+        session.headers.update({
+            'User-Agent': user_agent,
+            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': base_url,
+            'Origin': base_url
+        })
+        
+        # Download the image using requests with the cookies from Selenium
+        response = session.get(url, timeout=timeout, allow_redirects=True)
+        
+        # Check if the response is actually an image (not HTML)
+        content_type = response.headers.get('Content-Type', '').lower()
+        is_html = response.content[:100].decode('utf-8', errors='ignore').strip().lower().startswith('<!doctype') or \
+                  response.content[:100].decode('utf-8', errors='ignore').strip().lower().startswith('<html')
+        
+        if response.status_code == 200 and not is_html and ('image' in content_type or not content_type):
+            # It's an image, save it
+            with open(output_path, 'wb') as f:
+                f.write(response.content)
+            return True
+        else:
+            return False
+        
+    except Exception as e:
+        # Fallback to requests
+        try:
+            import requests
+            response = requests.get(url, timeout=timeout)
+            if response.status_code == 200:
+                with open(output_path, 'wb') as f:
+                    f.write(response.content)
+                return True
+        except:
+            pass
+        return False
+
+def download_media_content(url: str, timeout: int = 30) -> Optional[bytes]:
+    """
+    Download media content, using Selenium for amiga.abime.net URLs
+    
+    Args:
+        url: URL to download
+        timeout: Timeout in seconds
+    
+    Returns:
+        Bytes content if successful, None otherwise
+    """
+    # Check if we need Selenium (amiga.abime.net URL)
+    use_selenium = _is_amigahol_url(url)
+    
+    if use_selenium:
+        # Use Selenium for download
+        import tempfile
+        temp_file = tempfile.NamedTemporaryFile(delete=False)
+        try:
+            if download_media_with_selenium(url, temp_file.name, timeout):
+                with open(temp_file.name, 'rb') as f:
+                    content = f.read()
+                os.unlink(temp_file.name)
+                return content
+            else:
+                os.unlink(temp_file.name)
+                return None
+        except Exception as e:
+            if os.path.exists(temp_file.name):
+                try:
+                    os.unlink(temp_file.name)
+                except:
+                    pass
+            # Fallback to requests
+            use_selenium = False
+    
+    if not use_selenium:
+        # Use regular requests
+        import requests
+        response = requests.get(url, timeout=timeout)
+        if response.status_code == 200:
+            return response.content
+        return None
+
+def create_pdf_from_images(image_urls: List[str], output_path: str) -> bool:
+    """
+    Download images from URLs and create a PDF document
+    
+    Args:
+        image_urls: List of image URLs to download
+        output_path: Path where the PDF should be saved
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        from PIL import Image
+        import pymupdf
+        import io
+        import requests
+        
+        # Create a new PDF document
+        pdf_doc = pymupdf.open()
+        
+        # Download and add each image as a page
+        for image_url in image_urls:
+            try:
+                # Download image - use Selenium for amiga.abime.net URLs
+                image_content = None
+                if _is_amigahol_url(image_url):
+                    image_content = download_media_content(image_url, timeout=30)
+                else:
+                    response = requests.get(image_url, timeout=30)
+                    if response.status_code == 200:
+                        image_content = response.content
+                
+                if not image_content:
+                    print(f"Warning: Failed to download image {image_url}")
+                    continue
+                
+                # Open image with PIL
+                img = Image.open(io.BytesIO(image_content))
+                
+                # Convert to RGB if necessary
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Save image to temporary bytes
+                img_bytes = io.BytesIO()
+                img.save(img_bytes, format='PNG')
+                img_bytes.seek(0)
+                
+                # Create PDF page with image
+                page_rect = pymupdf.Rect(0, 0, img.width, img.height)
+                page = pdf_doc.new_page(width=img.width, height=img.height)
+                
+                # Insert image into page
+                page.insert_image(page_rect, stream=img_bytes.getvalue())
+                
+            except Exception as e:
+                print(f"Warning: Failed to add image {image_url} to PDF: {e}")
+                continue
+        
+        # Check if we have any pages
+        if len(pdf_doc) == 0:
+            pdf_doc.close()
+            print(f"Error: No images were successfully added to PDF")
+            return False
+        
+        # Save PDF to output path
+        pdf_doc.save(output_path)
+        pdf_doc.close()
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error creating PDF from images: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def create_pdf_from_text(text: str, output_path: str) -> bool:
+    """
+    Create a PDF document from text content
+    
+    Args:
+        text: Text content to include in PDF
+        output_path: Path where the PDF should be saved
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        import pymupdf
+        
+        # Create a new PDF document
+        pdf_doc = pymupdf.open()
+        
+        # Create a page (A4 size)
+        page = pdf_doc.new_page(width=595, height=842)  # A4 in points
+        
+        # Insert text
+        # Split text into lines and add each line
+        lines = text.split('\n')
+        y_position = 50  # Start 50 points from top
+        line_height = 14  # Line height in points
+        
+        for line in lines:
+            if y_position > 800:  # Near bottom of page, create new page
+                page = pdf_doc.new_page(width=595, height=842)
+                y_position = 50
+            
+            # Insert text line
+            point = pymupdf.Point(50, y_position)
+            page.insert_text(point, line, fontsize=11)
+            y_position += line_height
+        
+        # Save PDF to output path
+        pdf_doc.save(output_path)
+        pdf_doc.close()
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error creating PDF from text: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=None, selected_text_fields=None, selected_media_fields=None, overwrite_text_fields=False, overwrite_media_fields=False, scraper_type='custom'):
+    """Run Custom Scrapper task for a specific system
+    
+    Args:
+        system_name: Name of the system to scrape
+        custom_db: Name of the custom database to use
+        task_id: ID of the task
+        selected_games: List of game paths to process (None for all)
+        selected_text_fields: List of text fields to scrape
+        selected_media_fields: List of media fields to scrape
+        overwrite_text_fields: Whether to overwrite existing text fields
+        overwrite_media_fields: Whether to overwrite existing media fields
+        scraper_type: Type of scraper ('custom' or 'custom2'), defaults to 'custom'
+    """
     import logging
     logger = logging.getLogger(__name__)
     
-    print(f"🔧 DEBUG: run_custom_scrapper_task called with system_name={system_name}, custom_db={custom_db}, task_id={task_id}")
+    print(f"🔧 DEBUG: run_custom_scrapper_task called with system_name={system_name}, custom_db={custom_db}, task_id={task_id}, scraper_type={scraper_type}")
     print(f"🔧 DEBUG: selected_games={selected_games}")
     print(f"🔧 DEBUG: selected_text_fields={selected_text_fields}")
     print(f"🔧 DEBUG: selected_media_fields={selected_media_fields}")
@@ -34504,7 +35128,10 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
         global _custom_scrapper_cancel_maps
         return _custom_scrapper_cancel_maps.get(task_id, False)
     
-    logger.info(f"Starting Custom Scrapper task for system: {system_name}, database: {custom_db}")
+    # Get the field name based on scraper type
+    id_field_name = f"{scraper_type}id"
+    
+    logger.info(f"Starting {scraper_type.capitalize()} Scrapper task for system: {system_name}, database: {custom_db}")
     
     # Get field mappings from config
     custom_config = load_scrappers_config().get('custom', {})
@@ -34597,7 +35224,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
         total_games = len(games_to_process)
         
         if t:
-            t.update_progress(f"🎮 Processing {total_games} games for Custom scraping", progress_percentage=0, current_step=0, total_steps=total_games)
+            t.update_progress(f"🎮 Processing {total_games} games for {scraper_type.capitalize()} scraping", progress_percentage=0, current_step=0, total_steps=total_games)
         
         processed_count = 0
         updated_count = 0
@@ -34605,10 +35232,10 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
         for i, game in enumerate(games_to_process):
             # Check for cancellation
             if is_cancelled():
-                logger.info(f"🛑 Custom Scrapper task cancelled for {system_name}")
+                logger.info(f"🛑 {scraper_type.capitalize()} Scrapper task cancelled for {system_name}")
                 t = get_task(task_id)
                 if t:
-                    t.complete(False, f"Custom Scrapper task cancelled for {system_name}")
+                    t.complete(False, f"{scraper_type.capitalize()} Scrapper task cancelled for {system_name}")
                 return
             
             try:
@@ -34628,8 +35255,8 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     progress_percent = int((i / total_games) * 100)
                     t.update_progress(f"🔍 Processing game {i+1}/{total_games}: {display_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
                 
-                # Check if game already has a customid - reuse it if it exists
-                existing_customid = game.get('customid')
+                # Check if game already has an ID for this scraper type - reuse it if it exists
+                existing_customid = game.get(id_field_name)
                 game_data = None
                 game_id = None
                 match_found = False
@@ -34637,7 +35264,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                 
                 if existing_customid and str(existing_customid).strip():
                     # Parse existing customid to extract database and game ID
-                    db_from_customid, parsed_game_id = parse_customid(existing_customid)
+                    db_from_customid, parsed_game_id = parse_customid(existing_customid, scraper_type)
                     
                     if db_from_customid and parsed_game_id:
                         # Use database from customid if available
@@ -34717,18 +35344,18 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     # Store customid in format '<database>/<id>'
                     # Use db_to_use which may be from existing customid or from search
                     if not db_to_use:
-                        logger.error(f"ERROR: db_to_use is empty when formatting customid for game_id='{game_id}'")
-                        db_to_use = system_config.get('custom', '')
+                        logger.error(f"ERROR: db_to_use is empty when formatting {id_field_name} for game_id='{game_id}'")
+                        db_to_use = system_config.get(scraper_type, '')
                         if not db_to_use:
                             logger.error(f"ERROR: db_to_use not found in system_config either!")
                     
-                    formatted_customid = format_customid(db_to_use, game_id)
-                    print(f"🔧 DEBUG: Formatting customid - db_to_use='{db_to_use}', game_id='{game_id}', formatted='{formatted_customid}'")
-                    game['customid'] = formatted_customid
+                    formatted_customid = format_customid(db_to_use, game_id, scraper_type)
+                    print(f"🔧 DEBUG: Formatting {id_field_name} - db_to_use='{db_to_use}', game_id='{game_id}', formatted='{formatted_customid}'")
+                    game[id_field_name] = formatted_customid
                     
                     # If using existing customid and no fields are selected, skip processing entirely
                     if existing_customid and str(existing_customid).strip() and not selected_text_fields and not selected_media_fields:
-                        print(f"⚡ No fields selected - skipping processing for existing customid {formatted_customid}")
+                        print(f"⚡ No fields selected - skipping processing for existing {id_field_name} {formatted_customid}")
                         processed_count += 1
                         continue
                     
@@ -34767,9 +35394,23 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     if selected_media_fields:
                         for custom_field, gamelist_field in media_field_mapping.items():
                             if gamelist_field in selected_media_fields:
-                                media_url = service.get_media_url(db_to_use, game_id, custom_field)
-                                if media_url:
-                                    media_fields[gamelist_field] = media_url
+                                # For cheats, get text directly from game_data
+                                if custom_field == 'cheats':
+                                    cheats_text = game_data.get('cheats') or game_data.get('cheat')
+                                    if cheats_text:
+                                        media_fields[gamelist_field] = {'type': 'cheats', 'text': cheats_text}
+                                else:
+                                    # For other fields, get URLs (may be single or array)
+                                    media_url = service.get_media_url(db_to_use, game_id, custom_field)
+                                    if media_url:
+                                        # Check if it's an array by getting URLs list
+                                        media_urls = service.get_media_urls(db_to_use, game_id, custom_field)
+                                        if len(media_urls) > 1:
+                                            # Array of URLs
+                                            media_fields[gamelist_field] = {'type': custom_field, 'urls': media_urls}
+                                        else:
+                                            # Single URL
+                                            media_fields[gamelist_field] = {'type': custom_field, 'url': media_url}
                     
                     # Update text fields
                     if text_fields:
@@ -34787,51 +35428,200 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     # Update media fields (download and link)
                     if media_fields:
                         system_path = os.path.join(ROMS_FOLDER, system_name)
-                        for field, url in media_fields.items():
+                        for field, media_data in media_fields.items():
                             if overwrite_media_fields or not game.get(field):
                                 # Download media
                                 try:
                                     # Get media field configuration
                                     media_config = config.get('media_fields', {}).get(field, {})
                                     media_directory = media_config.get('directory', field)
-                                    target_extension = media_config.get('target_extension', '.jpg')
                                     
                                     # Generate filename
                                     rom_filename = os.path.splitext(os.path.basename(game_path))[0]
-                                    media_filename = f"{rom_filename}{target_extension}"
                                     
-                                    # Create media path
-                                    media_path = os.path.join(system_path, 'media', media_directory, media_filename)
-                                    
-                                    # Create directory if it doesn't exist
-                                    os.makedirs(os.path.dirname(media_path), exist_ok=True)
-                                    
-                                    # Download the media file
-                                    import requests
-                                    response = requests.get(url, timeout=30)
-                                    if response.status_code == 200:
-                                        # Determine extension from content type or URL
-                                        content_type = response.headers.get('content-type', '').lower()
-                                        if 'image/png' in content_type:
-                                            ext = '.png'
-                                        elif 'image/jpeg' in content_type or 'image/jpg' in content_type:
-                                            ext = '.jpg'
+                                    # Handle different media types
+                                    if isinstance(media_data, dict):
+                                        media_type = media_data.get('type', '')
+                                        
+                                        # Handle cheats (text → PDF)
+                                        if media_type == 'cheats':
+                                            cheats_text = media_data.get('text', '')
+                                            if cheats_text:
+                                                media_filename = f"{rom_filename}.pdf"
+                                                media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                                os.makedirs(os.path.dirname(media_path), exist_ok=True)
+                                                
+                                                if create_pdf_from_text(cheats_text, media_path):
+                                                    relative_path = f"./media/{media_directory}/{media_filename}"
+                                                    game[field] = relative_path
+                                                    updated_count += 1
+                                                    logger.info(f"✅ Created cheats PDF for '{display_name}': {relative_path}")
+                                                else:
+                                                    logger.error(f"Failed to create cheats PDF for '{display_name}'")
+                                        
+                                        # Handle map (single image or array → PDF)
+                                        elif media_type == 'map':
+                                            urls = media_data.get('urls', [])
+                                            url = media_data.get('url')
+                                            if url:
+                                                urls = [url]  # Convert single to list
+                                            
+                                            if urls:
+                                                media_filename = f"{rom_filename}.pdf"
+                                                media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                                os.makedirs(os.path.dirname(media_path), exist_ok=True)
+                                                
+                                                if create_pdf_from_images(urls, media_path):
+                                                    relative_path = f"./media/{media_directory}/{media_filename}"
+                                                    game[field] = relative_path
+                                                    updated_count += 1
+                                                    logger.info(f"✅ Created map PDF for '{display_name}': {relative_path}")
+                                                else:
+                                                    logger.error(f"Failed to create map PDF for '{display_name}'")
+                                        
+                                        # Handle manual (PDF URL → direct download)
+                                        elif media_type == 'manual':
+                                            url = media_data.get('url')
+                                            if url:
+                                                target_extension = '.pdf'
+                                                media_filename = f"{rom_filename}{target_extension}"
+                                                media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                                os.makedirs(os.path.dirname(media_path), exist_ok=True)
+                                                
+                                                # Use Selenium for amiga.abime.net URLs
+                                                if _is_amigahol_url(url):
+                                                    if download_media_with_selenium(url, media_path, timeout=30):
+                                                        relative_path = f"./media/{media_directory}/{media_filename}"
+                                                        game[field] = relative_path
+                                                        updated_count += 1
+                                                        logger.info(f"✅ Downloaded manual PDF for '{display_name}': {relative_path}")
+                                                    else:
+                                                        logger.error(f"Failed to download manual PDF for '{display_name}'")
+                                                else:
+                                                    import requests
+                                                    response = requests.get(url, timeout=30)
+                                                    if response.status_code == 200:
+                                                        with open(media_path, 'wb') as f:
+                                                            f.write(response.content)
+                                                        relative_path = f"./media/{media_directory}/{media_filename}"
+                                                        game[field] = relative_path
+                                                        updated_count += 1
+                                                        logger.info(f"✅ Downloaded manual PDF for '{display_name}': {relative_path}")
+                                        
+                                        # Handle image fields (boxfront, boxback, titleshot, screenshot, cartridge)
+                                        # Use first image only if array
                                         else:
-                                            ext = os.path.splitext(url)[1] or target_extension
-                                        
-                                        # Update filename with correct extension
-                                        media_filename = f"{rom_filename}{ext}"
+                                            urls = media_data.get('urls', [])
+                                            url = media_data.get('url')
+                                            if url:
+                                                urls = [url]  # Convert single to list
+                                            
+                                            # Use first image only
+                                            if urls:
+                                                url = urls[0]
+                                                target_extension = media_config.get('target_extension', '.jpg')
+                                                media_filename = f"{rom_filename}{target_extension}"
+                                                media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                                os.makedirs(os.path.dirname(media_path), exist_ok=True)
+                                                
+                                                # Use Selenium for amiga.abime.net URLs
+                                                if _is_amigahol_url(url):
+                                                    if download_media_with_selenium(url, media_path, timeout=30):
+                                                        # Determine extension from URL
+                                                        ext = os.path.splitext(url)[1] or target_extension
+                                                        if ext != target_extension:
+                                                            # Rename file if extension differs
+                                                            new_media_path = os.path.join(system_path, 'media', media_directory, f"{rom_filename}{ext}")
+                                                            if os.path.exists(media_path):
+                                                                os.rename(media_path, new_media_path)
+                                                            media_path = new_media_path
+                                                            media_filename = f"{rom_filename}{ext}"
+                                                        relative_path = f"./media/{media_directory}/{media_filename}"
+                                                        game[field] = relative_path
+                                                        updated_count += 1
+                                                        logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")
+                                                    else:
+                                                        logger.error(f"Failed to download {field} for '{display_name}'")
+                                                else:
+                                                    import requests
+                                                    response = requests.get(url, timeout=30)
+                                                    if response.status_code == 200:
+                                                        # Determine extension from content type or URL
+                                                        content_type = response.headers.get('content-type', '').lower()
+                                                        if 'image/png' in content_type:
+                                                            ext = '.png'
+                                                        elif 'image/jpeg' in content_type or 'image/jpg' in content_type:
+                                                            ext = '.jpg'
+                                                        else:
+                                                            ext = os.path.splitext(url)[1] or target_extension
+                                                        
+                                                        # Update filename with correct extension
+                                                        media_filename = f"{rom_filename}{ext}"
+                                                        media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                                        
+                                                        # Save file
+                                                        with open(media_path, 'wb') as f:
+                                                            f.write(response.content)
+                                                        
+                                                        # Update gamelist with relative path
+                                                        relative_path = f"./media/{media_directory}/{media_filename}"
+                                                        game[field] = relative_path
+                                                        updated_count += 1
+                                                        logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")
+                                    
+                                    # Backward compatibility: handle string URLs (old format)
+                                    elif isinstance(media_data, str):
+                                        url = media_data
+                                        target_extension = media_config.get('target_extension', '.jpg')
+                                        media_filename = f"{rom_filename}{target_extension}"
                                         media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                        os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                         
-                                        # Save file
-                                        with open(media_path, 'wb') as f:
-                                            f.write(response.content)
-                                        
-                                        # Update gamelist with relative path
-                                        relative_path = f"./media/{media_directory}/{media_filename}"
-                                        game[field] = relative_path
-                                        updated_count += 1
-                                        logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")
+                                        # Use Selenium for amiga.abime.net URLs
+                                        if _is_amigahol_url(url):
+                                            if download_media_with_selenium(url, media_path, timeout=30):
+                                                # Determine extension from URL
+                                                ext = os.path.splitext(url)[1] or target_extension
+                                                if ext != target_extension:
+                                                    # Rename file if extension differs
+                                                    new_media_path = os.path.join(system_path, 'media', media_directory, f"{rom_filename}{ext}")
+                                                    if os.path.exists(media_path):
+                                                        os.rename(media_path, new_media_path)
+                                                    media_path = new_media_path
+                                                    media_filename = f"{rom_filename}{ext}"
+                                                relative_path = f"./media/{media_directory}/{media_filename}"
+                                                game[field] = relative_path
+                                                updated_count += 1
+                                                logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")
+                                            else:
+                                                logger.error(f"Failed to download {field} for '{display_name}'")
+                                        else:
+                                            import requests
+                                            response = requests.get(url, timeout=30)
+                                            if response.status_code == 200:
+                                                # Determine extension from content type or URL
+                                                content_type = response.headers.get('content-type', '').lower()
+                                                if 'image/png' in content_type:
+                                                    ext = '.png'
+                                                elif 'image/jpeg' in content_type or 'image/jpg' in content_type:
+                                                    ext = '.jpg'
+                                                else:
+                                                    ext = os.path.splitext(url)[1] or target_extension
+                                                
+                                                # Update filename with correct extension
+                                                media_filename = f"{rom_filename}{ext}"
+                                                media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                                
+                                                # Save file
+                                                with open(media_path, 'wb') as f:
+                                                    f.write(response.content)
+                                                
+                                                # Update gamelist with relative path
+                                                relative_path = f"./media/{media_directory}/{media_filename}"
+                                                game[field] = relative_path
+                                                updated_count += 1
+                                                logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")
+                                
                                 except Exception as e:
                                     logger.error(f"Error downloading media for {display_name}, field {field}: {e}")
                                     import traceback
@@ -34839,7 +35629,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     
                     processed_count += 1
                 else:
-                    print(f"❌ No Custom match found for '{display_name}'")
+                    print(f"❌ No {scraper_type.capitalize()} match found for '{display_name}'")
                     processed_count += 1
             
             except Exception as e:
@@ -34851,10 +35641,10 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
         # Complete the task
         t = get_task(task_id)
         if t:
-            success_message = f"Custom Scrapper completed: {processed_count} games processed, {updated_count} games updated"
+            success_message = f"{scraper_type.capitalize()} Scrapper completed: {processed_count} games processed, {updated_count} games updated"
             t.complete(True, success_message)
         
-        logger.info(f"✅ Custom Scrapper task completed for {system_name}: {processed_count} processed, {updated_count} updated")
+        logger.info(f"✅ {scraper_type.capitalize()} Scrapper task completed for {system_name}: {processed_count} processed, {updated_count} updated")
         
         # Save the updated gamelist
         save_gamelist_xml(gamelist_path, all_games)
@@ -34871,13 +35661,13 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
         traceback.print_exc()
         t = get_task(task_id)
         if t:
-            t.complete(False, f"Error in Custom Scrapper task: {str(e)}")
+            t.complete(False, f"Error in {scraper_type.capitalize()} Scrapper task: {str(e)}")
         return False
     finally:
         # Cleanup: remove from cancel map
         if task_id in _custom_scrapper_cancel_maps:
             del _custom_scrapper_cancel_maps[task_id]
-            logger.info(f"Removed task {task_id} from Custom Scrapper cancel map")
+            logger.info(f"Removed task {task_id} from {scraper_type.capitalize()} Scrapper cancel map")
 
 # =============================================================================
 # IGDB Scraper API Routes
