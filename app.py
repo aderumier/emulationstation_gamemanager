@@ -34761,34 +34761,28 @@ def _is_amigahol_url(url: str) -> bool:
 
 def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) -> bool:
     """
-    Download media using Selenium (for sites with bot protection like amigahol)
+    Download media using Selenium for amigahol URLs (amiga.abime.net) with bot protection.
+    This function should ONLY be called for amigahol URLs.
     Based on the HOL scraper implementation
     
     Args:
-        url: URL to download
+        url: URL to download (must be from amiga.abime.net)
         output_path: Path where file should be saved
         timeout: Timeout in seconds
     
     Returns:
         True if successful, False otherwise
     """
-    # Check if this is an amigahol URL - NEVER use requests fallback for amigahol
+    # This function should only be called for amigahol URLs
     is_amigahol = _is_amigahol_url(url)
+    if not is_amigahol:
+        logger.error(f"download_media_with_selenium called for non-amigahol URL: {url}")
+        return False
     
     try:
         driver = _init_selenium_driver()
         if not driver:
-            # For amigahol URLs, Selenium is required - don't fall back to requests
-            if is_amigahol:
-                logger.error(f"Selenium driver initialization failed for amigahol URL - cannot use requests fallback: {url}")
-                return False
-            # For non-amigahol URLs, fall back to requests if Selenium fails
-            import requests
-            response = requests.get(url, timeout=timeout)
-            if response.status_code == 200:
-                with open(output_path, 'wb') as f:
-                    f.write(response.content)
-                return True
+            logger.error(f"Selenium driver initialization failed for amigahol URL: {url}")
             return False
         
         from urllib.parse import urlparse, urljoin
@@ -34810,114 +34804,60 @@ def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) 
         # Detect if this is a PDF or image based on URL extension
         is_pdf = url.lower().endswith('.pdf')
         
-        # For amigahol URLs, navigate directly to the media URL and wait for challenge
+        # Navigate directly to the media URL and wait for challenge
         # (Don't use _ensure_selenium_challenge_passed() as it navigates to base URL first)
-        if is_amigahol:
-            logger.debug(f"Navigating directly to amigahol URL: {url}")
-            driver.get(url)
-            
-            # Wait for page to load
-            try:
-                WebDriverWait(driver, 10).until(
-                    lambda d: d.execute_script("return document.readyState") == "complete"
-                )
-            except:
-                # If readyState check fails, just wait a bit
-                time.sleep(2)
-            
-            # Wait a bit for initial load
+        logger.debug(f"Navigating directly to amigahol URL: {url}")
+        driver.get(url)
+        
+        # Wait for page to load
+        try:
+            WebDriverWait(driver, 10).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+            )
+        except:
+            # If readyState check fails, just wait a bit
             time.sleep(2)
-            page_source = driver.page_source
-            current_url_after_load = driver.current_url
-            
-            # Check if URL changed (redirect after initial load)
-            if current_url_after_load != url:
-                logger.debug(f"URL changed after initial load: {url} -> {current_url_after_load}")
-                url = current_url_after_load  # Update URL to follow redirect
-            
-            # Check if we hit bot protection
-            if "Making sure you're not a bot" in page_source or "anubis" in page_source.lower():
-                # Wait for challenge to complete
-                logger.debug(f"Bot protection detected, waiting for challenge to complete...")
-                for i in range(30):
-                    time.sleep(1)
-                    page_source = driver.page_source
-                    current_url = driver.current_url
-                    # Check if URL changed (redirect after challenge)
-                    if current_url != url:
-                        logger.debug(f"URL changed during challenge wait: {url} -> {current_url}")
-                        url = current_url  # Update URL to follow redirect
-                    
-                    if "Making sure you're not a bot" not in page_source and "anubis" not in page_source.lower():
-                        # Challenge passed, wait a bit more
-                        logger.debug(f"Challenge completed after {i+1} seconds")
-                        time.sleep(3)  # Give more time after challenge
-                        # Check URL one more time after waiting (in case of redirect after challenge)
-                        final_url = driver.current_url
-                        if final_url != url:
-                            logger.debug(f"URL changed after challenge completion: {url} -> {final_url}")
-                            url = final_url  # Update URL to follow redirect
-                        break
-                else:
-                    logger.debug(f"Challenge did not complete after 30 seconds")
-                    # Still check URL in case redirect happened anyway
+        
+        # Wait a bit for initial load
+        time.sleep(2)
+        page_source = driver.page_source
+        current_url_after_load = driver.current_url
+        
+        # Check if URL changed (redirect after initial load)
+        if current_url_after_load != url:
+            logger.debug(f"URL changed after initial load: {url} -> {current_url_after_load}")
+            url = current_url_after_load  # Update URL to follow redirect
+        
+        # Check if we hit bot protection
+        if "Making sure you're not a bot" in page_source or "anubis" in page_source.lower():
+            # Wait for challenge to complete
+            logger.debug(f"Bot protection detected, waiting for challenge to complete...")
+            for i in range(30):
+                time.sleep(1)
+                page_source = driver.page_source
+                current_url = driver.current_url
+                # Check if URL changed (redirect after challenge)
+                if current_url != url:
+                    logger.debug(f"URL changed during challenge wait: {url} -> {current_url}")
+                    url = current_url  # Update URL to follow redirect
+                
+                if "Making sure you're not a bot" not in page_source and "anubis" not in page_source.lower():
+                    # Challenge passed, wait a bit more
+                    logger.debug(f"Challenge completed after {i+1} seconds")
+                    time.sleep(3)  # Give more time after challenge
+                    # Check URL one more time after waiting (in case of redirect after challenge)
                     final_url = driver.current_url
                     if final_url != url:
-                        logger.debug(f"URL changed (challenge timeout): {url} -> {final_url}")
-                        url = final_url
-        else:
-            # For non-amigahol URLs, use the cached challenge approach
-            if not _ensure_selenium_challenge_passed():
-                return False
-            
-            # Now navigate to the actual media URL (challenge already passed, so this should be faster)
-            driver.get(url)
-            
-            # Wait for page to load
-            try:
-                WebDriverWait(driver, 10).until(
-                    lambda d: d.execute_script("return document.readyState") == "complete"
-                )
-            except:
-                # If readyState check fails, just wait a bit
-                time.sleep(2)
-            
-            # For PDFs, wait a bit longer
-            if is_pdf:
-                time.sleep(3)  # Give PDF time to load
+                        logger.debug(f"URL changed after challenge completion: {url} -> {final_url}")
+                        url = final_url  # Update URL to follow redirect
+                    break
             else:
-                # For non-amigahol images, check if we hit the bot protection page
-                # Note: Since we've already passed the challenge once, this should be rare
-                # but we check anyway in case Anubis requires per-URL validation
-                page_source = driver.page_source
-                if "Making sure you're not a bot" in page_source:
-                    # Wait for the challenge to complete (shorter timeout since we should already have valid cookies)
-                    challenge_completed = False
-                    for i in range(30):
-                        time.sleep(1)
-                        current_url = driver.current_url
-                        page_source = driver.page_source
-                        
-                        # Check if we're no longer on the bot protection page
-                        if "Making sure you're not a bot" not in page_source:
-                            # Check if the page source is HTML (bot protection) or if we have an image
-                            # For image URLs, if challenge passes, we should either:
-                            # 1. Get redirected to the image (current_url might change)
-                            # 2. Or the page_source should be very short (just the image data, not HTML)
-                            if len(page_source) < 1000 and "<!doctype" not in page_source.lower() and "<html" not in page_source.lower():
-                                # Likely an image, not HTML
-                                challenge_completed = True
-                                break
-                            elif current_url != url:
-                                # URL changed, might be a redirect after challenge
-                                url = current_url
-                                challenge_completed = True
-                                break
-                            elif i > 5:  # Give it a few seconds after bot protection text disappears
-                                # Re-check if it's still HTML
-                                if "<!doctype" not in page_source.lower() and "<html" not in page_source.lower():
-                                    challenge_completed = True
-                                    break
+                logger.debug(f"Challenge did not complete after 30 seconds")
+                # Still check URL in case redirect happened anyway
+                final_url = driver.current_url
+                if final_url != url:
+                    logger.debug(f"URL changed (challenge timeout): {url} -> {final_url}")
+                    url = final_url
         
         # Additional wait for dynamic content
         time.sleep(1)
@@ -34965,39 +34905,9 @@ def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) 
                 pass
         
         # For amigahol URLs, if canvas extraction failed, don't fall back to requests
-        if not is_pdf and is_amigahol:
+        if not is_pdf:
             logger.error(f"Canvas extraction failed for amigahol image URL - cannot use requests fallback: {url}")
             return False
-        
-        # Use cached cookies if available (from initial challenge pass), otherwise get fresh ones
-        import requests
-        cookies_to_use = _selenium_session_cookies if _selenium_session_cookies else driver.get_cookies()
-        session = requests.Session()
-        
-        # Set cookies in the session with proper domain
-        for cookie in cookies_to_use:
-            # Set cookie with domain if available
-            if 'domain' in cookie and cookie['domain']:
-                session.cookies.set(cookie['name'], cookie['value'], domain=cookie['domain'])
-            else:
-                session.cookies.set(cookie['name'], cookie['value'])
-        
-        # Also set User-Agent and other headers to match Selenium
-        user_agent = driver.execute_script("return navigator.userAgent;")
-        
-        # Set Accept header based on file type
-        if is_pdf:
-            accept_header = 'application/pdf,*/*;q=0.8'
-        else:
-            accept_header = 'image/webp,image/apng,image/*,*/*;q=0.8'
-        
-        session.headers.update({
-            'User-Agent': user_agent,
-            'Accept': accept_header,
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': base_url,
-            'Origin': base_url
-        })
         
         # For PDFs, use browser's fetch API to get content directly (bypasses bot protection)
         if is_pdf:
@@ -35112,125 +35022,10 @@ def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) 
                 logger.debug(f"Traceback: {traceback.format_exc()}")
                 return False  # Don't fall through - if browser fetch fails, requests will also fail
         
-        # For PDFs, get fresh cookies after navigating to the PDF URL
-        # (cookies might be URL-specific or need to be refreshed)
-        if is_pdf:
-            # Get fresh cookies from the current page
-            cookies_to_use = driver.get_cookies()
-            # Update session with fresh cookies
-            session.cookies.clear()
-            for cookie in cookies_to_use:
-                if 'domain' in cookie and cookie['domain']:
-                    session.cookies.set(cookie['name'], cookie['value'], domain=cookie['domain'])
-                else:
-                    session.cookies.set(cookie['name'], cookie['value'])
-        
-        # Download using requests with the cookies from Selenium (only for non-amigahol URLs)
-        response = session.get(url, timeout=timeout, allow_redirects=True)
-        
-        # Check if the response is valid (not HTML bot protection page)
-        content_type = response.headers.get('Content-Type', '').lower()
-        
-        # For PDFs, CRITICAL: Must check Content-Type header first
-        if is_pdf:
-            if response.status_code == 200:
-                # ZERO CHECK: Fail fast on suspiciously small responses (HTML bot protection is usually < 2KB)
-                if len(response.content) < 2000:
-                    content_preview = response.content[:200].lower()
-                    if (b'<!doctype' in content_preview or 
-                        b'<html' in content_preview or
-                        b'making sure you' in content_preview or
-                        b'anubis' in content_preview):
-                        logger.error(f"PDF download failed: Response too small ({len(response.content)} bytes) and contains HTML bot protection. Content-Type: {content_type}, First 200 bytes: {response.content[:200]}")
-                    else:
-                        logger.error(f"PDF download failed: Response too small ({len(response.content)} bytes), likely HTML. Content-Type: {content_type}")
-                    return False
-                
-                # FIRST CHECK: Content-Type must be PDF (or application/octet-stream)
-                if not content_type:
-                    logger.error(f"PDF download failed: No Content-Type header received. Response size: {len(response.content)} bytes")
-                    return False
-                
-                # Reject HTML content types
-                if 'text/html' in content_type or 'text/plain' in content_type or 'application/xhtml' in content_type:
-                    logger.error(f"PDF download failed: Invalid Content-Type '{content_type}' (HTML detected). Response size: {len(response.content)} bytes")
-                    return False
-                
-                # Must be PDF content type
-                if 'pdf' not in content_type and 'application/octet-stream' not in content_type:
-                    logger.error(f"PDF download failed: Invalid Content-Type '{content_type}' (expected PDF). Response size: {len(response.content)} bytes")
-                    return False
-                
-                # SECOND CHECK: Must start with %PDF
-                if len(response.content) < 4 or response.content[:4] != b'%PDF':
-                    logger.error(f"PDF download failed: Response does not start with %PDF header. Content-Type: {content_type}, Size: {len(response.content)} bytes, First 100 bytes: {response.content[:100]}")
-                    return False
-                
-                # THIRD CHECK: Must NOT contain HTML tags
-                content_start = response.content[:500].lower()
-                if (b'<!doctype' in content_start or 
-                    b'<html' in content_start or
-                    b'making sure you' in content_start or
-                    b'anubis' in content_start):
-                    logger.error(f"PDF download failed: Response contains HTML despite Content-Type '{content_type}'. Size: {len(response.content)} bytes, First 200 bytes: {response.content[:200]}")
-                    return False
-                
-                # FOURTH CHECK: Must be reasonably large (PDFs are usually > 5KB)
-                if len(response.content) < 5000:
-                    logger.error(f"PDF download failed: File too small ({len(response.content)} bytes), likely HTML. Content-Type: {content_type}")
-                    return False
-                
-                # All checks passed - save the PDF
-                with open(output_path, 'wb') as f:
-                    f.write(response.content)
-                logger.debug(f"Successfully downloaded PDF via requests: {len(response.content)} bytes, Content-Type: {content_type}")
-                return True
-            else:
-                logger.error(f"PDF download failed: HTTP {response.status_code}")
-                return False
-        
-        # For images, use existing validation
-        content_start = response.content[:500].decode('utf-8', errors='ignore').strip().lower()
-        is_html = (
-            content_start.startswith('<!doctype') or 
-            content_start.startswith('<html') or
-            'making sure you\'re not a bot' in content_start or
-            'anubis' in content_start.lower()
-        )
-        
-        # Also check if response is suspiciously small
-        is_suspiciously_small = len(response.content) < 2000
-        
-        if response.status_code == 200 and not is_html and not is_suspiciously_small:
-            # For images, accept if content-type is image or not set
-            if 'image' in content_type or not content_type:
-                with open(output_path, 'wb') as f:
-                    f.write(response.content)
-                return True
-        
-        return False
-        
-        # For images, use the existing logic
-        if response.status_code == 200 and not is_html and not is_suspiciously_small:
-            # For images, accept if content-type is image or not set
-            if 'image' in content_type or not content_type:
-                with open(output_path, 'wb') as f:
-                    f.write(response.content)
-                return True
-        
-        return False
-        
     except Exception as e:
-        # Fallback to requests
-        try:
-            import requests
-            response = requests.get(url, timeout=timeout)
-            if response.status_code == 200:
-                with open(output_path, 'wb') as f:
-                    f.write(response.content)
-                return True
-        except:
-            pass
+        logger.error(f"Error in download_media_with_selenium for amigahol URL {url}: {e}")
+        import traceback
+        logger.debug(f"Traceback: {traceback.format_exc()}")
         return False
 
 def download_media_content(url: str, timeout: int = 30) -> Optional[bytes]:
