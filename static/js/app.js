@@ -7139,114 +7139,203 @@ class GameCollectionManager {
                 
                 // For manual/map/magazine (PDF/CBZ) types, use PDF/CBZ preview endpoint to show first page
                 if (mediaType === 'manual' || mediaType === 'map' || mediaType === 'magazine') {
-                    // Determine the actual PDF URL
-                    let pdfUrl = result.url;
+                    // Check if we have multiple PDF URLs (for custom/custom2 arrays)
+                    const pdfUrls = result.urls && Array.isArray(result.urls) && result.urls.length > 1 ? result.urls : (result.url ? [result.url] : []);
+                    const isCustom = result.source && (result.source.toLowerCase() === 'custom' || result.source.toLowerCase() === 'custom2');
                     
-                    // For ScreenScraper, construct the direct PDF URL from system ID and game ID
-                    // Format: https://www.screenscraper.fr/medias/<system_id>/<game_id>/manuel(us).pdf
-                    const isScreenScraper = result.source && result.source.toLowerCase().includes('screenscraper');
-                    if (isScreenScraper && result.screenscraperid && result.screenscraper_system_id) {
-                        // Construct ScreenScraper PDF URL - try different region variants
-                        // ScreenScraper uses format: manuel(us), manuel(eu), manuel(jp), etc.
-                        const region = result.region || 'us';
-                        pdfUrl = `https://www.screenscraper.fr/medias/${result.screenscraper_system_id}/${result.screenscraperid}/manuel(${region}).pdf`;
-                    }
-                    
-                    // Skip if URL doesn't look like a PDF (unless it's ScreenScraper which we just constructed)
-                    if (!isScreenScraper && (!pdfUrl || (!pdfUrl.toLowerCase().endsWith('.pdf') && !pdfUrl.toLowerCase().includes('.pdf')))) {
-                        // Not a valid PDF URL, fall through to regular image handling
-                        // Use proxy for HTTP URLs when page is HTTPS
-                        img.src = this.getProxiedMediaUrl(result.url || '');
-                        img.alt = `${mediaType} from ${result.source}`;
-                        img.onerror = () => {
-                            img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
-                        };
-                        card.appendChild(img);
-                    } else {
-                        // Use remote PDF preview endpoint to generate preview from URL (server-side)
-                        const previewUrl = '/api/pdf-preview-remote';
+                    // For custom/custom2 with multiple PDFs, create a carousel
+                    if (pdfUrls.length > 1 && isCustom) {
+                        const carouselContainer = document.createElement('div');
+                        carouselContainer.className = 'card-img-top';
+                        carouselContainer.style.height = '300px';
+                        carouselContainer.style.position = 'relative';
+                        carouselContainer.style.backgroundColor = this.getMediaCardBackgroundColor();
+                        carouselContainer.style.overflow = 'hidden';
                         
-                        // Set up image with loading state
-                        img.style.display = 'block';
-                        img.src = ''; // Start with empty src
-                        img.alt = `PDF Manual from ${result.source}`;
-                        
-                        // Show loading placeholder
-                        const loadingPlaceholder = document.createElement('div');
-                        loadingPlaceholder.className = 'card-img-top';
-                        loadingPlaceholder.style.height = '300px';
-                        loadingPlaceholder.style.display = 'flex';
-                        loadingPlaceholder.style.alignItems = 'center';
-                        loadingPlaceholder.style.justifyContent = 'center';
-                        loadingPlaceholder.style.flexDirection = 'column';
-                        loadingPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
-                        loadingPlaceholder.innerHTML = `
-                            <div class="spinner-border text-primary" role="status" style="margin-bottom: 1rem;">
-                                <span class="visually-hidden">Loading...</span>
+                        const carouselId = `carousel-pdf-${index}-${Date.now()}`;
+                        carouselContainer.innerHTML = `
+                            <div id="${carouselId}" class="carousel slide h-100" data-bs-ride="carousel">
+                                <div class="carousel-inner h-100">
+                                    ${pdfUrls.map((pdfUrl, pdfIndex) => `
+                                        <div class="carousel-item ${pdfIndex === 0 ? 'active' : ''} h-100">
+                                            <div class="pdf-preview-container h-100" data-pdf-url="${pdfUrl}" style="display: flex; align-items: center; justify-content: center; background-color: ${this.getMediaCardBackgroundColor()};">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                ${pdfUrls.length > 1 ? `
+                                    <button class="carousel-control-prev" type="button" data-bs-target="#${carouselId}" data-bs-slide="prev">
+                                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                        <span class="visually-hidden">Previous</span>
+                                    </button>
+                                    <button class="carousel-control-next" type="button" data-bs-target="#${carouselId}" data-bs-slide="next">
+                                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                        <span class="visually-hidden">Next</span>
+                                    </button>
+                                    <div class="carousel-indicators" style="bottom: 5px;">
+                                        ${pdfUrls.map((url, pdfIndex) => `
+                                            <button type="button" data-bs-target="#${carouselId}" data-bs-slide-to="${pdfIndex}" ${pdfIndex === 0 ? 'class="active" aria-current="true"' : ''} aria-label="Slide ${pdfIndex + 1}"></button>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
                             </div>
-                            <div style="text-align: center; color: #6c757d; font-weight: 500;">Loading PDF preview...</div>
                         `;
-                        card.appendChild(loadingPlaceholder);
+                        card.appendChild(carouselContainer);
                         
-                        // Fetch PDF preview from remote URL (server-side call only)
-                        fetch(previewUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            credentials: 'include',
-                            body: JSON.stringify({ url: pdfUrl })
-                        })
-                        .then(response => {
-                            if (response.ok) {
-                                // Get the image blob and create object URL
-                                return response.blob();
-                            } else {
-                                throw new Error(`Failed to generate preview: ${response.status}`);
-                            }
-                        })
-                        .then(blob => {
-                            const blobUrl = URL.createObjectURL(blob);
-                            // Remove loading placeholder and show image
-                            card.removeChild(loadingPlaceholder);
-                            img.src = blobUrl;
-                            img.style.display = 'block';
-                            card.appendChild(img);
+                        // Load PDF previews for each carousel item
+                        pdfUrls.forEach((pdfUrl, pdfIndex) => {
+                            const previewContainer = carouselContainer.querySelector(`[data-pdf-url="${pdfUrl}"]`);
+                            if (!previewContainer) return;
                             
-                            // Add hover preview functionality
-                            img.addEventListener('mouseenter', (e) => {
-                                this.showMediaHover(e, blobUrl, mediaType);
+                            fetch('/api/pdf-preview-remote', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'include',
+                                body: JSON.stringify({ url: pdfUrl })
+                            })
+                            .then(response => response.ok ? response.blob() : Promise.reject(new Error(`Failed: ${response.status}`)))
+                            .then(blob => {
+                                const blobUrl = URL.createObjectURL(blob);
+                                const previewImg = document.createElement('img');
+                                previewImg.src = blobUrl;
+                                previewImg.style.width = '100%';
+                                previewImg.style.height = '100%';
+                                previewImg.style.objectFit = 'contain';
+                                previewImg.style.backgroundColor = this.getMediaCardBackgroundColor();
+                                previewImg.alt = `${mediaType} ${pdfIndex + 1} from ${result.source}`;
+                                previewContainer.innerHTML = '';
+                                previewContainer.appendChild(previewImg);
+                                
+                                // Store blob URL for cleanup
+                                previewContainer._pdfBlobUrl = blobUrl;
+                            })
+                            .catch(error => {
+                                console.error(`Failed to load PDF preview ${pdfIndex + 1}:`, error);
+                                previewContainer.innerHTML = `
+                                    <div style="text-align: center; color: #6c757d;">
+                                        <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #dc3545; margin-bottom: 0.5rem;"></i>
+                                        <div style="font-size: 0.875rem;">PDF ${pdfIndex + 1}</div>
+                                        <div style="font-size: 0.75rem; color: #6c757d;">Preview unavailable</div>
+                                    </div>
+                                `;
                             });
-                            img.addEventListener('mouseleave', () => {
-                                this.hideMediaHover();
-                            });
-                            
-                            // Clean up blob URL when card is removed (if needed)
-                            card._pdfBlobUrl = blobUrl;
-                        })
-                        .catch(error => {
-                            console.error('Failed to load PDF preview:', error);
-                            // Remove loading placeholder and show error placeholder
-                            card.removeChild(loadingPlaceholder);
-                            const errorPlaceholder = document.createElement('div');
-                            errorPlaceholder.className = 'card-img-top';
-                            errorPlaceholder.style.height = '300px';
-                            errorPlaceholder.style.display = 'flex';
-                            errorPlaceholder.style.alignItems = 'center';
-                            errorPlaceholder.style.justifyContent = 'center';
-                            errorPlaceholder.style.flexDirection = 'column';
-                            errorPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
-                            errorPlaceholder.innerHTML = `
-                                <i class="bi bi-file-earmark-pdf" style="font-size: 4rem; color: #dc3545; margin-bottom: 1rem;"></i>
-                                <div style="text-align: center; color: #6c757d; font-weight: 500;">PDF Manual</div>
-                                <div style="text-align: center; color: #6c757d; font-size: 0.75rem; margin-top: 0.5rem;">Preview unavailable</div>
-                            `;
-                            card.appendChild(errorPlaceholder);
                         });
+                    } else {
+                        // Single PDF - use existing logic
+                        // Determine the actual PDF URL
+                        let pdfUrl = result.url;
+                        
+                        // For ScreenScraper, construct the direct PDF URL from system ID and game ID
+                        // Format: https://www.screenscraper.fr/medias/<system_id>/<game_id>/manuel(us).pdf
+                        const isScreenScraper = result.source && result.source.toLowerCase().includes('screenscraper');
+                        if (isScreenScraper && result.screenscraperid && result.screenscraper_system_id) {
+                            // Construct ScreenScraper PDF URL - try different region variants
+                            // ScreenScraper uses format: manuel(us), manuel(eu), manuel(jp), etc.
+                            const region = result.region || 'us';
+                            pdfUrl = `https://www.screenscraper.fr/medias/${result.screenscraper_system_id}/${result.screenscraperid}/manuel(${region}).pdf`;
+                        }
+                        
+                        // Skip if URL doesn't look like a PDF (unless it's ScreenScraper which we just constructed)
+                        if (!isScreenScraper && (!pdfUrl || (!pdfUrl.toLowerCase().endsWith('.pdf') && !pdfUrl.toLowerCase().includes('.pdf')))) {
+                            // Not a valid PDF URL, fall through to regular image handling
+                            // Use proxy for HTTP URLs when page is HTTPS
+                            img.src = this.getProxiedMediaUrl(result.url || '');
+                            img.alt = `${mediaType} from ${result.source}`;
+                            img.onerror = () => {
+                                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
+                            };
+                            card.appendChild(img);
+                        } else {
+                            // Use remote PDF preview endpoint to generate preview from URL (server-side)
+                            const previewUrl = '/api/pdf-preview-remote';
+                            
+                            // Set up image with loading state
+                            img.style.display = 'block';
+                            img.src = ''; // Start with empty src
+                            img.alt = `PDF Manual from ${result.source}`;
+                            
+                            // Show loading placeholder
+                            const loadingPlaceholder = document.createElement('div');
+                            loadingPlaceholder.className = 'card-img-top';
+                            loadingPlaceholder.style.height = '300px';
+                            loadingPlaceholder.style.display = 'flex';
+                            loadingPlaceholder.style.alignItems = 'center';
+                            loadingPlaceholder.style.justifyContent = 'center';
+                            loadingPlaceholder.style.flexDirection = 'column';
+                            loadingPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                            loadingPlaceholder.innerHTML = `
+                                <div class="spinner-border text-primary" role="status" style="margin-bottom: 1rem;">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <div style="text-align: center; color: #6c757d; font-weight: 500;">Loading PDF preview...</div>
+                            `;
+                            card.appendChild(loadingPlaceholder);
+                            
+                            // Fetch PDF preview from remote URL (server-side call only)
+                            fetch(previewUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                credentials: 'include',
+                                body: JSON.stringify({ url: pdfUrl })
+                            })
+                            .then(response => {
+                                if (response.ok) {
+                                    // Get the image blob and create object URL
+                                    return response.blob();
+                                } else {
+                                    throw new Error(`Failed to generate preview: ${response.status}`);
+                                }
+                            })
+                            .then(blob => {
+                                const blobUrl = URL.createObjectURL(blob);
+                                // Remove loading placeholder and show image
+                                card.removeChild(loadingPlaceholder);
+                                img.src = blobUrl;
+                                img.style.display = 'block';
+                                card.appendChild(img);
+                                
+                                // Add hover preview functionality
+                                img.addEventListener('mouseenter', (e) => {
+                                    this.showMediaHover(e, blobUrl, mediaType);
+                                });
+                                img.addEventListener('mouseleave', () => {
+                                    this.hideMediaHover();
+                                });
+                                
+                                // Clean up blob URL when card is removed (if needed)
+                                card._pdfBlobUrl = blobUrl;
+                            })
+                            .catch(error => {
+                                console.error('Failed to load PDF preview:', error);
+                                // Remove loading placeholder and show error placeholder
+                                card.removeChild(loadingPlaceholder);
+                                const errorPlaceholder = document.createElement('div');
+                                errorPlaceholder.className = 'card-img-top';
+                                errorPlaceholder.style.height = '300px';
+                                errorPlaceholder.style.display = 'flex';
+                                errorPlaceholder.style.alignItems = 'center';
+                                errorPlaceholder.style.justifyContent = 'center';
+                                errorPlaceholder.style.flexDirection = 'column';
+                                errorPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                                errorPlaceholder.innerHTML = `
+                                    <i class="bi bi-file-earmark-pdf" style="font-size: 4rem; color: #dc3545; margin-bottom: 1rem;"></i>
+                                    <div style="text-align: center; color: #6c757d; font-weight: 500;">PDF Manual</div>
+                                    <div style="text-align: center; color: #6c757d; font-size: 0.75rem; margin-top: 0.5rem;">Preview unavailable</div>
+                                `;
+                                card.appendChild(errorPlaceholder);
+                            });
+                        }
                     }
                 } else {
-                    // Regular image
-                    if (!result.url) {
+                    // Regular image - check if we have multiple URLs (for custom/custom2 arrays)
+                    const imageUrls = result.urls && Array.isArray(result.urls) && result.urls.length > 1 ? result.urls : (result.url ? [result.url] : []);
+                    
+                    if (imageUrls.length === 0) {
                         // No URL provided - show error placeholder
                         const errorPlaceholder = document.createElement('div');
                         errorPlaceholder.className = 'card-img-top';
@@ -7261,7 +7350,76 @@ class GameCollectionManager {
                             <div style="text-align: center; color: #6c757d; font-weight: 500;">No image URL</div>
                         `;
                         card.appendChild(errorPlaceholder);
+                    } else if (imageUrls.length > 1) {
+                        // Multiple images - create a carousel
+                        const isCustom = result.source && (result.source.toLowerCase() === 'custom' || result.source.toLowerCase() === 'custom2');
+                        if (isCustom) {
+                            const carouselContainer = document.createElement('div');
+                            carouselContainer.className = 'card-img-top';
+                            carouselContainer.style.height = '300px';
+                            carouselContainer.style.position = 'relative';
+                            carouselContainer.style.backgroundColor = this.getMediaCardBackgroundColor();
+                            carouselContainer.style.overflow = 'hidden';
+                            
+                            const carouselId = `carousel-${index}-${Date.now()}`;
+                            carouselContainer.innerHTML = `
+                                <div id="${carouselId}" class="carousel slide h-100" data-bs-ride="carousel">
+                                    <div class="carousel-inner h-100">
+                                        ${imageUrls.map((url, imgIndex) => `
+                                            <div class="carousel-item ${imgIndex === 0 ? 'active' : ''} h-100">
+                                                <img src="${this.getProxiedMediaUrl(url)}" 
+                                                     class="d-block w-100 h-100" 
+                                                     style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
+                                                     alt="${mediaType} ${imgIndex + 1} from ${result.source}"
+                                                     onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg=='">
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                    ${imageUrls.length > 1 ? `
+                                        <button class="carousel-control-prev" type="button" data-bs-target="#${carouselId}" data-bs-slide="prev">
+                                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                            <span class="visually-hidden">Previous</span>
+                                        </button>
+                                        <button class="carousel-control-next" type="button" data-bs-target="#${carouselId}" data-bs-slide="next">
+                                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                            <span class="visually-hidden">Next</span>
+                                        </button>
+                                        <div class="carousel-indicators" style="bottom: 5px;">
+                                            ${imageUrls.map((url, imgIndex) => `
+                                                <button type="button" data-bs-target="#${carouselId}" data-bs-slide-to="${imgIndex}" ${imgIndex === 0 ? 'class="active" aria-current="true"' : ''} aria-label="Slide ${imgIndex + 1}"></button>
+                                            `).join('')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                            card.appendChild(carouselContainer);
+                            
+                            // Add hover preview functionality for the first image
+                            const firstImg = carouselContainer.querySelector('img');
+                            if (firstImg) {
+                                firstImg.addEventListener('mouseenter', (e) => {
+                                    this.showMediaHover(e, imageUrls[0], mediaType, game);
+                                });
+                                firstImg.addEventListener('mouseleave', () => {
+                                    this.hideMediaHover();
+                                });
+                            }
+                        } else {
+                            // For non-custom, use first image only (backward compatibility)
+                            const img = document.createElement('img');
+                            img.className = 'card-img-top';
+                            img.style.height = '300px';
+                            img.style.objectFit = 'contain';
+                            img.style.backgroundColor = this.getMediaCardBackgroundColor();
+                            img.alt = `${mediaType} from ${result.source}`;
+                            img.src = this.getProxiedMediaUrl(imageUrls[0]);
+                            img.onerror = () => {
+                                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
+                            };
+                            card.appendChild(img);
+                        }
                     } else {
+                        // Single image
                         // Show loading placeholder while image loads
                         const loadingPlaceholder = document.createElement('div');
                         loadingPlaceholder.className = 'card-img-top';
@@ -7491,7 +7649,10 @@ class GameCollectionManager {
                         this.downloadMultiscraperMedia(result.url, game, mediaType);
                     }
                 } else {
-                    this.downloadMultiscraperMedia(result.url, game, mediaType);
+                    // For custom/custom2 with urls array, use the first URL for download
+                    // (user can see all in carousel but downloads first one)
+                    const downloadUrl = (result.urls && Array.isArray(result.urls) && result.urls.length > 0) ? result.urls[0] : result.url;
+                    this.downloadMultiscraperMedia(downloadUrl, game, mediaType);
                 }
             };
             
@@ -8582,12 +8743,19 @@ class GameCollectionManager {
                 tile.dataset.mediaKey = mediaKey;
                 tile.dataset.source = source;
                 tile.dataset.index = String(index);
+                
+                // For custom/custom2 with multiple URLs, show image number
+                let titleText = source.charAt(0).toUpperCase() + source.slice(1);
+                if ((source === 'custom' || source === 'custom2') && metadata.total_urls && metadata.total_urls > 1) {
+                    titleText += ` (${(metadata.url_index || 0) + 1}/${metadata.total_urls})`;
+                }
+                
                 tile.innerHTML = `
                     <div class="media-preview-item" style="width: 100%; height: 150px;">
                         ${this.getMediaPreview(url, mediaKey)}
                     </div>
                     <div class="card-body py-2">
-                        <div class="small text-muted">${source.charAt(0).toUpperCase() + source.slice(1)}</div>
+                        <div class="small text-muted">${titleText}</div>
                         <div class="image-metadata" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
                             <div class="resolution-info">Loading...</div>
                             ${metadata.region ? `<div class="region-info">Region: ${metadata.region}</div>` : ''}
@@ -8613,7 +8781,13 @@ class GameCollectionManager {
                     if (!this.manualScrapSelectedMedia) this.manualScrapSelectedMedia = {};
                     // For MobyGames, use page_url for full-size download, otherwise use url
                     const downloadUrl = (source === 'mobygames' && metadata.page_url) ? metadata.page_url : url;
-                    this.manualScrapSelectedMedia[mediaKey] = { source, index, url: downloadUrl };
+                    // For custom/custom2 with urls array, store the selected URL and the full array
+                    const selectionData = { source, index, url: downloadUrl };
+                    if ((source === 'custom' || source === 'custom2') && metadata.urls && Array.isArray(metadata.urls)) {
+                        selectionData.urls = metadata.urls;
+                        selectionData.selected_url_index = metadata.url_index || 0;
+                    }
+                    this.manualScrapSelectedMedia[mediaKey] = selectionData;
                 });
 
                 // Image resolution will be loaded automatically via onload event
@@ -8630,7 +8804,7 @@ class GameCollectionManager {
             this.manualScrapSelectedMedia[mediaKey] = { source: 'current', index: -1, url: mediaData.current };
 
             // Add tiles for each source. Each source may be an array of URLs or metadata objects.
-            const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb', 'mobygames', 'emumovies', 'custom'];
+            const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb', 'mobygames', 'emumovies', 'custom', 'custom2'];
             sources.forEach(source => {
                 const values = mediaData.sources[source];
                 if (!values) return;
@@ -8639,8 +8813,17 @@ class GameCollectionManager {
                     // Handle both old format (URL strings) and new format (metadata objects)
                     if (typeof item === 'string') {
                         grid.appendChild(createTile(source, item, idx));
-                    } else if (typeof item === 'object' && item.url) {
-                        grid.appendChild(createTile(source, item.url, idx, item));
+                    } else if (typeof item === 'object') {
+                        // For custom/custom2, check if there's a 'urls' array
+                        if ((source === 'custom' || source === 'custom2') && item.urls && Array.isArray(item.urls) && item.urls.length > 1) {
+                            // Create a tile for each URL in the array
+                            item.urls.forEach((url, urlIdx) => {
+                                grid.appendChild(createTile(source, url, idx * 1000 + urlIdx, { ...item, url_index: urlIdx, total_urls: item.urls.length }));
+                            });
+                        } else if (item.url) {
+                            // Single URL (backward compatibility)
+                            grid.appendChild(createTile(source, item.url, idx, item));
+                        }
                     }
                 });
             });
