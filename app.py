@@ -12575,6 +12575,8 @@ def download_multiscraper_media_endpoint():
         system_name = data.get('system_name')
         screenscraper_id = data.get('screenscraper_id')
         screenscraper_system_id = data.get('screenscraper_system_id')
+        urls_array = data.get('urls')  # Array of URLs for PDF/CBZ creation
+        target_extension = data.get('target_extension')  # Target extension (.pdf or .cbz)
         
         if not all([media_url, game_name, media_type, system_name]):
             return jsonify({'error': 'Media URL, game name, media type, and system name are required'}), 400
@@ -12952,8 +12954,235 @@ def download_multiscraper_media_endpoint():
                 print(f"❌ Error downloading ScreenScraper PDF: {e}")
                 return jsonify({'error': f'Failed to download PDF: {str(e)}'}), 500
         else:
-            # For non-ScreenScraper videos or non-video media, use normal download
-            success = download_and_save_media(media_url, game, media_type, system_name)
+            # Check if we need to do PDF/CBZ conversions
+            # Get media field configuration to determine target_extension if not provided
+            config_path = os.path.join('var', 'config', 'config.json')
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            media_config = config.get('media_fields', {}).get(media_type, {})
+            target_ext = target_extension or media_config.get('target_extension', '')
+            
+            # Determine if target is PDF or CBZ
+            is_pdf_target = target_ext and target_ext.lower() == '.pdf'
+            is_cbz_target = target_ext and target_ext.lower() == '.cbz'
+            
+            # Check if source URL is a PDF or CBZ file
+            is_pdf_source = media_url and (media_url.lower().endswith('.pdf') or '.pdf' in media_url.lower())
+            is_cbz_source = media_url and (media_url.lower().endswith('.cbz') or '.cbz' in media_url.lower())
+            
+            # Handle PDF/CBZ conversions
+            if is_pdf_target and is_cbz_source:
+                # Target is PDF, source is CBZ - convert CBZ to PDF
+                target_dir = media_config.get('directory', f'media/{media_type}')
+                if not target_dir.startswith('media/'):
+                    target_dir = f'media/{target_dir}'
+                
+                full_target_dir = os.path.join('roms', system_name, target_dir)
+                os.makedirs(full_target_dir, exist_ok=True)
+                
+                target_filename = create_media_filename(game.get('path', ''), target_ext)
+                target_path = os.path.join(full_target_dir, target_filename)
+                
+                # Download CBZ file first
+                import tempfile
+                temp_cbz = tempfile.NamedTemporaryFile(delete=False, suffix='.cbz')
+                temp_cbz_path = temp_cbz.name
+                temp_cbz.close()
+                
+                try:
+                    # Download CBZ - use Selenium for amigahol URLs
+                    import requests
+                    
+                    if _is_amigahol_url(media_url):
+                        cbz_content = download_media_content(media_url, timeout=30)
+                    else:
+                        resp = requests.get(media_url, timeout=30)
+                        if resp.status_code == 200:
+                            cbz_content = resp.content
+                        else:
+                            cbz_content = None
+                    
+                    if not cbz_content:
+                        return jsonify({'error': f'Failed to download CBZ from {media_url}'}), 500
+                    
+                    # Save CBZ to temp file
+                    with open(temp_cbz_path, 'wb') as f:
+                        f.write(cbz_content)
+                    
+                    # Convert CBZ to PDF
+                    success = convert_cbz_to_pdf_file(temp_cbz_path, target_path)
+                    
+                    if success:
+                        relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
+                        game[media_type] = relative_path
+                        print(f'✅ Converted CBZ to PDF for {media_type}')
+                    else:
+                        return jsonify({'error': 'Failed to convert CBZ to PDF'}), 500
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(temp_cbz_path):
+                        try:
+                            os.remove(temp_cbz_path)
+                        except:
+                            pass
+            elif is_cbz_target and is_pdf_source:
+                # Target is CBZ, source is PDF - convert PDF to CBZ
+                target_dir = media_config.get('directory', f'media/{media_type}')
+                if not target_dir.startswith('media/'):
+                    target_dir = f'media/{target_dir}'
+                
+                full_target_dir = os.path.join('roms', system_name, target_dir)
+                os.makedirs(full_target_dir, exist_ok=True)
+                
+                target_filename = create_media_filename(game.get('path', ''), target_ext)
+                target_path = os.path.join(full_target_dir, target_filename)
+                
+                # Download PDF file first
+                import tempfile
+                temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                temp_pdf_path = temp_pdf.name
+                temp_pdf.close()
+                
+                try:
+                    # Download PDF - use Selenium for amigahol URLs
+                    import requests
+                    
+                    if _is_amigahol_url(media_url):
+                        pdf_content = download_media_content(media_url, timeout=30)
+                    else:
+                        resp = requests.get(media_url, timeout=30)
+                        if resp.status_code == 200:
+                            pdf_content = resp.content
+                        else:
+                            pdf_content = None
+                    
+                    if not pdf_content:
+                        return jsonify({'error': f'Failed to download PDF from {media_url}'}), 500
+                    
+                    # Save PDF to temp file
+                    with open(temp_pdf_path, 'wb') as f:
+                        f.write(pdf_content)
+                    
+                    # Convert PDF to CBZ
+                    success = convert_pdf_to_cbz_file(temp_pdf_path, target_path)
+                    
+                    if success:
+                        relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
+                        game[media_type] = relative_path
+                        print(f'✅ Converted PDF to CBZ for {media_type}')
+                    else:
+                        return jsonify({'error': 'Failed to convert PDF to CBZ'}), 500
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(temp_pdf_path):
+                        try:
+                            os.remove(temp_pdf_path)
+                        except:
+                            pass
+            elif (is_pdf_target or is_cbz_target) and urls_array and isinstance(urls_array, list) and len(urls_array) > 0:
+                # Create PDF/CBZ from array of image URLs
+                target_dir = media_config.get('directory', f'media/{media_type}')
+                if not target_dir.startswith('media/'):
+                    target_dir = f'media/{target_dir}'
+                
+                full_target_dir = os.path.join('roms', system_name, target_dir)
+                os.makedirs(full_target_dir, exist_ok=True)
+                
+                target_filename = create_media_filename(game.get('path', ''), target_ext)
+                target_path = os.path.join(full_target_dir, target_filename)
+                
+                if is_pdf_target:
+                    success = create_pdf_from_images(urls_array, target_path)
+                else:  # is_cbz_target
+                    success = create_cbz_from_images(urls_array, target_path)
+                
+                if success:
+                    relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
+                    game[media_type] = relative_path
+                    print(f'✅ Created {target_ext} from {len(urls_array)} images for {media_type}')
+                else:
+                    return jsonify({'error': f'Failed to create {target_ext} from images'}), 500
+            elif (is_pdf_target or is_cbz_target) and media_url and not is_pdf_source and not is_cbz_source:
+                # Single image URL with PDF/CBZ target - create PDF/CBZ from single image
+                target_dir = media_config.get('directory', f'media/{media_type}')
+                if not target_dir.startswith('media/'):
+                    target_dir = f'media/{target_dir}'
+                
+                full_target_dir = os.path.join('roms', system_name, target_dir)
+                os.makedirs(full_target_dir, exist_ok=True)
+                
+                target_filename = create_media_filename(game.get('path', ''), target_ext)
+                target_path = os.path.join(full_target_dir, target_filename)
+                
+                if is_pdf_target:
+                    success = create_pdf_from_images([media_url], target_path)
+                else:  # is_cbz_target
+                    success = create_cbz_from_images([media_url], target_path)
+                
+                if success:
+                    relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
+                    game[media_type] = relative_path
+                    print(f'✅ Created {target_ext} from single image for {media_type}')
+                else:
+                    return jsonify({'error': f'Failed to create {target_ext} from single image'}), 500
+            elif is_cbz_target and is_pdf_source and not urls_array:
+                # Single PDF URL with CBZ target - convert PDF to CBZ (this handles single PDF downloads)
+                target_dir = media_config.get('directory', f'media/{media_type}')
+                if not target_dir.startswith('media/'):
+                    target_dir = f'media/{target_dir}'
+                
+                full_target_dir = os.path.join('roms', system_name, target_dir)
+                os.makedirs(full_target_dir, exist_ok=True)
+                
+                target_filename = create_media_filename(game.get('path', ''), target_ext)
+                target_path = os.path.join(full_target_dir, target_filename)
+                
+                # Download PDF file first
+                import tempfile
+                temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                temp_pdf_path = temp_pdf.name
+                temp_pdf.close()
+                
+                try:
+                    # Download PDF - use Selenium for amigahol URLs
+                    import requests
+                    
+                    if _is_amigahol_url(media_url):
+                        pdf_content = download_media_content(media_url, timeout=30)
+                    else:
+                        resp = requests.get(media_url, timeout=30)
+                        if resp.status_code == 200:
+                            pdf_content = resp.content
+                        else:
+                            pdf_content = None
+                    
+                    if not pdf_content:
+                        return jsonify({'error': f'Failed to download PDF from {media_url}'}), 500
+                    
+                    # Save PDF to temp file
+                    with open(temp_pdf_path, 'wb') as f:
+                        f.write(pdf_content)
+                    
+                    # Convert PDF to CBZ
+                    success = convert_pdf_to_cbz_file(temp_pdf_path, target_path)
+                    
+                    if success:
+                        relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
+                        game[media_type] = relative_path
+                        print(f'✅ Converted PDF to CBZ for {media_type}')
+                    else:
+                        return jsonify({'error': 'Failed to convert PDF to CBZ'}), 500
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(temp_pdf_path):
+                        try:
+                            os.remove(temp_pdf_path)
+                        except:
+                            pass
+            else:
+                # For non-PDF/CBZ conversions, use normal download
+                success = download_and_save_media(media_url, game, media_type, system_name)
         
         if success:
             # Update the gamelist
@@ -18910,6 +19139,161 @@ def apply_manual_scrap(system_name):
             target_path = None
 
             try:
+                # Check if target_extension is PDF or CBZ
+                selected_urls = selections.get(f'{media_field}_urls')  # Array of URLs from frontend
+                is_pdf_target = target_ext and target_ext.lower() == '.pdf'
+                is_cbz_target = target_ext and target_ext.lower() == '.cbz'
+                
+                # Check if source URL is a PDF or CBZ file
+                is_pdf_source = selected_url and (selected_url.lower().endswith('.pdf') or '.pdf' in selected_url.lower())
+                is_cbz_source = selected_url and (selected_url.lower().endswith('.cbz') or '.cbz' in selected_url.lower())
+                
+                # Handle PDF/CBZ conversions
+                if is_pdf_target and is_cbz_source:
+                    # Target is PDF, source is CBZ - convert CBZ to PDF
+                    target_filename = create_media_filename(rom_path, target_ext)
+                    target_path = os.path.join(target_dir, target_filename)
+                    
+                    # Download CBZ file first
+                    import tempfile
+                    temp_cbz = tempfile.NamedTemporaryFile(delete=False, suffix='.cbz')
+                    temp_cbz_path = temp_cbz.name
+                    temp_cbz.close()
+                    
+                    try:
+                        # Download CBZ - use Selenium for amigahol URLs
+                        if _is_amigahol_url(selected_url):
+                            cbz_content = download_media_content(selected_url, timeout=30)
+                        else:
+                            resp = requests.get(selected_url, timeout=30)
+                            if resp.status_code == 200:
+                                cbz_content = resp.content
+                            else:
+                                cbz_content = None
+                        
+                        if not cbz_content:
+                            download_stats['failed'] += 1
+                            print(f'❌ Failed to download CBZ from {selected_url}')
+                            continue
+                        
+                        # Save CBZ to temp file
+                        with open(temp_cbz_path, 'wb') as f:
+                            f.write(cbz_content)
+                        
+                        # Convert CBZ to PDF
+                        success = convert_cbz_to_pdf_file(temp_cbz_path, target_path)
+                        
+                        if success:
+                            rel_path = f'./media/{directory}/{target_filename}'
+                            game[media_field] = rel_path
+                            media_updates[media_field] = rel_path
+                            download_stats['success'] += 1
+                            print(f'✅ Converted CBZ to PDF for {media_field}')
+                        else:
+                            download_stats['failed'] += 1
+                            print(f'❌ Failed to convert CBZ to PDF for {media_field}')
+                    finally:
+                        # Clean up temp file
+                        if os.path.exists(temp_cbz_path):
+                            try:
+                                os.remove(temp_cbz_path)
+                            except:
+                                pass
+                    continue
+                elif is_cbz_target and is_pdf_source:
+                    # Target is CBZ, source is PDF - convert PDF to CBZ
+                    target_filename = create_media_filename(rom_path, target_ext)
+                    target_path = os.path.join(target_dir, target_filename)
+                    
+                    # Download PDF file first
+                    import tempfile
+                    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                    temp_pdf_path = temp_pdf.name
+                    temp_pdf.close()
+                    
+                    try:
+                        # Download PDF - use Selenium for amigahol URLs
+                        if _is_amigahol_url(selected_url):
+                            pdf_content = download_media_content(selected_url, timeout=30)
+                        else:
+                            resp = requests.get(selected_url, timeout=30)
+                            if resp.status_code == 200:
+                                pdf_content = resp.content
+                            else:
+                                pdf_content = None
+                        
+                        if not pdf_content:
+                            download_stats['failed'] += 1
+                            print(f'❌ Failed to download PDF from {selected_url}')
+                            continue
+                        
+                        # Save PDF to temp file
+                        with open(temp_pdf_path, 'wb') as f:
+                            f.write(pdf_content)
+                        
+                        # Convert PDF to CBZ
+                        success = convert_pdf_to_cbz_file(temp_pdf_path, target_path)
+                        
+                        if success:
+                            rel_path = f'./media/{directory}/{target_filename}'
+                            game[media_field] = rel_path
+                            media_updates[media_field] = rel_path
+                            download_stats['success'] += 1
+                            print(f'✅ Converted PDF to CBZ for {media_field}')
+                        else:
+                            download_stats['failed'] += 1
+                            print(f'❌ Failed to convert PDF to CBZ for {media_field}')
+                    finally:
+                        # Clean up temp file
+                        if os.path.exists(temp_pdf_path):
+                            try:
+                                os.remove(temp_pdf_path)
+                            except:
+                                pass
+                    continue
+                elif (is_pdf_target or is_cbz_target) and selected_urls and isinstance(selected_urls, list) and len(selected_urls) > 0:
+                    # Create PDF/CBZ from array of image URLs
+                    target_filename = create_media_filename(rom_path, target_ext)
+                    target_path = os.path.join(target_dir, target_filename)
+                    
+                    if is_pdf_target:
+                        success = create_pdf_from_images(selected_urls, target_path)
+                    else:  # is_cbz_target
+                        success = create_cbz_from_images(selected_urls, target_path)
+                    
+                    if success:
+                        # Update game field with relative path
+                        rel_path = f'./media/{directory}/{target_filename}'
+                        game[media_field] = rel_path
+                        media_updates[media_field] = rel_path
+                        download_stats['success'] += 1
+                        print(f'✅ Created {target_ext} from {len(selected_urls)} images for {media_field}')
+                    else:
+                        download_stats['failed'] += 1
+                        print(f'❌ Failed to create {target_ext} from images for {media_field}')
+                    continue
+                elif (is_pdf_target or is_cbz_target) and selected_url and not is_pdf_source and not is_cbz_source:
+                    # Single image URL with PDF/CBZ target - create PDF/CBZ from single image
+                    target_filename = create_media_filename(rom_path, target_ext)
+                    target_path = os.path.join(target_dir, target_filename)
+                    
+                    if is_pdf_target:
+                        success = create_pdf_from_images([selected_url], target_path)
+                    else:  # is_cbz_target
+                        success = create_cbz_from_images([selected_url], target_path)
+                    
+                    if success:
+                        # Update game field with relative path
+                        rel_path = f'./media/{directory}/{target_filename}'
+                        game[media_field] = rel_path
+                        media_updates[media_field] = rel_path
+                        download_stats['success'] += 1
+                        print(f'✅ Created {target_ext} from single image for {media_field}')
+                    else:
+                        download_stats['failed'] += 1
+                        print(f'❌ Failed to create {target_ext} from single image for {media_field}')
+                    continue
+                
                 # Check if this is an EmuMovies API URL - if so, use the special download function
                 if selected_url.startswith('/api/emumovies-download-media') or 'emumovies-download-media' in selected_url:
                     # This is an EmuMovies API URL, download from the API endpoint
@@ -27317,74 +27701,108 @@ def get_pdf_preview_remote():
         import io
         import requests
         
-        # Check if this is a ScreenScraper URL and add Referer header if needed
-        headers = {}
-        if 'screenscraper.fr' in pdf_url or 'screenscraper.fr' in pdf_url:
-            # Extract game ID and system ID from URL
-            # Format: https://www.screenscraper.fr/medias/<system_id>/<game_id>/manuel(us).pdf
-            try:
-                import re
-                match = re.search(r'/medias/(\d+)/(\d+)/', pdf_url)
-                if match:
-                    screenscraper_system_id = match.group(1)
-                    screenscraper_id = match.group(2)
-                    # Construct Referer header URL
-                    referer_url = f"https://www.screenscraper.fr/gameinfos.php?gameid={screenscraper_id}&action=onglet&zone=gameinfosmedias"
-                    headers = {
-                        'Referer': referer_url,
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                    }
-            except Exception as e:
-                print(f"Warning: Could not extract ScreenScraper IDs from URL: {e}")
+        # Check if this is an amigahol URL - use Selenium for Anubis bot protection
+        pdf_content = None
+        if _is_amigahol_url(pdf_url):
+            # Use Selenium to download PDF from amiga.abime.net
+            print(f"🔧 Using Selenium for amigahol PDF preview: {pdf_url}")
+            pdf_content = download_media_content(pdf_url, timeout=30)
+            if not pdf_content:
+                return jsonify({'error': 'Failed to download PDF from amiga.abime.net using Selenium'}), 500
+            pdf_data = io.BytesIO(pdf_content)
+        else:
+            # Check if this is a ScreenScraper URL and add Referer header if needed
+            headers = {}
+            if 'screenscraper.fr' in pdf_url or 'screenscraper.fr' in pdf_url:
+                # Extract game ID and system ID from URL
+                # Format: https://www.screenscraper.fr/medias/<system_id>/<game_id>/manuel(us).pdf
+                try:
+                    import re
+                    match = re.search(r'/medias/(\d+)/(\d+)/', pdf_url)
+                    if match:
+                        screenscraper_system_id = match.group(1)
+                        screenscraper_id = match.group(2)
+                        # Construct Referer header URL
+                        referer_url = f"https://www.screenscraper.fr/gameinfos.php?gameid={screenscraper_id}&action=onglet&zone=gameinfosmedias"
+                        headers = {
+                            'Referer': referer_url,
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        }
+                except Exception as e:
+                    print(f"Warning: Could not extract ScreenScraper IDs from URL: {e}")
+            
+            # Download PDF from remote URL with headers if needed
+            response = requests.get(pdf_url, headers=headers, timeout=10, stream=True)
+            if response.status_code != 200:
+                return jsonify({'error': f'Failed to fetch PDF: {response.status_code}'}), 404
+            
+            # Read PDF into memory
+            pdf_data = io.BytesIO()
+            for chunk in response.iter_content(chunk_size=8192):
+                pdf_data.write(chunk)
         
-        # Download PDF from remote URL with headers if needed
-        response = requests.get(pdf_url, headers=headers, timeout=10, stream=True)
-        if response.status_code != 200:
-            return jsonify({'error': f'Failed to fetch PDF: {response.status_code}'}), 404
-        
-        # Read PDF into memory
-        pdf_data = io.BytesIO()
-        for chunk in response.iter_content(chunk_size=8192):
-            pdf_data.write(chunk)
         pdf_data.seek(0)
         
-        # Open PDF from memory
-        pdf_doc = pymupdf.open(stream=pdf_data.read(), filetype='pdf')
-        if len(pdf_doc) == 0:
+        # Use a unique temporary file to avoid collisions when processing multiple PDFs in parallel
+        import tempfile
+        import secrets
+        temp_pdf_path = None
+        try:
+            # Read PDF data once
+            pdf_bytes = pdf_data.read()
+            
+            # Create a unique temporary PDF file to avoid collisions
+            temp_pdf_fd, temp_pdf_path = tempfile.mkstemp(suffix='.pdf', prefix=f'pdf_preview_{secrets.token_hex(8)}_')
+            os.close(temp_pdf_fd)
+            
+            # Write PDF data to temp file
+            with open(temp_pdf_path, 'wb') as f:
+                f.write(pdf_bytes)
+            
+            # Open PDF from temp file
+            pdf_doc = pymupdf.open(temp_pdf_path)
+            if len(pdf_doc) == 0:
+                pdf_doc.close()
+                return jsonify({'error': 'PDF has no pages'}), 400
+            
+            # Get first page
+            page = pdf_doc[0]
+            
+            # Render page to pixmap
+            zoom = 2.0
+            mat = pymupdf.Matrix(zoom, zoom)
+            pix = page.get_pixmap(matrix=mat)
+            
+            # Convert to PIL Image
+            img_data = pix.tobytes("ppm")
+            img = Image.open(io.BytesIO(img_data))
+            
+            # Convert to RGB if necessary
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Resize to reasonable size
+            max_size = 800
+            if img.width > max_size or img.height > max_size:
+                img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+            
+            # Save to memory buffer and return
+            img_buffer = io.BytesIO()
+            img.save(img_buffer, 'JPEG', quality=85)
+            img_buffer.seek(0)
+            
+            # Close PDF
             pdf_doc.close()
-            return jsonify({'error': 'PDF has no pages'}), 400
-        
-        # Get first page
-        page = pdf_doc[0]
-        
-        # Render page to pixmap
-        zoom = 2.0
-        mat = pymupdf.Matrix(zoom, zoom)
-        pix = page.get_pixmap(matrix=mat)
-        
-        # Convert to PIL Image
-        img_data = pix.tobytes("ppm")
-        img = Image.open(io.BytesIO(img_data))
-        
-        # Convert to RGB if necessary
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        
-        # Resize to reasonable size
-        max_size = 800
-        if img.width > max_size or img.height > max_size:
-            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-        
-        # Save to memory buffer and return
-        img_buffer = io.BytesIO()
-        img.save(img_buffer, 'JPEG', quality=85)
-        img_buffer.seek(0)
-        
-        # Close PDF
-        pdf_doc.close()
-        
-        # Return image directly from memory
-        return send_file(img_buffer, mimetype='image/jpeg')
+            
+            # Return image directly from memory
+            return send_file(img_buffer, mimetype='image/jpeg')
+        finally:
+            # Clean up temp file
+            if temp_pdf_path and os.path.exists(temp_pdf_path):
+                try:
+                    os.remove(temp_pdf_path)
+                except:
+                    pass
         
     except ImportError as e:
         import sys
@@ -35149,6 +35567,247 @@ def create_pdf_from_images(image_urls: List[str], output_path: str) -> bool:
         traceback.print_exc()
         return False
 
+def create_cbz_from_images(image_urls: List[str], output_path: str) -> bool:
+    """
+    Download images from URLs and create a CBZ file (ZIP archive)
+    
+    Args:
+        image_urls: List of image URLs to download
+        output_path: Path where the CBZ should be saved
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        import zipfile
+        import io
+        import requests
+        from PIL import Image
+        import os
+        
+        # Create ZIP file (CBZ is just a ZIP)
+        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as cbz_file:
+            for idx, image_url in enumerate(image_urls):
+                try:
+                    # Download image - use Selenium for amiga.abime.net URLs
+                    image_content = None
+                    if _is_amigahol_url(image_url):
+                        image_content = download_media_content(image_url, timeout=30)
+                    else:
+                        response = requests.get(image_url, timeout=30)
+                        if response.status_code == 200:
+                            image_content = response.content
+                    
+                    if not image_content:
+                        print(f"Warning: Failed to download image {image_url}")
+                        continue
+                    
+                    # Open image with PIL
+                    img = Image.open(io.BytesIO(image_content))
+                    
+                    # Convert to RGB if necessary (for consistency)
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Save image to temporary bytes as PNG for consistency
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format='PNG')
+                    img_bytes.seek(0)
+                    
+                    # Add to ZIP with sequential naming (page_001.png, page_002.png, etc.)
+                    filename = f"page_{idx+1:03d}.png"
+                    cbz_file.writestr(filename, img_bytes.getvalue())
+                    
+                except Exception as e:
+                    print(f"Warning: Failed to add image {image_url} to CBZ: {e}")
+                    continue
+        
+        # Check if we added any images
+        with zipfile.ZipFile(output_path, 'r') as check_file:
+            if len(check_file.namelist()) == 0:
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+                print(f"Error: No images were successfully added to CBZ")
+                return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error creating CBZ from images: {e}")
+        import traceback
+        traceback.print_exc()
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except:
+                pass
+        return False
+
+def convert_cbz_to_pdf_file(cbz_path: str, output_path: str) -> bool:
+    """
+    Convert CBZ file to PDF file
+    
+    Args:
+        cbz_path: Path to the CBZ file
+        output_path: Path where the PDF should be saved
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        import pymupdf
+        from PIL import Image
+        import io
+        import zipfile
+        
+        # Open CBZ file (ZIP archive)
+        with zipfile.ZipFile(cbz_path, 'r') as cbz_file:
+            # Get list of files in the archive, sorted by name
+            file_list = sorted(cbz_file.namelist())
+            
+            # Filter to only image files, sorted
+            image_files = []
+            for filename in file_list:
+                lower_name = filename.lower()
+                if (lower_name.endswith('.jpg') or lower_name.endswith('.jpeg') or 
+                    lower_name.endswith('.png') or lower_name.endswith('.webp')):
+                    # Skip hidden files and directories
+                    if not os.path.basename(filename).startswith('.'):
+                        image_files.append(filename)
+            
+            if not image_files:
+                print(f"Error: No images found in CBZ file {cbz_path}")
+                return False
+            
+            # Create a new PDF document
+            pdf_doc = pymupdf.open()
+            
+            # Add each image as a page in the PDF
+            for image_file in image_files:
+                try:
+                    # Extract image to memory
+                    image_data = cbz_file.read(image_file)
+                    img = Image.open(io.BytesIO(image_data))
+                    
+                    # Convert to RGB if necessary
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Save image to temporary bytes
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format='PNG')
+                    img_bytes.seek(0)
+                    
+                    # Create PDF page with image
+                    page_rect = pymupdf.Rect(0, 0, img.width, img.height)
+                    page = pdf_doc.new_page(width=img.width, height=img.height)
+                    
+                    # Insert image into page
+                    page.insert_image(page_rect, stream=img_bytes.getvalue())
+                    
+                except Exception as e:
+                    print(f"Warning: Failed to add image {image_file} to PDF: {e}")
+                    continue
+            
+            if len(pdf_doc) == 0:
+                pdf_doc.close()
+                print(f"Error: Failed to create PDF from CBZ {cbz_path}")
+                return False
+            
+            # Save PDF to output path
+            pdf_doc.save(output_path)
+            pdf_doc.close()
+            
+            return True
+                
+    except zipfile.BadZipFile:
+        print(f"Error: Invalid CBZ file (not a valid ZIP archive): {cbz_path}")
+        return False
+    except Exception as e:
+        print(f"Error converting CBZ to PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def convert_pdf_to_cbz_file(pdf_path: str, output_path: str) -> bool:
+    """
+    Convert PDF file to CBZ file (ZIP archive of images)
+    
+    Args:
+        pdf_path: Path to the PDF file
+        output_path: Path where the CBZ should be saved
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        import pymupdf
+        from PIL import Image
+        import io
+        import zipfile
+        
+        # Open PDF file
+        pdf_doc = pymupdf.open(pdf_path)
+        
+        if len(pdf_doc) == 0:
+            pdf_doc.close()
+            print(f"Error: PDF file has no pages: {pdf_path}")
+            return False
+        
+        # Create ZIP file (CBZ is just a ZIP)
+        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as cbz_file:
+            # Extract each page as an image
+            for page_num in range(len(pdf_doc)):
+                try:
+                    page = pdf_doc[page_num]
+                    
+                    # Render page to image (pixmap)
+                    pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))  # 2x zoom for better quality
+                    
+                    # Convert pixmap to PIL Image
+                    img_data = pix.tobytes("png")
+                    img = Image.open(io.BytesIO(img_data))
+                    
+                    # Convert to RGB if necessary
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Save image to temporary bytes as PNG
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format='PNG')
+                    img_bytes.seek(0)
+                    
+                    # Add to ZIP with sequential naming (page_001.png, page_002.png, etc.)
+                    filename = f"page_{page_num+1:03d}.png"
+                    cbz_file.writestr(filename, img_bytes.getvalue())
+                    
+                except Exception as e:
+                    print(f"Warning: Failed to add page {page_num+1} to CBZ: {e}")
+                    continue
+        
+        pdf_doc.close()
+        
+        # Check if we added any images
+        with zipfile.ZipFile(output_path, 'r') as check_file:
+            if len(check_file.namelist()) == 0:
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+                print(f"Error: No pages were successfully added to CBZ")
+                return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error converting PDF to CBZ: {e}")
+        import traceback
+        traceback.print_exc()
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except:
+                pass
+        return False
+
 def create_pdf_from_text(text: str, output_path: str) -> bool:
     """
     Create a PDF document from text content
@@ -35539,6 +36198,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                     # Get media field configuration
                                     media_config = config.get('media_fields', {}).get(field, {})
                                     media_directory = media_config.get('directory', field)
+                                    target_extension = media_config.get('target_extension', None)
                                     
                                     # Generate filename
                                     rom_filename = os.path.splitext(os.path.basename(game_path))[0]
@@ -35563,7 +36223,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                 else:
                                                     logger.error(f"Failed to create cheats PDF for '{display_name}'")
                                         
-                                        # Handle map (single image or array → PDF)
+                                        # Handle map (single image or array → PDF/CBZ based on target_extension)
                                         elif media_type == 'map':
                                             urls = media_data.get('urls', [])
                                             url = media_data.get('url')
@@ -35571,20 +36231,93 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                 urls = [url]  # Convert single to list
                                             
                                             if urls:
-                                                media_filename = f"{rom_filename}.pdf"
+                                                # Determine target extension from config or default to PDF
+                                                map_target_ext = target_extension if target_extension else '.pdf'
+                                                is_pdf_target = map_target_ext.lower() == '.pdf'
+                                                is_cbz_target = map_target_ext.lower() == '.cbz'
+                                                
+                                                media_filename = f"{rom_filename}{map_target_ext}"
                                                 media_path = os.path.join(system_path, 'media', media_directory, media_filename)
                                                 os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                                 
-                                                if create_pdf_from_images(urls, media_path):
+                                                # Check if first URL is a PDF or CBZ file
+                                                first_url = urls[0]
+                                                is_pdf_source = first_url and (first_url.lower().endswith('.pdf') or '.pdf' in first_url.lower())
+                                                is_cbz_source = first_url and (first_url.lower().endswith('.cbz') or '.cbz' in first_url.lower())
+                                                
+                                                success = False
+                                                if is_pdf_target and is_cbz_source and len(urls) == 1:
+                                                    # Target is PDF, source is CBZ - convert CBZ to PDF
+                                                    import tempfile
+                                                    temp_cbz = tempfile.NamedTemporaryFile(delete=False, suffix='.cbz')
+                                                    temp_cbz_path = temp_cbz.name
+                                                    temp_cbz.close()
+                                                    try:
+                                                        if _is_amigahol_url(first_url):
+                                                            cbz_content = download_media_content(first_url, timeout=30)
+                                                        else:
+                                                            import requests
+                                                            resp = requests.get(first_url, timeout=30)
+                                                            cbz_content = resp.content if resp.status_code == 200 else None
+                                                        if cbz_content:
+                                                            with open(temp_cbz_path, 'wb') as f:
+                                                                f.write(cbz_content)
+                                                            success = convert_cbz_to_pdf_file(temp_cbz_path, media_path)
+                                                        if os.path.exists(temp_cbz_path):
+                                                            os.remove(temp_cbz_path)
+                                                    except Exception as e:
+                                                        logger.error(f"Failed to convert CBZ to PDF for map: {e}")
+                                                        if os.path.exists(temp_cbz_path):
+                                                            try:
+                                                                os.remove(temp_cbz_path)
+                                                            except:
+                                                                pass
+                                                elif is_cbz_target and is_pdf_source and len(urls) == 1:
+                                                    # Target is CBZ, source is PDF - convert PDF to CBZ
+                                                    import tempfile
+                                                    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                                                    temp_pdf_path = temp_pdf.name
+                                                    temp_pdf.close()
+                                                    try:
+                                                        if _is_amigahol_url(first_url):
+                                                            pdf_content = download_media_content(first_url, timeout=30)
+                                                        else:
+                                                            import requests
+                                                            resp = requests.get(first_url, timeout=30)
+                                                            pdf_content = resp.content if resp.status_code == 200 else None
+                                                        if pdf_content:
+                                                            with open(temp_pdf_path, 'wb') as f:
+                                                                f.write(pdf_content)
+                                                            success = convert_pdf_to_cbz_file(temp_pdf_path, media_path)
+                                                        if os.path.exists(temp_pdf_path):
+                                                            os.remove(temp_pdf_path)
+                                                    except Exception as e:
+                                                        logger.error(f"Failed to convert PDF to CBZ for map: {e}")
+                                                        if os.path.exists(temp_pdf_path):
+                                                            try:
+                                                                os.remove(temp_pdf_path)
+                                                            except:
+                                                                pass
+                                                elif not is_pdf_source and not is_cbz_source:
+                                                    # Create PDF/CBZ from images
+                                                    if is_pdf_target:
+                                                        success = create_pdf_from_images(urls, media_path)
+                                                    elif is_cbz_target:
+                                                        success = create_cbz_from_images(urls, media_path)
+                                                    else:
+                                                        # Default to PDF if target_extension not specified
+                                                        success = create_pdf_from_images(urls, media_path)
+                                                
+                                                if success:
                                                     relative_path = f"./media/{media_directory}/{media_filename}"
                                                     game[field] = relative_path
                                                     updated_count += 1
-                                                    logger.info(f"✅ Created map PDF for '{display_name}': {relative_path}")
+                                                    logger.info(f"✅ Created map {map_target_ext} for '{display_name}': {relative_path}")
                                                 else:
-                                                    logger.error(f"Failed to create map PDF for '{display_name}'")
+                                                    logger.error(f"Failed to create map {map_target_ext} for '{display_name}'")
                                         
-                                        # Handle manual (PDF URL → direct download)
-                                        # Can be single URL or array of URLs - use first for scraping task
+                                        # Handle manual (PDF/CBZ URL → download/convert/create from images)
+                                        # Can be single URL or array of URLs - use first for scraping task, or all for PDF/CBZ creation
                                         elif media_type == 'manual':
                                             # Check for urls array first (new format), then fall back to single url
                                             url = None
@@ -35600,54 +36333,144 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                             
                                             if url and isinstance(url, str) and url.strip():
                                                 logger.debug(f"Processing manual download for '{display_name}': {url}")
-                                                target_extension = '.pdf'
-                                                media_filename = f"{rom_filename}{target_extension}"
+                                                
+                                                # Determine target extension from config or default to PDF
+                                                manual_target_ext = target_extension if target_extension else '.pdf'
+                                                is_pdf_target = manual_target_ext.lower() == '.pdf'
+                                                is_cbz_target = manual_target_ext.lower() == '.cbz'
+                                                
+                                                # Check if source URL is a PDF or CBZ file
+                                                is_pdf_source = url and (url.lower().endswith('.pdf') or '.pdf' in url.lower())
+                                                is_cbz_source = url and (url.lower().endswith('.cbz') or '.cbz' in url.lower())
+                                                
+                                                media_filename = f"{rom_filename}{manual_target_ext}"
                                                 media_path = os.path.join(system_path, 'media', media_directory, media_filename)
                                                 os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                                 
-                                                # Use Selenium for amiga.abime.net URLs
-                                                if _is_amigahol_url(url):
-                                                    logger.debug(f"Using Selenium for amigahol manual URL: {url}")
-                                                    if download_media_with_selenium(url, media_path, timeout=30):
-                                                        relative_path = f"./media/{media_directory}/{media_filename}"
-                                                        game[field] = relative_path
-                                                        updated_count += 1
-                                                        logger.info(f"✅ Downloaded manual PDF for '{display_name}': {relative_path}")
-                                                    else:
-                                                        logger.error(f"Failed to download manual PDF for '{display_name}' from {url}")
-                                                else:
-                                                    logger.debug(f"Using requests for manual URL (not amigahol): {url}")
-                                                    import requests
-                                                    response = requests.get(url, timeout=30)
-                                                    if response.status_code == 200:
-                                                        # CRITICAL: Validate it's actually a PDF, not HTML
-                                                        content_type = response.headers.get('Content-Type', '').lower()
-                                                        content = response.content
-                                                        
-                                                        # Check Content-Type
-                                                        if 'text/html' in content_type or 'text/plain' in content_type:
-                                                            logger.error(f"PDF download failed: Invalid Content-Type '{content_type}' (HTML detected)")
-                                                        # Check PDF header
-                                                        elif len(content) < 4 or content[:4] != b'%PDF':
-                                                            logger.error(f"PDF download failed: Response does not start with %PDF header. First 100 bytes: {content[:100]}")
-                                                        # Check for HTML tags
-                                                        elif (b'<!doctype' in content[:500].lower() or 
-                                                              b'<html' in content[:500].lower() or
-                                                              b'making sure you' in content[:500].lower()):
-                                                            logger.error(f"PDF download failed: Response contains HTML. First 200 bytes: {content[:200]}")
-                                                        # Check size (PDFs are usually > 5KB)
-                                                        elif len(content) < 5000:
-                                                            logger.error(f"PDF download failed: File too small ({len(content)} bytes), likely HTML")
+                                                success = False
+                                                
+                                                # Handle PDF/CBZ conversions
+                                                if is_pdf_target and is_cbz_source:
+                                                    # Target is PDF, source is CBZ - convert CBZ to PDF
+                                                    import tempfile
+                                                    temp_cbz = tempfile.NamedTemporaryFile(delete=False, suffix='.cbz')
+                                                    temp_cbz_path = temp_cbz.name
+                                                    temp_cbz.close()
+                                                    try:
+                                                        if _is_amigahol_url(url):
+                                                            cbz_content = download_media_content(url, timeout=30)
                                                         else:
-                                                            # All checks passed - save the PDF
-                                                            with open(media_path, 'wb') as f:
-                                                                f.write(content)
-                                                            relative_path = f"./media/{media_directory}/{media_filename}"
-                                                            game[field] = relative_path
-                                                            updated_count += 1
-                                                            logger.info(f"✅ Downloaded manual PDF for '{display_name}': {relative_path}")
+                                                            import requests
+                                                            resp = requests.get(url, timeout=30)
+                                                            cbz_content = resp.content if resp.status_code == 200 else None
+                                                        if cbz_content:
+                                                            with open(temp_cbz_path, 'wb') as f:
+                                                                f.write(cbz_content)
+                                                            success = convert_cbz_to_pdf_file(temp_cbz_path, media_path)
+                                                        if os.path.exists(temp_cbz_path):
+                                                            os.remove(temp_cbz_path)
+                                                    except Exception as e:
+                                                        logger.error(f"Failed to convert CBZ to PDF for manual: {e}")
+                                                        if os.path.exists(temp_cbz_path):
+                                                            try:
+                                                                os.remove(temp_cbz_path)
+                                                            except:
+                                                                pass
+                                                elif is_cbz_target and is_pdf_source:
+                                                    # Target is CBZ, source is PDF - convert PDF to CBZ
+                                                    import tempfile
+                                                    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                                                    temp_pdf_path = temp_pdf.name
+                                                    temp_pdf.close()
+                                                    try:
+                                                        if _is_amigahol_url(url):
+                                                            pdf_content = download_media_content(url, timeout=30)
+                                                        else:
+                                                            import requests
+                                                            resp = requests.get(url, timeout=30)
+                                                            pdf_content = resp.content if resp.status_code == 200 else None
+                                                        if pdf_content:
+                                                            with open(temp_pdf_path, 'wb') as f:
+                                                                f.write(pdf_content)
+                                                            success = convert_pdf_to_cbz_file(temp_pdf_path, media_path)
+                                                        if os.path.exists(temp_pdf_path):
+                                                            os.remove(temp_pdf_path)
+                                                    except Exception as e:
+                                                        logger.error(f"Failed to convert PDF to CBZ for manual: {e}")
+                                                        if os.path.exists(temp_pdf_path):
+                                                            try:
+                                                                os.remove(temp_pdf_path)
+                                                            except:
+                                                                pass
+                                                # Handle creating PDF/CBZ from image arrays
+                                                elif (is_pdf_target or is_cbz_target) and urls and isinstance(urls, list) and len(urls) > 0 and not is_pdf_source and not is_cbz_source:
+                                                    # Create PDF/CBZ from array of image URLs
+                                                    if is_pdf_target:
+                                                        success = create_pdf_from_images(urls, media_path)
+                                                    else:  # is_cbz_target
+                                                        success = create_cbz_from_images(urls, media_path)
+                                                # Handle creating PDF/CBZ from single image
+                                                elif (is_pdf_target or is_cbz_target) and not is_pdf_source and not is_cbz_source:
+                                                    # Single image URL with PDF/CBZ target - create PDF/CBZ from single image
+                                                    if is_pdf_target:
+                                                        success = create_pdf_from_images([url], media_path)
+                                                    else:  # is_cbz_target
+                                                        success = create_cbz_from_images([url], media_path)
+                                                # Handle direct PDF/CBZ download (no conversion needed)
+                                                elif (is_pdf_target and is_pdf_source) or (is_cbz_target and is_cbz_source):
+                                                    # Target matches source - direct download
+                                                    if _is_amigahol_url(url):
+                                                        logger.debug(f"Using Selenium for amigahol manual URL: {url}")
+                                                        success = download_media_with_selenium(url, media_path, timeout=30)
                                                     else:
-                                                        logger.error(f"Failed to download manual PDF for '{display_name}': HTTP {response.status_code}")
+                                                        logger.debug(f"Using requests for manual URL (not amigahol): {url}")
+                                                        import requests
+                                                        response = requests.get(url, timeout=30)
+                                                        if response.status_code == 200:
+                                                            # CRITICAL: Validate it's actually a PDF/CBZ, not HTML
+                                                            content_type = response.headers.get('Content-Type', '').lower()
+                                                            content = response.content
+                                                            
+                                                            # For PDF targets, validate PDF
+                                                            if is_pdf_target:
+                                                                # Check Content-Type
+                                                                if 'text/html' in content_type or 'text/plain' in content_type:
+                                                                    logger.error(f"PDF download failed: Invalid Content-Type '{content_type}' (HTML detected)")
+                                                                # Check PDF header
+                                                                elif len(content) < 4 or content[:4] != b'%PDF':
+                                                                    logger.error(f"PDF download failed: Response does not start with %PDF header. First 100 bytes: {content[:100]}")
+                                                                # Check for HTML tags
+                                                                elif (b'<!doctype' in content[:500].lower() or 
+                                                                      b'<html' in content[:500].lower() or
+                                                                      b'making sure you' in content[:500].lower()):
+                                                                    logger.error(f"PDF download failed: Response contains HTML. First 200 bytes: {content[:200]}")
+                                                                # Check size (PDFs are usually > 5KB)
+                                                                elif len(content) < 5000:
+                                                                    logger.error(f"PDF download failed: File too small ({len(content)} bytes), likely HTML")
+                                                                else:
+                                                                    # All checks passed - save the PDF
+                                                                    with open(media_path, 'wb') as f:
+                                                                        f.write(content)
+                                                                    success = True
+                                                            else:  # CBZ target
+                                                                # For CBZ, just check it's not HTML
+                                                                if 'text/html' in content_type or (len(content) < 100 and (b'<!doctype' in content[:100].lower() or b'<html' in content[:100].lower())):
+                                                                    logger.error(f"CBZ download failed: Response appears to be HTML")
+                                                                else:
+                                                                    # Save the CBZ
+                                                                    with open(media_path, 'wb') as f:
+                                                                        f.write(content)
+                                                                    success = True
+                                                        else:
+                                                            logger.error(f"Failed to download manual for '{display_name}': HTTP {response.status_code}")
+                                                
+                                                if success:
+                                                    relative_path = f"./media/{media_directory}/{media_filename}"
+                                                    game[field] = relative_path
+                                                    updated_count += 1
+                                                    logger.info(f"✅ Downloaded/created manual {manual_target_ext} for '{display_name}': {relative_path}")
+                                                else:
+                                                    logger.error(f"Failed to download/create manual {manual_target_ext} for '{display_name}' from {url}")
                                             else:
                                                 logger.debug(f"No valid manual URL in media_data for '{display_name}': {media_data}")
                                         

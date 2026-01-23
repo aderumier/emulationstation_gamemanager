@@ -6832,14 +6832,80 @@ class GameCollectionManager {
         return url;
     }
 
-    displayMultiscraperMediaOptions(mediaResults, game, mediaType) {
+    async displayMultiscraperMediaOptions(mediaResults, game, mediaType) {
         const contentDiv = document.getElementById('multiscraperMediaContent');
         contentDiv.innerHTML = '';
+        
+        // Fetch config to get target_extension for the media type
+        let config = null;
+        try {
+            const configResponse = await fetch('/api/config');
+            if (configResponse.ok) {
+                config = await configResponse.json();
+            }
+        } catch (error) {
+            console.error('Error fetching config:', error);
+        }
+        
+        // Get target_extension from config
+        const targetExtension = config?.media_fields?.[mediaType]?.target_extension;
+        const isPdfTarget = targetExtension && targetExtension.toLowerCase() === '.pdf';
+        const isCbzTarget = targetExtension && targetExtension.toLowerCase() === '.cbz';
+        const isPdfOrCbzTarget = isPdfTarget || isCbzTarget;
         
         // Store resolution info elements by card for later updates
         const cardResolutionInfoMap = new Map();
         
+        // Process results - create separate cards for multiple images/PDFs
+        const processedResults = [];
         mediaResults.forEach((result, index) => {
+            // Check if this result has multiple URLs
+            const urls = result.urls && Array.isArray(result.urls) && result.urls.length > 1 ? result.urls : (result.url ? [result.url] : []);
+            const hasMultipleUrls = urls.length > 1;
+            
+            // Check if URLs are PDFs
+            const arePdfs = urls.some(url => url && (url.toLowerCase().endsWith('.pdf') || url.toLowerCase().includes('.pdf')));
+            const isPdfType = mediaType === 'manual' || mediaType === 'map' || mediaType === 'magazine';
+            
+            // If there are multiple URLs, create separate results for each
+            // - For images: only if target is NOT PDF/CBZ
+            // - For PDFs: always split into separate cards
+            if (hasMultipleUrls) {
+                if (arePdfs || isPdfType) {
+                    // Always split PDFs into separate cards
+                    urls.forEach((url, urlIndex) => {
+                        processedResults.push({
+                            ...result,
+                            url: url,
+                            urls: [url], // Single URL for this card
+                            _originalIndex: index,
+                            _urlIndex: urlIndex,
+                            _totalUrls: urls.length
+                        });
+                    });
+                } else if (!isPdfOrCbzTarget) {
+                    // For images, only split if target is NOT PDF/CBZ
+                    urls.forEach((url, urlIndex) => {
+                        processedResults.push({
+                            ...result,
+                            url: url,
+                            urls: [url], // Single URL for this card
+                            _originalIndex: index,
+                            _urlIndex: urlIndex,
+                            _totalUrls: urls.length
+                        });
+                    });
+                } else {
+                    // For images with PDF/CBZ target, keep original result (will be converted)
+                    processedResults.push(result);
+                }
+            } else {
+                // Single URL, keep original result
+                processedResults.push(result);
+            }
+        });
+        
+        processedResults.forEach((result, index) => {
             const col = document.createElement('div');
             col.className = 'col-md-6 col-lg-4 mb-3';
             
@@ -7139,94 +7205,31 @@ class GameCollectionManager {
                 
                 // For manual/map/magazine (PDF/CBZ) types, use PDF/CBZ preview endpoint to show first page
                 if (mediaType === 'manual' || mediaType === 'map' || mediaType === 'magazine') {
-                    // Check if we have multiple PDF URLs (for custom/custom2 arrays)
-                    const pdfUrls = result.urls && Array.isArray(result.urls) && result.urls.length > 1 ? result.urls : (result.url ? [result.url] : []);
-                    const isCustom = result.source && (result.source.toLowerCase() === 'custom' || result.source.toLowerCase() === 'custom2');
+                    // Get the PDF URL for this card (after splitting, each card has one URL)
+                    const pdfUrl = result.url || (result.urls && Array.isArray(result.urls) && result.urls.length > 0 ? result.urls[0] : null);
                     
-                    // For custom/custom2 with multiple PDFs, create a carousel
-                    if (pdfUrls.length > 1 && isCustom) {
-                        const carouselContainer = document.createElement('div');
-                        carouselContainer.className = 'card-img-top';
-                        carouselContainer.style.height = '300px';
-                        carouselContainer.style.position = 'relative';
-                        carouselContainer.style.backgroundColor = this.getMediaCardBackgroundColor();
-                        carouselContainer.style.overflow = 'hidden';
-                        
-                        const carouselId = `carousel-pdf-${index}-${Date.now()}`;
-                        carouselContainer.innerHTML = `
-                            <div id="${carouselId}" class="carousel slide h-100" data-bs-ride="carousel">
-                                <div class="carousel-inner h-100">
-                                    ${pdfUrls.map((pdfUrl, pdfIndex) => `
-                                        <div class="carousel-item ${pdfIndex === 0 ? 'active' : ''} h-100">
-                                            <div class="pdf-preview-container h-100" data-pdf-url="${pdfUrl}" style="display: flex; align-items: center; justify-content: center; background-color: ${this.getMediaCardBackgroundColor()};">
-                                                <div class="spinner-border text-primary" role="status">
-                                                    <span class="visually-hidden">Loading...</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                                ${pdfUrls.length > 1 ? `
-                                    <button class="carousel-control-prev" type="button" data-bs-target="#${carouselId}" data-bs-slide="prev">
-                                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-                                        <span class="visually-hidden">Previous</span>
-                                    </button>
-                                    <button class="carousel-control-next" type="button" data-bs-target="#${carouselId}" data-bs-slide="next">
-                                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
-                                        <span class="visually-hidden">Next</span>
-                                    </button>
-                                    <div class="carousel-indicators" style="bottom: 5px;">
-                                        ${pdfUrls.map((url, pdfIndex) => `
-                                            <button type="button" data-bs-target="#${carouselId}" data-bs-slide-to="${pdfIndex}" ${pdfIndex === 0 ? 'class="active" aria-current="true"' : ''} aria-label="Slide ${pdfIndex + 1}"></button>
-                                        `).join('')}
-                                    </div>
-                                ` : ''}
-                            </div>
+                    // Check if this is a PDF URL
+                    const isPdfUrl = pdfUrl && (pdfUrl.toLowerCase().endsWith('.pdf') || pdfUrl.toLowerCase().includes('.pdf'));
+                    
+                    if (!pdfUrl) {
+                        // No PDF URL - show error placeholder
+                        const errorPlaceholder = document.createElement('div');
+                        errorPlaceholder.className = 'card-img-top';
+                        errorPlaceholder.style.height = '300px';
+                        errorPlaceholder.style.display = 'flex';
+                        errorPlaceholder.style.alignItems = 'center';
+                        errorPlaceholder.style.justifyContent = 'center';
+                        errorPlaceholder.style.flexDirection = 'column';
+                        errorPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                        errorPlaceholder.innerHTML = `
+                            <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #6c757d; margin-bottom: 1rem;"></i>
+                            <div style="text-align: center; color: #6c757d; font-weight: 500;">No PDF URL</div>
                         `;
-                        card.appendChild(carouselContainer);
-                        
-                        // Load PDF previews for each carousel item
-                        pdfUrls.forEach((pdfUrl, pdfIndex) => {
-                            const previewContainer = carouselContainer.querySelector(`[data-pdf-url="${pdfUrl}"]`);
-                            if (!previewContainer) return;
-                            
-                            fetch('/api/pdf-preview-remote', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                credentials: 'include',
-                                body: JSON.stringify({ url: pdfUrl })
-                            })
-                            .then(response => response.ok ? response.blob() : Promise.reject(new Error(`Failed: ${response.status}`)))
-                            .then(blob => {
-                                const blobUrl = URL.createObjectURL(blob);
-                                const previewImg = document.createElement('img');
-                                previewImg.src = blobUrl;
-                                previewImg.style.width = '100%';
-                                previewImg.style.height = '100%';
-                                previewImg.style.objectFit = 'contain';
-                                previewImg.style.backgroundColor = this.getMediaCardBackgroundColor();
-                                previewImg.alt = `${mediaType} ${pdfIndex + 1} from ${result.source}`;
-                                previewContainer.innerHTML = '';
-                                previewContainer.appendChild(previewImg);
-                                
-                                // Store blob URL for cleanup
-                                previewContainer._pdfBlobUrl = blobUrl;
-                            })
-                            .catch(error => {
-                                console.error(`Failed to load PDF preview ${pdfIndex + 1}:`, error);
-                                previewContainer.innerHTML = `
-                                    <div style="text-align: center; color: #6c757d;">
-                                        <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #dc3545; margin-bottom: 0.5rem;"></i>
-                                        <div style="font-size: 0.875rem;">PDF ${pdfIndex + 1}</div>
-                                        <div style="font-size: 0.75rem; color: #6c757d;">Preview unavailable</div>
-                                    </div>
-                                `;
-                            });
-                        });
-                    } else {
-                        // Single PDF - use existing logic
+                        card.appendChild(errorPlaceholder);
+                    } else if (isPdfUrl) {
+                        // Single PDF - show preview
                         // Determine the actual PDF URL
-                        let pdfUrl = result.url;
+                        let actualPdfUrl = pdfUrl;
                         
                         // For ScreenScraper, construct the direct PDF URL from system ID and game ID
                         // Format: https://www.screenscraper.fr/medias/<system_id>/<game_id>/manuel(us).pdf
@@ -7235,105 +7238,109 @@ class GameCollectionManager {
                             // Construct ScreenScraper PDF URL - try different region variants
                             // ScreenScraper uses format: manuel(us), manuel(eu), manuel(jp), etc.
                             const region = result.region || 'us';
-                            pdfUrl = `https://www.screenscraper.fr/medias/${result.screenscraper_system_id}/${result.screenscraperid}/manuel(${region}).pdf`;
+                            actualPdfUrl = `https://www.screenscraper.fr/medias/${result.screenscraper_system_id}/${result.screenscraperid}/manuel(${region}).pdf`;
                         }
                         
-                        // Skip if URL doesn't look like a PDF (unless it's ScreenScraper which we just constructed)
-                        if (!isScreenScraper && (!pdfUrl || (!pdfUrl.toLowerCase().endsWith('.pdf') && !pdfUrl.toLowerCase().includes('.pdf')))) {
-                            // Not a valid PDF URL, fall through to regular image handling
-                            // Use proxy for HTTP URLs when page is HTTPS
-                            img.src = this.getProxiedMediaUrl(result.url || '');
-                            img.alt = `${mediaType} from ${result.source}`;
-                            img.onerror = () => {
-                                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
-                            };
-                            card.appendChild(img);
-                        } else {
-                            // Use remote PDF preview endpoint to generate preview from URL (server-side)
-                            const previewUrl = '/api/pdf-preview-remote';
-                            
-                            // Set up image with loading state
+                        // Use remote PDF preview endpoint to generate preview from URL (server-side)
+                        const previewUrl = '/api/pdf-preview-remote';
+                        
+                        // Set up image with loading state
+                        img.style.display = 'block';
+                        img.src = ''; // Start with empty src
+                        img.alt = `PDF ${mediaType} from ${result.source}${result._urlIndex !== undefined && result._totalUrls ? ` (${result._urlIndex + 1}/${result._totalUrls})` : ''}`;
+                        
+                        // Show loading placeholder
+                        const loadingPlaceholder = document.createElement('div');
+                        loadingPlaceholder.className = 'card-img-top';
+                        loadingPlaceholder.style.height = '300px';
+                        loadingPlaceholder.style.display = 'flex';
+                        loadingPlaceholder.style.alignItems = 'center';
+                        loadingPlaceholder.style.justifyContent = 'center';
+                        loadingPlaceholder.style.flexDirection = 'column';
+                        loadingPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                        loadingPlaceholder.innerHTML = `
+                            <div class="spinner-border text-primary" role="status" style="margin-bottom: 1rem;">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div style="text-align: center; color: #6c757d; font-weight: 500;">Loading PDF preview...</div>
+                        `;
+                        card.appendChild(loadingPlaceholder);
+                        
+                        // Fetch PDF preview from remote URL (server-side call only)
+                        fetch(previewUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({ url: actualPdfUrl })
+                        })
+                        .then(response => {
+                            if (response.ok) {
+                                // Get the image blob and create object URL
+                                return response.blob();
+                            } else {
+                                throw new Error(`Failed to generate preview: ${response.status}`);
+                            }
+                        })
+                        .then(blob => {
+                            const blobUrl = URL.createObjectURL(blob);
+                            // Remove loading placeholder and show image
+                            card.removeChild(loadingPlaceholder);
+                            img.src = blobUrl;
                             img.style.display = 'block';
-                            img.src = ''; // Start with empty src
-                            img.alt = `PDF Manual from ${result.source}`;
+                            card.appendChild(img);
                             
-                            // Show loading placeholder
-                            const loadingPlaceholder = document.createElement('div');
-                            loadingPlaceholder.className = 'card-img-top';
-                            loadingPlaceholder.style.height = '300px';
-                            loadingPlaceholder.style.display = 'flex';
-                            loadingPlaceholder.style.alignItems = 'center';
-                            loadingPlaceholder.style.justifyContent = 'center';
-                            loadingPlaceholder.style.flexDirection = 'column';
-                            loadingPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
-                            loadingPlaceholder.innerHTML = `
-                                <div class="spinner-border text-primary" role="status" style="margin-bottom: 1rem;">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                                <div style="text-align: center; color: #6c757d; font-weight: 500;">Loading PDF preview...</div>
-                            `;
-                            card.appendChild(loadingPlaceholder);
-                            
-                            // Fetch PDF preview from remote URL (server-side call only)
-                            fetch(previewUrl, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                credentials: 'include',
-                                body: JSON.stringify({ url: pdfUrl })
-                            })
-                            .then(response => {
-                                if (response.ok) {
-                                    // Get the image blob and create object URL
-                                    return response.blob();
-                                } else {
-                                    throw new Error(`Failed to generate preview: ${response.status}`);
-                                }
-                            })
-                            .then(blob => {
-                                const blobUrl = URL.createObjectURL(blob);
-                                // Remove loading placeholder and show image
-                                card.removeChild(loadingPlaceholder);
-                                img.src = blobUrl;
-                                img.style.display = 'block';
-                                card.appendChild(img);
-                                
-                                // Add hover preview functionality
-                                img.addEventListener('mouseenter', (e) => {
-                                    this.showMediaHover(e, blobUrl, mediaType);
-                                });
-                                img.addEventListener('mouseleave', () => {
-                                    this.hideMediaHover();
-                                });
-                                
-                                // Clean up blob URL when card is removed (if needed)
-                                card._pdfBlobUrl = blobUrl;
-                            })
-                            .catch(error => {
-                                console.error('Failed to load PDF preview:', error);
-                                // Remove loading placeholder and show error placeholder
-                                card.removeChild(loadingPlaceholder);
-                                const errorPlaceholder = document.createElement('div');
-                                errorPlaceholder.className = 'card-img-top';
-                                errorPlaceholder.style.height = '300px';
-                                errorPlaceholder.style.display = 'flex';
-                                errorPlaceholder.style.alignItems = 'center';
-                                errorPlaceholder.style.justifyContent = 'center';
-                                errorPlaceholder.style.flexDirection = 'column';
-                                errorPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
-                                errorPlaceholder.innerHTML = `
-                                    <i class="bi bi-file-earmark-pdf" style="font-size: 4rem; color: #dc3545; margin-bottom: 1rem;"></i>
-                                    <div style="text-align: center; color: #6c757d; font-weight: 500;">PDF Manual</div>
-                                    <div style="text-align: center; color: #6c757d; font-size: 0.75rem; margin-top: 0.5rem;">Preview unavailable</div>
-                                `;
-                                card.appendChild(errorPlaceholder);
+                            // Add hover preview functionality
+                            img.addEventListener('mouseenter', (e) => {
+                                this.showMediaHover(e, blobUrl, mediaType);
                             });
-                        }
+                            img.addEventListener('mouseleave', () => {
+                                this.hideMediaHover();
+                            });
+                            
+                            // Clean up blob URL when card is removed (if needed)
+                            card._pdfBlobUrl = blobUrl;
+                        })
+                        .catch(error => {
+                            console.error('Failed to load PDF preview:', error);
+                            // Remove loading placeholder and show error placeholder
+                            card.removeChild(loadingPlaceholder);
+                            const errorPlaceholder = document.createElement('div');
+                            errorPlaceholder.className = 'card-img-top';
+                            errorPlaceholder.style.height = '300px';
+                            errorPlaceholder.style.display = 'flex';
+                            errorPlaceholder.style.alignItems = 'center';
+                            errorPlaceholder.style.justifyContent = 'center';
+                            errorPlaceholder.style.flexDirection = 'column';
+                            errorPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                            errorPlaceholder.innerHTML = `
+                                <i class="bi bi-file-earmark-pdf" style="font-size: 4rem; color: #dc3545; margin-bottom: 1rem;"></i>
+                                <div style="text-align: center; color: #6c757d; font-weight: 500;">PDF ${mediaType}</div>
+                                <div style="text-align: center; color: #6c757d; font-size: 0.75rem; margin-top: 0.5rem;">Preview unavailable</div>
+                            `;
+                            card.appendChild(errorPlaceholder);
+                        });
+                    } else {
+                        // Not a PDF URL, fall through to regular image handling
+                        // Use proxy for HTTP URLs when page is HTTPS
+                        img.src = this.getProxiedMediaUrl(result.url || '');
+                        img.alt = `${mediaType} from ${result.source}`;
+                        img.onerror = () => {
+                            img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
+                        };
+                        card.appendChild(img);
                     }
                 } else {
-                    // Regular image - check if we have multiple URLs (for custom/custom2 arrays)
-                    const imageUrls = result.urls && Array.isArray(result.urls) && result.urls.length > 1 ? result.urls : (result.url ? [result.url] : []);
+                    // Regular image - get URLs from result
+                    // For PDF/CBZ targets, use only first URL even if there are multiple
+                    // For non-PDF/CBZ targets, we already split them in processedResults, so each card has one URL
+                    let imageUrls = result.urls && Array.isArray(result.urls) ? result.urls : (result.url ? [result.url] : []);
+                    
+                    // For PDF/CBZ targets, show only first image even if there are multiple
+                    if (isPdfOrCbzTarget && imageUrls.length > 1) {
+                        imageUrls = [imageUrls[0]];
+                    }
                     
                     if (imageUrls.length === 0) {
                         // No URL provided - show error placeholder
@@ -7350,8 +7357,10 @@ class GameCollectionManager {
                             <div style="text-align: center; color: #6c757d; font-weight: 500;">No image URL</div>
                         `;
                         card.appendChild(errorPlaceholder);
-                    } else if (imageUrls.length > 1) {
-                        // Multiple images - create a carousel
+                    } else if (imageUrls.length > 1 && !isPdfOrCbzTarget) {
+                        // Multiple images and NOT PDF/CBZ target - this shouldn't happen after processedResults split
+                        // But handle it just in case - show all images (each should be in separate card already)
+                        // For safety, show only first image here
                         const isCustom = result.source && (result.source.toLowerCase() === 'custom' || result.source.toLowerCase() === 'custom2');
                         if (isCustom) {
                             const carouselContainer = document.createElement('div');
@@ -7536,6 +7545,15 @@ class GameCollectionManager {
             if (result.source && result.source.toLowerCase() === 'emumovies' && result.emumovies_type) {
                 titleText = `${result.source} - ${result.emumovies_type}`;
             }
+            // If this is a split item from multiple URLs, show number
+            // For PDFs: always show number if there are multiple
+            // For images: only show number if target is NOT PDF/CBZ
+            const isPdfType = mediaType === 'manual' || mediaType === 'map' || mediaType === 'magazine';
+            if (result._urlIndex !== undefined && result._totalUrls && result._totalUrls > 1) {
+                if (isPdfType || !isPdfOrCbzTarget) {
+                    titleText += ` (${result._urlIndex + 1}/${result._totalUrls})`;
+                }
+            }
             title.textContent = titleText;
             
             // Add metadata (region, resolution, or EmuMovies type)
@@ -7649,10 +7667,30 @@ class GameCollectionManager {
                         this.downloadMultiscraperMedia(result.url, game, mediaType);
                     }
                 } else {
-                    // For custom/custom2 with urls array, use the first URL for download
-                    // (user can see all in carousel but downloads first one)
-                    const downloadUrl = (result.urls && Array.isArray(result.urls) && result.urls.length > 0) ? result.urls[0] : result.url;
-                    this.downloadMultiscraperMedia(downloadUrl, game, mediaType);
+                    // Use the URL from result (for split images/PDFs, each card has its own URL)
+                    // For PDF/CBZ targets with multiple URLs (not split), pass all URLs for conversion
+                    // For split PDFs/images, download just that single item
+                    let downloadUrl = result.url;
+                    let urlsArray = null;
+                    
+                    // Check if this is a split item (from multiple URLs)
+                    const isSplitItem = result._urlIndex !== undefined;
+                    
+                    if (isSplitItem) {
+                        // This is a split item - download just this single URL
+                        downloadUrl = result.url;
+                        urlsArray = null; // Don't pass URLs array for split items
+                    } else if (isPdfOrCbzTarget && result.urls && Array.isArray(result.urls) && result.urls.length > 1) {
+                        // For PDF/CBZ targets with multiple URLs (not split), pass all URLs for PDF/CBZ creation
+                        urlsArray = result.urls;
+                        downloadUrl = result.urls[0]; // Use first URL as primary
+                    } else if (result.urls && Array.isArray(result.urls) && result.urls.length > 0 && !result.url) {
+                        // Fallback: if url is not set but urls array exists, use first
+                        downloadUrl = result.urls[0];
+                    }
+                    
+                    // Pass URLs array and target_extension for PDF/CBZ conversions (only if not a split item)
+                    this.downloadMultiscraperMedia(downloadUrl, game, mediaType, null, null, urlsArray, (!isSplitItem && isPdfOrCbzTarget) ? (isPdfTarget ? '.pdf' : '.cbz') : null);
                 }
             };
             
@@ -7669,7 +7707,34 @@ class GameCollectionManager {
         });
     }
     
-    async downloadMultiscraperMedia(mediaUrl, game, mediaType, screenscraperId = null, screenscraperSystemId = null) {
+    async downloadMultiscraperMedia(mediaUrl, game, mediaType, screenscraperId = null, screenscraperSystemId = null, urlsArray = null, targetExtension = null) {
+        // Determine if we're doing a conversion
+        const isConversion = targetExtension && (targetExtension.toLowerCase() === '.pdf' || targetExtension.toLowerCase() === '.cbz');
+        const isMultipleImages = urlsArray && Array.isArray(urlsArray) && urlsArray.length > 1;
+        
+        // Create loading message
+        let loadingMessage = 'Downloading media';
+        if (isConversion) {
+            if (isMultipleImages) {
+                loadingMessage = `Downloading ${urlsArray.length} images and creating ${targetExtension.toUpperCase()}...`;
+            } else {
+                loadingMessage = `Downloading and converting to ${targetExtension.toUpperCase()}...`;
+            }
+        }
+        
+        // Show loading alert
+        const loadingAlert = document.createElement('div');
+        loadingAlert.id = 'multiscraper-download-loading';
+        loadingAlert.className = 'alert alert-info alert-dismissible fade show position-fixed';
+        loadingAlert.style.cssText = 'top: 20px; right: 20px; z-index: 10000; min-width: 350px;';
+        loadingAlert.innerHTML = `
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                <div class="flex-grow-1">${loadingMessage}</div>
+            </div>
+        `;
+        document.body.appendChild(loadingAlert);
+        
         try {
             const requestBody = {
                 media_url: mediaUrl,
@@ -7684,6 +7749,14 @@ class GameCollectionManager {
                 requestBody.screenscraper_system_id = screenscraperSystemId;
             }
             
+            // Add URLs array and target_extension for PDF/CBZ conversions
+            if (urlsArray && Array.isArray(urlsArray) && urlsArray.length > 0) {
+                requestBody.urls = urlsArray;
+            }
+            if (targetExtension) {
+                requestBody.target_extension = targetExtension;
+            }
+            
             const response = await fetch('/api/download-multiscraper-media', {
                 method: 'POST',
                 headers: {
@@ -7693,6 +7766,11 @@ class GameCollectionManager {
                 body: JSON.stringify(requestBody)
             });
             
+            // Remove loading alert
+            if (loadingAlert.parentNode) {
+                loadingAlert.remove();
+            }
+            
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -7700,7 +7778,10 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                this.showAlert(`Media downloaded successfully for ${game.name}`, 'success');
+                const successMessage = isConversion 
+                    ? `Media ${isMultipleImages ? `(${urlsArray.length} images)` : ''} converted to ${targetExtension.toUpperCase()} successfully for ${game.name}`
+                    : `Media downloaded successfully for ${game.name}`;
+                this.showAlert(successMessage, 'success');
                 // Close the modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('multiscraperMediaModal'));
                 if (modal) {
@@ -7719,6 +7800,10 @@ class GameCollectionManager {
                 this.showAlert(data.error || 'Failed to download media', 'danger');
             }
         } catch (error) {
+            // Remove loading alert on error
+            if (loadingAlert.parentNode) {
+                loadingAlert.remove();
+            }
             this.showAlert('Error downloading media: ' + error.message, 'danger');
         }
     }
@@ -8698,9 +8783,20 @@ class GameCollectionManager {
         }
     }
 
-    populateMediaFields(mediaFields) {
+    async populateMediaFields(mediaFields) {
         const container = document.getElementById('mediaFieldsContainer');
         container.innerHTML = '';
+
+        // Fetch config to get target_extension for each media field
+        let config = null;
+        try {
+            const configResponse = await fetch('/api/config');
+            if (configResponse.ok) {
+                config = await configResponse.json();
+            }
+        } catch (error) {
+            console.error('Error fetching config:', error);
+        }
 
         const mediaTypes = {
             'image': 'Box Art',
@@ -8711,6 +8807,10 @@ class GameCollectionManager {
         Object.entries(mediaFields)
             .filter(([mediaKey]) => mediaKey !== 'video' && mediaKey !== 'manual')
             .forEach(([mediaKey, mediaData]) => {
+                // Get target_extension from config
+                const targetExtension = config?.media_fields?.[mediaKey]?.target_extension;
+                const isPdfTarget = targetExtension && targetExtension.toLowerCase() === '.pdf';
+                const isCbzTarget = targetExtension && targetExtension.toLowerCase() === '.cbz';
             const card = document.createElement('div');
             card.className = 'card mb-3';
             
@@ -8781,9 +8881,9 @@ class GameCollectionManager {
                     if (!this.manualScrapSelectedMedia) this.manualScrapSelectedMedia = {};
                     // For MobyGames, use page_url for full-size download, otherwise use url
                     const downloadUrl = (source === 'mobygames' && metadata.page_url) ? metadata.page_url : url;
-                    // For custom/custom2 with urls array, store the selected URL and the full array
+                    // Store the selected URL and the full array if present (for PDF/CBZ or custom/custom2)
                     const selectionData = { source, index, url: downloadUrl };
-                    if ((source === 'custom' || source === 'custom2') && metadata.urls && Array.isArray(metadata.urls)) {
+                    if (metadata.urls && Array.isArray(metadata.urls)) {
                         selectionData.urls = metadata.urls;
                         selectionData.selected_url_index = metadata.url_index || 0;
                     }
@@ -8814,8 +8914,14 @@ class GameCollectionManager {
                     if (typeof item === 'string') {
                         grid.appendChild(createTile(source, item, idx));
                     } else if (typeof item === 'object') {
-                        // For custom/custom2, check if there's a 'urls' array
-                        if ((source === 'custom' || source === 'custom2') && item.urls && Array.isArray(item.urls) && item.urls.length > 1) {
+                        // For PDF/CBZ targets, if there's a urls array, show only the first image
+                        if ((isPdfTarget || isCbzTarget) && item.urls && Array.isArray(item.urls) && item.urls.length > 0) {
+                            // Show only first image, but store full urls array
+                            const firstUrl = item.urls[0];
+                            grid.appendChild(createTile(source, firstUrl, idx, { ...item, url_index: 0, total_urls: item.urls.length, urls: item.urls }));
+                        }
+                        // For custom/custom2, check if there's a 'urls' array (when not PDF/CBZ target)
+                        else if ((source === 'custom' || source === 'custom2') && item.urls && Array.isArray(item.urls) && item.urls.length > 1) {
                             // Create a tile for each URL in the array
                             item.urls.forEach((url, urlIdx) => {
                                 grid.appendChild(createTile(source, url, idx * 1000 + urlIdx, { ...item, url_index: urlIdx, total_urls: item.urls.length }));
@@ -8996,6 +9102,10 @@ class GameCollectionManager {
                     selectedValues[fieldName] = sel.source;
                     selectedValues[`${fieldName}_index`] = sel.index;
                     selectedValues[`${fieldName}_url`] = sel.url;
+                    // Include urls array if present (for PDF/CBZ creation from multiple images)
+                    if (sel.urls && Array.isArray(sel.urls)) {
+                        selectedValues[`${fieldName}_urls`] = sel.urls;
+                    }
                 });
             }
 
