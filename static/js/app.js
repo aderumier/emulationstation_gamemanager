@@ -19128,11 +19128,6 @@ class GameCollectionManager {
                                 <i class="bi bi-youtube"></i>
                             </button>
                             ` : ''}
-                            ${field === 'marquee' ? `
-                            <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                <i class="bi bi-badge-ad"></i>
-                            </button>
-                            ` : ''}
                             ${isImageField ? `
                             <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search ${field.charAt(0).toUpperCase() + field.slice(1)} across all systems" onclick="gameManager.openMediaSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-binoculars"></i>

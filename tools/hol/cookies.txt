@@ -1,0 +1,8 @@
+# Netscape HTTP Cookie File
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file! Do not edit.
+
+.amiga.abime.net	TRUE	/	FALSE	0	eablastvisit	1769045193
+.amiga.abime.net	TRUE	/	FALSE	0	eablastactivity	0
+.amiga.abime.net	TRUE	/	FALSE	0	PHPSESSID	7rqr9eh78r9gh5f0qtdjf3dda6
+.amiga.abime.net	TRUE	/	FALSE	0	techaro.lol-anubis-cookie-verification	019be48f-9a19-7a5f-83d1-13ac1b91e169
