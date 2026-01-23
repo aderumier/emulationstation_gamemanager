@@ -89,7 +89,8 @@
             "extensions": [
                 ".pdf",
                 ".cbz"
-            ]
+            ],
+            "target_extension": ".cbz"
         },
         "boxback": {
             "directory": "boxback",
@@ -134,6 +135,24 @@
                 ".zip"
             ],
             "target_extension": ".zip",
+            "width": 0,
+            "height": 0
+        },
+        "map": {
+            "directory": "maps",
+            "extensions": [
+                ".cbz"
+            ],
+            "target_extension": ".cbz",
+            "width": 0,
+            "height": 0
+        },
+        "magazine": {
+            "directory": "magazine",
+            "extensions": [
+                ".pdf"
+            ],
+            "target_extension": ".pdf",
             "width": 0,
             "height": 0
         }

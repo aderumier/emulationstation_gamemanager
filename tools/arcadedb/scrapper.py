@@ -411,19 +411,32 @@ class ArcadeDBScraper:
             # Replace \r\n with \n
             description = description.replace('\r\n', '\n')
             
-            # Remove any line containing "published X years ago" or "(c)"
+            # Remove any line containing "published X years ago", "(c)", or "Arcade Video game:"
             lines = description.split('\n')
             filtered_lines = [
                 line for line in lines 
                 if not re.search(r'published \d+ years ago', line, re.IGNORECASE)
                 and '(c)' not in line
+                and 'Arcade Video game:' not in line
             ]
             description = '\n'.join(filtered_lines)
+            
+            # Remove everything after "- CONTRIBUTE -\n\n" including this line
+            contribute_index = description.find('- CONTRIBUTE -\n\n')
+            if contribute_index != -1:
+                description = description[:contribute_index].rstrip()
             
             # Remove everything after "- TECHNICAL -\r\n" or "- TECHNICAL -\n"
             technical_index = description.find('- TECHNICAL -')
             if technical_index != -1:
                 description = description[:technical_index].rstrip()
+            
+            # Remove leading newlines from description
+            description = description.lstrip('\n')
+            
+            # Set description to None if it only contains newline characters or is empty
+            if description.strip('\n') == '':
+                description = None
             
             game_info['description'] = description
         

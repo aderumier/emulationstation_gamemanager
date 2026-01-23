@@ -238,7 +238,10 @@
             "boxback": "boxback",
             "screenshot": "image",
             "video": "video",
-            "cartridge": "cartridge"
+            "cartridge": "cartridge",
+            "map": "map",
+            "cheats": "magazine",
+            "manual": "manual"
         }
     }
 }

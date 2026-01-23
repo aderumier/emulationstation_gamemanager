@@ -53,7 +53,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd --create-home --shell /bin/bash appuser
 
 # Copy the .deb package
-ARG DEB_FILE=gamemanager_2.9.1-1_all.deb
+ARG DEB_FILE=gamemanager_3.7.3-1_all.deb
 COPY ${DEB_FILE} .
 
 # Extract the .deb package manually (skip postinst script for Docker)
