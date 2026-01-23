@@ -12971,9 +12971,15 @@ def download_multiscraper_media_endpoint():
             is_pdf_source = media_url and (media_url.lower().endswith('.pdf') or '.pdf' in media_url.lower())
             is_cbz_source = media_url and (media_url.lower().endswith('.cbz') or '.cbz' in media_url.lower())
             
+            # Debug logging
+            print(f"🔧 DEBUG: PDF/CBZ conversion check - target_ext: {target_ext}, is_pdf_target: {is_pdf_target}, is_cbz_target: {is_cbz_target}")
+            print(f"🔧 DEBUG: Source check - media_url: {media_url}, is_pdf_source: {is_pdf_source}, is_cbz_source: {is_cbz_source}")
+            print(f"🔧 DEBUG: urls_array: {urls_array}")
+            
             # Handle PDF/CBZ conversions
             if is_pdf_target and is_cbz_source:
                 # Target is PDF, source is CBZ - convert CBZ to PDF
+                print(f"🔧 DEBUG: Converting CBZ to PDF")
                 target_dir = media_config.get('directory', f'media/{media_type}')
                 if not target_dir.startswith('media/'):
                     target_dir = f'media/{target_dir}'
@@ -13026,8 +13032,10 @@ def download_multiscraper_media_endpoint():
                             os.remove(temp_cbz_path)
                         except:
                             pass
-            elif is_cbz_target and is_pdf_source:
+            elif is_cbz_target and is_pdf_source and (not urls_array or not isinstance(urls_array, list) or len(urls_array) == 0):
+                print(f"🔧 DEBUG: Converting PDF to CBZ (first check)")
                 # Target is CBZ, source is PDF - convert PDF to CBZ
+                # Only do this if urls_array is not provided or is empty (single PDF download)
                 target_dir = media_config.get('directory', f'media/{media_type}')
                 if not target_dir.startswith('media/'):
                     target_dir = f'media/{target_dir}'
@@ -13126,62 +13134,9 @@ def download_multiscraper_media_endpoint():
                     print(f'✅ Created {target_ext} from single image for {media_type}')
                 else:
                     return jsonify({'error': f'Failed to create {target_ext} from single image'}), 500
-            elif is_cbz_target and is_pdf_source and not urls_array:
-                # Single PDF URL with CBZ target - convert PDF to CBZ (this handles single PDF downloads)
-                target_dir = media_config.get('directory', f'media/{media_type}')
-                if not target_dir.startswith('media/'):
-                    target_dir = f'media/{target_dir}'
-                
-                full_target_dir = os.path.join('roms', system_name, target_dir)
-                os.makedirs(full_target_dir, exist_ok=True)
-                
-                target_filename = create_media_filename(game.get('path', ''), target_ext)
-                target_path = os.path.join(full_target_dir, target_filename)
-                
-                # Download PDF file first
-                import tempfile
-                temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-                temp_pdf_path = temp_pdf.name
-                temp_pdf.close()
-                
-                try:
-                    # Download PDF - use Selenium for amigahol URLs
-                    import requests
-                    
-                    if _is_amigahol_url(media_url):
-                        pdf_content = download_media_content(media_url, timeout=30)
-                    else:
-                        resp = requests.get(media_url, timeout=30)
-                        if resp.status_code == 200:
-                            pdf_content = resp.content
-                        else:
-                            pdf_content = None
-                    
-                    if not pdf_content:
-                        return jsonify({'error': f'Failed to download PDF from {media_url}'}), 500
-                    
-                    # Save PDF to temp file
-                    with open(temp_pdf_path, 'wb') as f:
-                        f.write(pdf_content)
-                    
-                    # Convert PDF to CBZ
-                    success = convert_pdf_to_cbz_file(temp_pdf_path, target_path)
-                    
-                    if success:
-                        relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
-                        game[media_type] = relative_path
-                        print(f'✅ Converted PDF to CBZ for {media_type}')
-                    else:
-                        return jsonify({'error': 'Failed to convert PDF to CBZ'}), 500
-                finally:
-                    # Clean up temp file
-                    if os.path.exists(temp_pdf_path):
-                        try:
-                            os.remove(temp_pdf_path)
-                        except:
-                            pass
             else:
                 # For non-PDF/CBZ conversions, use normal download
+                print(f"🔧 DEBUG: Falling through to download_and_save_media - no conversion match")
                 success = download_and_save_media(media_url, game, media_type, system_name)
         
         if success:
@@ -35074,12 +35029,16 @@ _custom_scrapper_cancel_maps = {}
 
 # Global Selenium driver for amigahol downloads
 _selenium_driver = None
+_selenium_lock = None  # Thread lock for Selenium operations
 _selenium_challenge_passed = False  # Track if we've already passed the challenge
 _selenium_session_cookies = None  # Cache cookies after passing challenge
 
 def _init_selenium_driver():
     """Initialize Selenium WebDriver for amigahol downloads"""
-    global _selenium_driver
+    global _selenium_driver, _selenium_lock
+    if _selenium_lock is None:
+        import threading
+        _selenium_lock = threading.Lock()
     if _selenium_driver:
         return _selenium_driver
     
@@ -35197,254 +35156,257 @@ def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) 
         logger.error(f"download_media_with_selenium called for non-amigahol URL: {url}")
         return False
     
-    try:
-        driver = _init_selenium_driver()
-        if not driver:
-            logger.error(f"Selenium driver initialization failed for amigahol URL: {url}")
-            return False
-        
-        from urllib.parse import urlparse, urljoin
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.common.by import By
-        import time
-        
-        # Ensure URL is absolute
-        parsed_url = urlparse(url)
-        base_url = "https://amiga.abime.net"  # Default base URL for amigahol
-        if not parsed_url.scheme:
-            # Relative URL, make it absolute
-            url = urljoin(base_url, url)
-        elif 'amiga.abime.net' in url.lower():
-            # Extract base URL from the parsed URL
-            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-        
-        # Detect if this is a PDF or image based on URL extension
-        is_pdf = url.lower().endswith('.pdf')
-        
-        # Navigate directly to the media URL and wait for challenge
-        # (Don't use _ensure_selenium_challenge_passed() as it navigates to base URL first)
-        logger.debug(f"Navigating directly to amigahol URL: {url}")
-        driver.get(url)
-        
-        # Wait for page to load
+    # Initialize driver and lock
+    driver = _init_selenium_driver()
+    if not driver:
+        logger.error(f"Selenium driver initialization failed for amigahol URL: {url}")
+        return False
+    
+    # Use lock to ensure thread-safe Selenium operations
+    global _selenium_lock
+    with _selenium_lock:
         try:
-            WebDriverWait(driver, 10).until(
-                lambda d: d.execute_script("return document.readyState") == "complete"
-            )
-        except:
-            # If readyState check fails, just wait a bit
+            from urllib.parse import urlparse, urljoin
+            from selenium.webdriver.support.ui import WebDriverWait
+            from selenium.webdriver.support import expected_conditions as EC
+            from selenium.webdriver.common.by import By
+            import time
+            
+            # Ensure URL is absolute
+            parsed_url = urlparse(url)
+            base_url = "https://amiga.abime.net"  # Default base URL for amigahol
+            if not parsed_url.scheme:
+                # Relative URL, make it absolute
+                url = urljoin(base_url, url)
+            elif 'amiga.abime.net' in url.lower():
+                # Extract base URL from the parsed URL
+                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
+            # Detect if this is a PDF or image based on URL extension
+            is_pdf = url.lower().endswith('.pdf')
+            
+            # Navigate directly to the media URL and wait for challenge
+            # (Don't use _ensure_selenium_challenge_passed() as it navigates to base URL first)
+            logger.debug(f"Navigating directly to amigahol URL: {url}")
+            driver.get(url)
+            
+            # Wait for page to load
+            try:
+                WebDriverWait(driver, 10).until(
+                    lambda d: d.execute_script("return document.readyState") == "complete"
+                )
+            except:
+                # If readyState check fails, just wait a bit
+                time.sleep(2)
+            
+            # Wait a bit for initial load
             time.sleep(2)
-        
-        # Wait a bit for initial load
-        time.sleep(2)
-        page_source = driver.page_source
-        current_url_after_load = driver.current_url
-        
-        # Check if URL changed (redirect after initial load)
-        if current_url_after_load != url:
-            logger.debug(f"URL changed after initial load: {url} -> {current_url_after_load}")
-            url = current_url_after_load  # Update URL to follow redirect
-        
-        # Check if we hit bot protection
-        if "Making sure you're not a bot" in page_source or "anubis" in page_source.lower():
-            # Wait for challenge to complete
-            logger.debug(f"Bot protection detected, waiting for challenge to complete...")
-            for i in range(30):
-                time.sleep(1)
-                page_source = driver.page_source
-                current_url = driver.current_url
-                # Check if URL changed (redirect after challenge)
-                if current_url != url:
-                    logger.debug(f"URL changed during challenge wait: {url} -> {current_url}")
-                    url = current_url  # Update URL to follow redirect
-                
-                if "Making sure you're not a bot" not in page_source and "anubis" not in page_source.lower():
-                    # Challenge passed, wait a bit more
-                    logger.debug(f"Challenge completed after {i+1} seconds")
-                    time.sleep(3)  # Give more time after challenge
-                    # Check URL one more time after waiting (in case of redirect after challenge)
+            page_source = driver.page_source
+            current_url_after_load = driver.current_url
+            
+            # Check if URL changed (redirect after initial load)
+            if current_url_after_load != url:
+                logger.debug(f"URL changed after initial load: {url} -> {current_url_after_load}")
+                url = current_url_after_load  # Update URL to follow redirect
+            
+            # Check if we hit bot protection
+            if "Making sure you're not a bot" in page_source or "anubis" in page_source.lower():
+                # Wait for challenge to complete
+                logger.debug(f"Bot protection detected, waiting for challenge to complete...")
+                for i in range(30):
+                    time.sleep(1)
+                    page_source = driver.page_source
+                    current_url = driver.current_url
+                    # Check if URL changed (redirect after challenge)
+                    if current_url != url:
+                        logger.debug(f"URL changed during challenge wait: {url} -> {current_url}")
+                        url = current_url  # Update URL to follow redirect
+                    
+                    if "Making sure you're not a bot" not in page_source and "anubis" not in page_source.lower():
+                        # Challenge passed, wait a bit more
+                        logger.debug(f"Challenge completed after {i+1} seconds")
+                        time.sleep(3)  # Give more time after challenge
+                        # Check URL one more time after waiting (in case of redirect after challenge)
+                        final_url = driver.current_url
+                        if final_url != url:
+                            logger.debug(f"URL changed after challenge completion: {url} -> {final_url}")
+                            url = final_url  # Update URL to follow redirect
+                        break
+                else:
+                    logger.debug(f"Challenge did not complete after 30 seconds")
+                    # Still check URL in case redirect happened anyway
                     final_url = driver.current_url
                     if final_url != url:
-                        logger.debug(f"URL changed after challenge completion: {url} -> {final_url}")
-                        url = final_url  # Update URL to follow redirect
-                    break
-            else:
-                logger.debug(f"Challenge did not complete after 30 seconds")
-                # Still check URL in case redirect happened anyway
-                final_url = driver.current_url
-                if final_url != url:
-                    logger.debug(f"URL changed (challenge timeout): {url} -> {final_url}")
-                    url = final_url
-        
-        # Additional wait for dynamic content
-        time.sleep(1)
-        
-        # For image URLs, try to extract the image directly from Selenium using canvas
-        # For PDFs, skip canvas extraction and go straight to requests with cookies
-        if not is_pdf:
-            try:
-                # Method 1: Try to extract image via canvas (most reliable for rendered images)
-                img_data_url = driver.execute_script("""
-                    var img = document.querySelector('img');
-                    if (img && img.complete && img.naturalWidth > 0) {
-                        var canvas = document.createElement('canvas');
-                        canvas.width = img.naturalWidth;
-                        canvas.height = img.naturalHeight;
-                        var ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0);
-                        return canvas.toDataURL('image/png');
-                    }
-                    return null;
-                """)
-                if img_data_url:
-                    import base64
-                    header, data = img_data_url.split(",", 1)
-                    image_data = base64.b64decode(data)
-                    with open(output_path, 'wb') as f:
-                        f.write(image_data)
-                    return True
-            except Exception as e:
-                pass
+                        logger.debug(f"URL changed (challenge timeout): {url} -> {final_url}")
+                        url = final_url
             
-            # Method 2: Try to find img element with data URL
-            try:
-                img_elements = driver.find_elements(By.TAG_NAME, "img")
-                if img_elements:
-                    img_src = img_elements[0].get_attribute("src")
-                    if img_src and img_src.startswith("data:image"):
+            # Additional wait for dynamic content
+            time.sleep(1)
+            
+            # For image URLs, try to extract the image directly from Selenium using canvas
+            # For PDFs, skip canvas extraction and go straight to requests with cookies
+            if not is_pdf:
+                try:
+                    # Method 1: Try to extract image via canvas (most reliable for rendered images)
+                    img_data_url = driver.execute_script("""
+                        var img = document.querySelector('img');
+                        if (img && img.complete && img.naturalWidth > 0) {
+                            var canvas = document.createElement('canvas');
+                            canvas.width = img.naturalWidth;
+                            canvas.height = img.naturalHeight;
+                            var ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+                            return canvas.toDataURL('image/png');
+                        }
+                        return null;
+                    """)
+                    if img_data_url:
                         import base64
-                        header, data = img_src.split(",", 1)
+                        header, data = img_data_url.split(",", 1)
                         image_data = base64.b64decode(data)
                         with open(output_path, 'wb') as f:
                             f.write(image_data)
                         return True
-            except:
-                pass
-        
-        # For amigahol URLs, if canvas extraction failed, don't fall back to requests
-        if not is_pdf:
-            logger.error(f"Canvas extraction failed for amigahol image URL - cannot use requests fallback: {url}")
-            return False
-        
-        # For PDFs, use browser's fetch API to get content directly (bypasses bot protection)
-        if is_pdf:
-            # Use current URL from driver (in case of redirects)
-            current_pdf_url = driver.current_url
-            logger.debug(f"Attempting browser fetch API for PDF: {current_pdf_url} (original: {url})")
-            try:
-                # Use browser's fetch API to get PDF content (uses browser's cookies and context)
-                # Use current URL to ensure we're fetching the correct resource after any redirects
-                pdf_base64 = driver.execute_async_script("""
-                    var callback = arguments[arguments.length - 1];
-                    var fetchUrl = arguments[0];
-                    console.log('Fetching PDF from:', fetchUrl);
-                    fetch(fetchUrl, {
-                        credentials: 'include',
-                        headers: {
-                            'Accept': 'application/pdf'
-                        }
-                    })
-                    .then(response => {
-                        // CRITICAL: Check content-type header - must be PDF
-                        const contentType = response.headers.get('content-type') || '';
-                        const contentTypeLower = contentType.toLowerCase();
-                        
-                        console.log('Response Content-Type:', contentType);
-                        console.log('Response Status:', response.status);
-                        
-                        // Reject HTML content types
-                        if (contentTypeLower.includes('text/html') || 
-                            contentTypeLower.includes('text/plain') ||
-                            contentTypeLower.includes('application/xhtml')) {
-                            return response.text().then(text => {
-                                console.log('Got HTML content, first 500 chars:', text.substring(0, 500));
-                                throw new Error('Invalid content-type: ' + contentType + ' (expected PDF)');
-                            });
-                        }
-                        
-                        // Must be PDF content type (or application/octet-stream which might be PDF)
-                        if (!contentTypeLower.includes('pdf') && 
-                            !contentTypeLower.includes('application/octet-stream') &&
-                            !contentTypeLower.includes('application/pdf')) {
-                            // Check first few bytes to see if it's HTML
-                            return response.clone().text().then(text => {
-                                if (text.trim().toLowerCase().startsWith('<!doctype') || 
-                                    text.trim().toLowerCase().startsWith('<html') ||
-                                    text.includes('Making sure you') ||
-                                    text.includes('anubis')) {
-                                    console.log('Bot protection HTML detected, first 500 chars:', text.substring(0, 500));
-                                    throw new Error('Bot protection HTML detected (content-type: ' + contentType + ')');
-                                }
-                                throw new Error('Unknown content-type: ' + contentType + ' (expected PDF)');
-                            });
-                        }
-                        
-                        return response.arrayBuffer();
-                    })
-                    .then(buffer => {
-                        // Validate it's actually a PDF by checking first bytes
-                        const bytes = new Uint8Array(buffer);
-                        console.log('Response size:', bytes.length);
-                        
-                        if (bytes.length < 4) {
-                            throw new Error('Response too short to be a PDF');
-                        }
-                        const header = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
-                        console.log('First 4 bytes:', header);
-                        
-                        if (header !== '%PDF') {
-                            const preview = String.fromCharCode.apply(null, Array.from(bytes.slice(0, 100)));
-                            console.log('First 100 chars:', preview);
-                            throw new Error('Response does not start with %PDF header (got: ' + header + ')');
-                        }
-                        // Convert ArrayBuffer to base64
-                        let binary = '';
-                        for (let i = 0; i < bytes.length; i++) {
-                            binary += String.fromCharCode(bytes[i]);
-                        }
-                        callback(btoa(binary));
-                    })
-                    .catch(error => {
-                        console.error('Fetch error:', error);
-                        callback('ERROR: ' + error.message);
-                    });
-                """, current_pdf_url)
+                except Exception as e:
+                    pass
                 
-                logger.debug(f"Browser fetch API returned: {type(pdf_base64).__name__}, length={len(pdf_base64) if pdf_base64 else 0}, starts_with_error={pdf_base64[:50] if pdf_base64 and len(pdf_base64) > 0 else 'N/A'}")
-                
-                if pdf_base64 and not pdf_base64.startswith('ERROR:'):
-                    import base64
-                    pdf_content = base64.b64decode(pdf_base64)
-                    logger.debug(f"Decoded PDF content: {len(pdf_content)} bytes, first 20 bytes: {pdf_content[:20]}")
-                    # Validate it's actually a PDF (starts with %PDF)
-                    if len(pdf_content) > 4 and pdf_content[:4] == b'%PDF':
-                        with open(output_path, 'wb') as f:
-                            f.write(pdf_content)
-                        logger.debug(f"Successfully downloaded PDF via browser fetch: {len(pdf_content)} bytes")
-                        return True
+                # Method 2: Try to find img element with data URL
+                try:
+                    img_elements = driver.find_elements(By.TAG_NAME, "img")
+                    if img_elements:
+                        img_src = img_elements[0].get_attribute("src")
+                        if img_src and img_src.startswith("data:image"):
+                            import base64
+                            header, data = img_src.split(",", 1)
+                            image_data = base64.b64decode(data)
+                            with open(output_path, 'wb') as f:
+                                f.write(image_data)
+                            return True
+                except:
+                    pass
+            
+            # For amigahol URLs, if canvas extraction failed, don't fall back to requests
+            if not is_pdf:
+                logger.error(f"Canvas extraction failed for amigahol image URL - cannot use requests fallback: {url}")
+                return False
+            
+            # For PDFs, use browser's fetch API to get content directly (bypasses bot protection)
+            if is_pdf:
+                # Use current URL from driver (in case of redirects)
+                current_pdf_url = driver.current_url
+                logger.debug(f"Attempting browser fetch API for PDF: {current_pdf_url} (original: {url})")
+                try:
+                    # Use browser's fetch API to get PDF content (uses browser's cookies and context)
+                    # Use current URL to ensure we're fetching the correct resource after any redirects
+                    pdf_base64 = driver.execute_async_script("""
+                        var callback = arguments[arguments.length - 1];
+                        var fetchUrl = arguments[0];
+                        console.log('Fetching PDF from:', fetchUrl);
+                        fetch(fetchUrl, {
+                            credentials: 'include',
+                            headers: {
+                                'Accept': 'application/pdf'
+                            }
+                        })
+                        .then(response => {
+                            // CRITICAL: Check content-type header - must be PDF
+                            const contentType = response.headers.get('content-type') || '';
+                            const contentTypeLower = contentType.toLowerCase();
+                            
+                            console.log('Response Content-Type:', contentType);
+                            console.log('Response Status:', response.status);
+                            
+                            // Reject HTML content types
+                            if (contentTypeLower.includes('text/html') || 
+                                contentTypeLower.includes('text/plain') ||
+                                contentTypeLower.includes('application/xhtml')) {
+                                return response.text().then(text => {
+                                    console.log('Got HTML content, first 500 chars:', text.substring(0, 500));
+                                    throw new Error('Invalid content-type: ' + contentType + ' (expected PDF)');
+                                });
+                            }
+                            
+                            // Must be PDF content type (or application/octet-stream which might be PDF)
+                            if (!contentTypeLower.includes('pdf') && 
+                                !contentTypeLower.includes('application/octet-stream') &&
+                                !contentTypeLower.includes('application/pdf')) {
+                                // Check first few bytes to see if it's HTML
+                                return response.clone().text().then(text => {
+                                    if (text.trim().toLowerCase().startsWith('<!doctype') || 
+                                        text.trim().toLowerCase().startsWith('<html') ||
+                                        text.includes('Making sure you') ||
+                                        text.includes('anubis')) {
+                                        console.log('Bot protection HTML detected, first 500 chars:', text.substring(0, 500));
+                                        throw new Error('Bot protection HTML detected (content-type: ' + contentType + ')');
+                                    }
+                                    throw new Error('Unknown content-type: ' + contentType + ' (expected PDF)');
+                                });
+                            }
+                            
+                            return response.arrayBuffer();
+                        })
+                        .then(buffer => {
+                            // Validate it's actually a PDF by checking first bytes
+                            const bytes = new Uint8Array(buffer);
+                            console.log('Response size:', bytes.length);
+                            
+                            if (bytes.length < 4) {
+                                throw new Error('Response too short to be a PDF');
+                            }
+                            const header = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+                            console.log('First 4 bytes:', header);
+                            
+                            if (header !== '%PDF') {
+                                const preview = String.fromCharCode.apply(null, Array.from(bytes.slice(0, 100)));
+                                console.log('First 100 chars:', preview);
+                                throw new Error('Response does not start with %PDF header (got: ' + header + ')');
+                            }
+                            // Convert ArrayBuffer to base64
+                            let binary = '';
+                            for (let i = 0; i < bytes.length; i++) {
+                                binary += String.fromCharCode(bytes[i]);
+                            }
+                            callback(btoa(binary));
+                        })
+                        .catch(error => {
+                            console.error('Fetch error:', error);
+                            callback('ERROR: ' + error.message);
+                        });
+                    """, current_pdf_url)
+                    
+                    logger.debug(f"Browser fetch API returned: {type(pdf_base64).__name__}, length={len(pdf_base64) if pdf_base64 else 0}, starts_with_error={pdf_base64[:50] if pdf_base64 and len(pdf_base64) > 0 else 'N/A'}")
+                    
+                    if pdf_base64 and not pdf_base64.startswith('ERROR:'):
+                        import base64
+                        pdf_content = base64.b64decode(pdf_base64)
+                        logger.debug(f"Decoded PDF content: {len(pdf_content)} bytes, first 20 bytes: {pdf_content[:20]}")
+                        # Validate it's actually a PDF (starts with %PDF)
+                        if len(pdf_content) > 4 and pdf_content[:4] == b'%PDF':
+                            with open(output_path, 'wb') as f:
+                                f.write(pdf_content)
+                            logger.debug(f"Successfully downloaded PDF via browser fetch: {len(pdf_content)} bytes")
+                            return True
+                        else:
+                            # Log for debugging and RETURN FALSE
+                            logger.error(f"PDF content validation failed via browser fetch: first 100 bytes = {pdf_content[:100]}")
+                            return False  # Don't fall through - content is not a valid PDF
+                    elif pdf_base64:
+                        logger.error(f"Browser fetch API returned error: {pdf_base64}")
+                        return False  # Don't fall through to requests if browser fetch fails
                     else:
-                        # Log for debugging and RETURN FALSE
-                        logger.error(f"PDF content validation failed via browser fetch: first 100 bytes = {pdf_content[:100]}")
-                        return False  # Don't fall through - content is not a valid PDF
-                elif pdf_base64:
-                    logger.error(f"Browser fetch API returned error: {pdf_base64}")
-                    return False  # Don't fall through to requests if browser fetch fails
-                else:
-                    # pdf_base64 is None or empty - browser fetch failed silently
-                    logger.error(f"Browser fetch API returned no data (None or empty)")
-                    return False  # Don't fall through to requests
-            except Exception as e:
-                logger.error(f"Browser fetch API failed for PDF: {e}")
-                import traceback
-                logger.debug(f"Traceback: {traceback.format_exc()}")
-                return False  # Don't fall through - if browser fetch fails, requests will also fail
-        
-    except Exception as e:
-        logger.error(f"Error in download_media_with_selenium for amigahol URL {url}: {e}")
-        import traceback
-        logger.debug(f"Traceback: {traceback.format_exc()}")
-        return False
+                        # pdf_base64 is None or empty - browser fetch failed silently
+                        logger.error(f"Browser fetch API returned no data (None or empty)")
+                        return False  # Don't fall through to requests
+                except Exception as e:
+                    logger.error(f"Browser fetch API failed for PDF: {e}")
+                    import traceback
+                    logger.debug(f"Traceback: {traceback.format_exc()}")
+                    return False  # Don't fall through - if browser fetch fails, requests will also fail
+        except Exception as e:
+            logger.error(f"Error in download_media_with_selenium for amigahol URL {url}: {e}")
+            import traceback
+            logger.debug(f"Traceback: {traceback.format_exc()}")
+            return False
 
 def download_media_content(url: str, timeout: int = 30) -> Optional[bytes]:
     """

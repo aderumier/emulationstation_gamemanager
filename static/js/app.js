@@ -6867,24 +6867,22 @@ class GameCollectionManager {
             const arePdfs = urls.some(url => url && (url.toLowerCase().endsWith('.pdf') || url.toLowerCase().includes('.pdf')));
             const isPdfType = mediaType === 'manual' || mediaType === 'map' || mediaType === 'magazine';
             
-            // If there are multiple URLs, create separate results for each
-            // - For images: only if target is NOT PDF/CBZ
-            // - For PDFs: always split into separate cards
-            if (hasMultipleUrls) {
+            // If target is PDF/CBZ and there are multiple URLs, show only first one
+            if (hasMultipleUrls && isPdfOrCbzTarget) {
+                // For PDF/CBZ targets with multiple URLs, show only the first one
+                processedResults.push({
+                    ...result,
+                    url: urls[0],
+                    urls: urls, // Keep full array for download/conversion
+                    _originalIndex: index,
+                    _urlIndex: 0,
+                    _totalUrls: urls.length,
+                    _showFirstOnly: true // Flag to indicate we're showing first but have more
+                });
+            } else if (hasMultipleUrls) {
+                // For non-PDF/CBZ targets, split into separate cards
                 if (arePdfs || isPdfType) {
-                    // Always split PDFs into separate cards
-                    urls.forEach((url, urlIndex) => {
-                        processedResults.push({
-                            ...result,
-                            url: url,
-                            urls: [url], // Single URL for this card
-                            _originalIndex: index,
-                            _urlIndex: urlIndex,
-                            _totalUrls: urls.length
-                        });
-                    });
-                } else if (!isPdfOrCbzTarget) {
-                    // For images, only split if target is NOT PDF/CBZ
+                    // Split PDFs into separate cards (when target is NOT PDF/CBZ)
                     urls.forEach((url, urlIndex) => {
                         processedResults.push({
                             ...result,
@@ -6896,8 +6894,17 @@ class GameCollectionManager {
                         });
                     });
                 } else {
-                    // For images with PDF/CBZ target, keep original result (will be converted)
-                    processedResults.push(result);
+                    // Split images into separate cards (when target is NOT PDF/CBZ)
+                    urls.forEach((url, urlIndex) => {
+                        processedResults.push({
+                            ...result,
+                            url: url,
+                            urls: [url], // Single URL for this card
+                            _originalIndex: index,
+                            _urlIndex: urlIndex,
+                            _totalUrls: urls.length
+                        });
+                    });
                 }
             } else {
                 // Single URL, keep original result
@@ -7546,10 +7553,15 @@ class GameCollectionManager {
                 titleText = `${result.source} - ${result.emumovies_type}`;
             }
             // If this is a split item from multiple URLs, show number
-            // For PDFs: always show number if there are multiple
+            // For PDFs: only show number if target is NOT PDF/CBZ (when split into separate cards)
             // For images: only show number if target is NOT PDF/CBZ
+            // For PDF/CBZ targets with multiple URLs: show count but not split number (since we show first only)
             const isPdfType = mediaType === 'manual' || mediaType === 'map' || mediaType === 'magazine';
-            if (result._urlIndex !== undefined && result._totalUrls && result._totalUrls > 1) {
+            if (result._showFirstOnly && result._totalUrls && result._totalUrls > 1) {
+                // Show that this is the first of multiple (for PDF/CBZ targets)
+                titleText += ` (1 of ${result._totalUrls})`;
+            } else if (result._urlIndex !== undefined && result._totalUrls && result._totalUrls > 1) {
+                // Show split number for individual cards (when target is NOT PDF/CBZ)
                 if (isPdfType || !isPdfOrCbzTarget) {
                     titleText += ` (${result._urlIndex + 1}/${result._totalUrls})`;
                 }
@@ -7668,15 +7680,22 @@ class GameCollectionManager {
                     }
                 } else {
                     // Use the URL from result (for split images/PDFs, each card has its own URL)
-                    // For PDF/CBZ targets with multiple URLs (not split), pass all URLs for conversion
+                    // For PDF/CBZ targets with multiple URLs, pass all URLs for conversion
                     // For split PDFs/images, download just that single item
                     let downloadUrl = result.url;
                     let urlsArray = null;
                     
-                    // Check if this is a split item (from multiple URLs)
-                    const isSplitItem = result._urlIndex !== undefined;
+                    // Check if this is showing first only (PDF/CBZ target with multiple URLs)
+                    const isShowFirstOnly = result._showFirstOnly === true;
                     
-                    if (isSplitItem) {
+                    // Check if this is a split item (from multiple URLs, displayed separately)
+                    const isSplitItem = result._urlIndex !== undefined && !isShowFirstOnly;
+                    
+                    if (isShowFirstOnly && result.urls && Array.isArray(result.urls) && result.urls.length > 1) {
+                        // This is showing first only - pass all URLs for PDF/CBZ creation
+                        urlsArray = result.urls;
+                        downloadUrl = result.urls[0]; // Use first URL as primary
+                    } else if (isSplitItem) {
                         // This is a split item - download just this single URL
                         downloadUrl = result.url;
                         urlsArray = null; // Don't pass URLs array for split items
@@ -7689,8 +7708,8 @@ class GameCollectionManager {
                         downloadUrl = result.urls[0];
                     }
                     
-                    // Pass URLs array and target_extension for PDF/CBZ conversions (only if not a split item)
-                    this.downloadMultiscraperMedia(downloadUrl, game, mediaType, null, null, urlsArray, (!isSplitItem && isPdfOrCbzTarget) ? (isPdfTarget ? '.pdf' : '.cbz') : null);
+                    // Pass URLs array and target_extension for PDF/CBZ conversions
+                    this.downloadMultiscraperMedia(downloadUrl, game, mediaType, null, null, urlsArray, (isShowFirstOnly || (!isSplitItem && isPdfOrCbzTarget)) ? (isPdfTarget ? '.pdf' : '.cbz') : null);
                 }
             };
             
