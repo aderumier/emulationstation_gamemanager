@@ -1048,6 +1048,11 @@ def configure_logging(config):
     logging.getLogger(__name__).info(
         f"Logging configured. Level: {level_name}, File: {log_file or 'stdout only'}"
     )
+    
+    # Suppress verbose debug logs from third-party libraries
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('PIL.PngImagePlugin').setLevel(logging.WARNING)
+    logging.getLogger('PIL').setLevel(logging.WARNING)
 
 
 configure_logging(config)
@@ -35187,7 +35192,6 @@ def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) 
             
             # Navigate directly to the media URL and wait for challenge
             # (Don't use _ensure_selenium_challenge_passed() as it navigates to base URL first)
-            logger.debug(f"Navigating directly to amigahol URL: {url}")
             driver.get(url)
             
             # Wait for page to load

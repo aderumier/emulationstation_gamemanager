@@ -6863,26 +6863,13 @@ class GameCollectionManager {
             const urls = result.urls && Array.isArray(result.urls) && result.urls.length > 1 ? result.urls : (result.url ? [result.url] : []);
             const hasMultipleUrls = urls.length > 1;
             
-            // Check if URLs are PDFs
+            // Check if URLs are actually PDFs (by URL extension, not just mediaType)
             const arePdfs = urls.some(url => url && (url.toLowerCase().endsWith('.pdf') || url.toLowerCase().includes('.pdf')));
-            const isPdfType = mediaType === 'manual' || mediaType === 'map' || mediaType === 'magazine';
             
-            // If target is PDF/CBZ and there are multiple URLs, show only first one
-            if (hasMultipleUrls && isPdfOrCbzTarget) {
-                // For PDF/CBZ targets with multiple URLs, show only the first one
-                processedResults.push({
-                    ...result,
-                    url: urls[0],
-                    urls: urls, // Keep full array for download/conversion
-                    _originalIndex: index,
-                    _urlIndex: 0,
-                    _totalUrls: urls.length,
-                    _showFirstOnly: true // Flag to indicate we're showing first but have more
-                });
-            } else if (hasMultipleUrls) {
-                // For non-PDF/CBZ targets, split into separate cards
-                if (arePdfs || isPdfType) {
-                    // Split PDFs into separate cards (when target is NOT PDF/CBZ)
+            // If there are multiple URLs, decide how to handle them
+            if (hasMultipleUrls) {
+                if (arePdfs) {
+                    // PDFs: ALWAYS split into separate cards (regardless of target_extension)
                     urls.forEach((url, urlIndex) => {
                         processedResults.push({
                             ...result,
@@ -6893,8 +6880,19 @@ class GameCollectionManager {
                             _totalUrls: urls.length
                         });
                     });
+                } else if (isPdfOrCbzTarget) {
+                    // Images with PDF/CBZ target: show only first image (will be converted to PDF/CBZ)
+                    processedResults.push({
+                        ...result,
+                        url: urls[0],
+                        urls: urls, // Keep full array for download/conversion
+                        _originalIndex: index,
+                        _urlIndex: 0,
+                        _totalUrls: urls.length,
+                        _showFirstOnly: true // Flag to indicate we're showing first but have more
+                    });
                 } else {
-                    // Split images into separate cards (when target is NOT PDF/CBZ)
+                    // Images with non-PDF/CBZ target: split into separate cards
                     urls.forEach((url, urlIndex) => {
                         processedResults.push({
                             ...result,
@@ -7340,12 +7338,23 @@ class GameCollectionManager {
                     }
                 } else {
                     // Regular image - get URLs from result
-                    // For PDF/CBZ targets, use only first URL even if there are multiple
+                    // For PDF/CBZ targets with _showFirstOnly, use only first URL
                     // For non-PDF/CBZ targets, we already split them in processedResults, so each card has one URL
-                    let imageUrls = result.urls && Array.isArray(result.urls) ? result.urls : (result.url ? [result.url] : []);
+                    let imageUrls = null;
                     
-                    // For PDF/CBZ targets, show only first image even if there are multiple
-                    if (isPdfOrCbzTarget && imageUrls.length > 1) {
+                    // If _showFirstOnly is set, we should only show the first image (even though urls array has all)
+                    if (result._showFirstOnly && result.url) {
+                        imageUrls = [result.url]; // Use only the first URL for display
+                    } else if (result.urls && Array.isArray(result.urls)) {
+                        imageUrls = result.urls;
+                    } else if (result.url) {
+                        imageUrls = [result.url];
+                    } else {
+                        imageUrls = [];
+                    }
+                    
+                    // For PDF/CBZ targets, show only first image even if there are multiple (fallback check)
+                    if (isPdfOrCbzTarget && imageUrls.length > 1 && !result._showFirstOnly) {
                         imageUrls = [imageUrls[0]];
                     }
                     
