@@ -19729,13 +19729,15 @@ class GameCollectionManager {
     }
     
     async showCustomSearchModal(gameName, systemName, databaseName, scraperType = 'custom') {
+        const modalEl = document.getElementById('customSearchModal');
         // Set the game name in the editable input field
         document.getElementById('customSearchGameNameInput').value = gameName;
         
-        // Store system name, database name, and scraper type for use in results display
+        // Store system name, database name, and scraper type (modal data + instance for Search button)
         this.currentCustomSearchSystem = systemName;
         this.currentCustomSearchDatabase = databaseName;
         this.currentCustomSearchType = scraperType;
+        if (modalEl) modalEl.dataset.customSearchScraperType = scraperType;
         
         // Clear previous results
         document.getElementById('customSearchResults').innerHTML = '';
@@ -19747,7 +19749,7 @@ class GameCollectionManager {
         });
         
         // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('customSearchModal'), {
+        const modal = new bootstrap.Modal(modalEl, {
             backdrop: true,
             keyboard: true,
             focus: true
@@ -19762,23 +19764,26 @@ class GameCollectionManager {
         
         const scraperTypeCap = scraperType.charAt(0).toUpperCase() + scraperType.slice(1);
         try {
-            // Perform initial search
-            await this.performCustomSearch();
+            // Perform initial search with explicit scraperType (avoid stale shared state)
+            await this.performCustomSearch(scraperType);
         } catch (error) {
             document.getElementById('customSearchSpinner').style.display = 'none';
             this.showCustomSearchError(`Error searching ${scraperTypeCap} database: ` + error.message);
         }
     }
     
-    async performCustomSearch() {
+    async performCustomSearch(scraperTypeOverride) {
         try {
             const gameName = document.getElementById('customSearchGameNameInput').value.trim();
             if (!gameName) {
                 this.showCustomSearchError('Please enter a game name to search');
                 return;
             }
-            
-            const scraperType = this.currentCustomSearchType || 'custom';
+            // Prefer explicit override, then modal data attribute, then instance state (e.g. Search button)
+            const modalEl = document.getElementById('customSearchModal');
+            const scraperType = scraperTypeOverride != null
+                ? scraperTypeOverride
+                : (modalEl?.dataset?.customSearchScraperType || this.currentCustomSearchType || 'custom');
             const scraperTypeCap = scraperType.charAt(0).toUpperCase() + scraperType.slice(1);
             const endpoint = scraperType === 'custom' ? '/api/custom-scraper/search' : '/api/custom2-scraper/search';
             
@@ -19814,7 +19819,10 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            const scraperType = this.currentCustomSearchType || 'custom';
+            const modalEl = document.getElementById('customSearchModal');
+            const scraperType = scraperTypeOverride != null
+                ? scraperTypeOverride
+                : (modalEl?.dataset?.customSearchScraperType || this.currentCustomSearchType || 'custom');
             const scraperTypeCap = scraperType.charAt(0).toUpperCase() + scraperType.slice(1);
             document.getElementById('customSearchSpinner').style.display = 'none';
             this.showCustomSearchError(`Error searching ${scraperTypeCap} database: ` + error.message);
@@ -31451,6 +31459,7 @@ class GameCollectionManager {
         const currentSteamgridid = getFieldValue('editSteamgridid');
         const currentMobygamesid = getFieldValue('editMobygamesid');
         const currentCustomid = getFieldValue('editCustomid');
+        const currentCustom2id = getFieldValue('editCustom2id');
         
         // Handle release date - get value from Flatpickr and normalize for comparison
         const dateInput = panelContent.querySelector('#editReleasedate');
@@ -31510,6 +31519,7 @@ class GameCollectionManager {
         if (normalizeNumber(original.steamgridid) !== normalizeNumber(currentSteamgridid)) return true;
         if (normalizeNumber(original.mobygamesid) !== normalizeNumber(currentMobygamesid)) return true;
         if (normalize(original.customid) !== normalize(currentCustomid)) return true;
+        if (normalize(original.custom2id) !== normalize(currentCustom2id)) return true;
         if (normalize(original.youtubeurl) !== normalize(currentYoutubeurl)) return true;
         if (Boolean(original.favorite) !== Boolean(currentFavorite)) return true;
         if (Boolean(original.kidgame) !== Boolean(currentKidgame)) return true;
@@ -31577,6 +31587,7 @@ class GameCollectionManager {
         const currentSteamgridid = getFieldValue('editSteamgridid');
         const currentMobygamesid = getFieldValue('editMobygamesid');
         const currentCustomid = getFieldValue('editCustomid');
+        const currentCustom2id = getFieldValue('editCustom2id');
         
         // Handle release date - compare in date input format (not ISO8601)
         const currentReleasedate = getFieldValue('editReleasedate');
@@ -31622,6 +31633,7 @@ class GameCollectionManager {
         if (normalizeNumber(original.steamgridid) !== normalizeNumber(currentSteamgridid)) return true;
         if (normalizeNumber(original.mobygamesid) !== normalizeNumber(currentMobygamesid)) return true;
         if (normalize(original.customid) !== normalize(currentCustomid)) return true;
+        if (normalize(original.custom2id) !== normalize(currentCustom2id)) return true;
         if (normalize(original.youtubeurl) !== normalize(currentYoutubeurl)) return true;
         if (Boolean(original.favorite) !== Boolean(currentFavorite)) return true;
         if (Boolean(original.kidgame) !== Boolean(currentKidgame)) return true;
