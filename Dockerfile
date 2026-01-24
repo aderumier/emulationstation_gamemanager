@@ -38,6 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-wand \
     python3-jellyfish \
     python3-pymupdf \
+    python3-websocket \
     # Application dependencies
     imagemagick \
     ffmpeg \
@@ -48,6 +49,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dpkg \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+# Install Google Chrome
+RUN apt-get update && \
+    wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/google-chrome.deb && \
+    apt-get install -y /tmp/google-chrome.deb && \
+    rm /tmp/google-chrome.deb && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
 
 # Create non-root user for security (removed sudo group - not needed in container)
 RUN useradd --create-home --shell /bin/bash appuser

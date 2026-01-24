@@ -19924,19 +19924,21 @@ class GameCollectionManager {
         errorContainer.style.display = 'block';
     }
     
-    selectCustomGame(gameId, gameTitle) {
-        // Set the Custom ID in the edit modal
-        const editCustomIdField = document.getElementById('editCustomid');
-        if (editCustomIdField) {
-            editCustomIdField.value = gameId;
+    selectCustomGame(gameId, gameTitle, scraperType = 'custom') {
+        const isCustom2 = scraperType === 'custom2';
+        const fieldId = isCustom2 ? 'editCustom2id' : 'editCustomid';
+        // Set the Custom/Custom2 ID in the edit modal
+        const editField = document.getElementById(fieldId);
+        if (editField) {
+            editField.value = gameId;
         }
         
         // Also update in panel if it's open
         const panelContent = document.getElementById('rightPanelContent');
         if (panelContent) {
-            const panelCustomId = panelContent.querySelector('#editCustomid');
-            if (panelCustomId) {
-                panelCustomId.value = gameId;
+            const panelField = panelContent.querySelector(`#${fieldId}`);
+            if (panelField) {
+                panelField.value = gameId;
             }
         }
         
@@ -26483,6 +26485,7 @@ class GameCollectionManager {
                                 <th style="width: 11%">EmuMovies</th>
                                 <th style="width: 11%">DAT File</th>
                                 <th style="width: 11%">Custom</th>
+                                <th style="width: 11%">Custom2</th>
                                 <th style="width: 24%">Extensions</th>
                             </tr>
                         </thead>
