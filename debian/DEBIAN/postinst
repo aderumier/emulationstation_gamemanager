@@ -84,8 +84,11 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=gamemanager
 
-# Security settings
-NoNewPrivileges=true
+# Security settings (NoNewPrivileges=no required for Selenium/ChromeDriver)
+NoNewPrivileges=no
+
+# Network access (required for Selenium Manager to download ChromeDriver)
+PrivateNetwork=no
 
 [Install]
 WantedBy=multi-user.target
@@ -304,8 +307,11 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=gamemanager
 
-# Security settings
-NoNewPrivileges=true
+# Security settings (NoNewPrivileges=no required for Selenium/ChromeDriver)
+NoNewPrivileges=no
+
+# Network access (required for Selenium Manager to download ChromeDriver)
+PrivateNetwork=no
 
 [Install]
 WantedBy=multi-user.target

@@ -18,6 +18,19 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import sys
+import os
+
+# Ensure current directory is first in sys.path to use embedded libraries
+# (selenium, pyrate_limiter, pixelmatch) instead of system-installed versions
+_app_dir = os.path.dirname(os.path.abspath(__file__))
+if _app_dir not in sys.path:
+    sys.path.insert(0, _app_dir)
+elif sys.path[0] != _app_dir:
+    # Move to front if already in path
+    sys.path.remove(_app_dir)
+    sys.path.insert(0, _app_dir)
+
 from sys import dont_write_bytecode
 from flask import Flask, render_template, request, jsonify, send_from_directory, send_file, Response, redirect, url_for, session, flash, make_response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -28,7 +41,6 @@ from functools import wraps
 import asyncio
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
-import os
 import json
 from dotenv import load_dotenv
 import time
@@ -62,6 +74,12 @@ from igdb_service import IGDBService
 from datscrapper_service import DATScrapperService
 from emumovies_service import EmuMoviesService
 from custom_scraper_service import CustomScraperService
+
+# Note: Embedded libraries (loaded from current directory, no pip install needed):
+# - selenium/ (Selenium 4.40.0) - Browser automation for amigahol downloads
+# - typing_extensions/ (4.15.0) - Type hints with Sentinel support (required by selenium)
+# - pyrate_limiter/ - Rate limiting
+# - pixelmatch/ - Image comparison
 
 # FFmpeg cropping functions for auto-cropping black borders
 def cropdetect(video_file_path, start_time, duration):
@@ -35039,7 +35057,7 @@ _selenium_challenge_passed = False  # Track if we've already passed the challeng
 _selenium_session_cookies = None  # Cache cookies after passing challenge
 
 def _init_selenium_driver():
-    """Initialize Selenium WebDriver for amigahol downloads"""
+    """Initialize Selenium WebDriver for amigahol downloads (headless server compatible)"""
     global _selenium_driver, _selenium_lock
     if _selenium_lock is None:
         import threading
@@ -35048,9 +35066,80 @@ def _init_selenium_driver():
         return _selenium_driver
     
     try:
+        import os
+        import shutil
+        
+        # Use embedded selenium module from selenium/ directory
         from selenium import webdriver
         from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
         import logging
+        
+        # Check if Chrome/Chromium is installed
+        # ChromeDriver requires the actual Chrome binary, not the /usr/bin wrapper.
+        # /usr/bin/google-chrome is a script; real binary is /opt/google/chrome/chrome.
+        import subprocess
+        def _chrome_binary_works(p):
+            if not p or not os.path.exists(p) or not os.access(p, os.X_OK):
+                return False
+            try:
+                r = subprocess.run([p, '--version'], capture_output=True, text=True, timeout=5)
+                out = (r.stdout or '') + (r.stderr or '')
+                if r.returncode != 0:
+                    return False
+                return 'Chromium' in out or 'Chrome' in out or 'Google' in out
+            except Exception:
+                pass
+            if p and os.path.exists(p) and os.access(p, os.X_OK):
+                if 'chrome' in p.lower() or 'chromium' in p.lower():
+                    logger.debug(f"Using Chrome path without --version check: {p}")
+                    return True
+            return False
+
+        def _resolve_chrome_binary(p):
+            """Use real Chrome binary instead of /usr/bin wrapper. ChromeDriver rejects wrappers."""
+            if not p:
+                return p
+            if p in ('/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'):
+                for real in ('/opt/google/chrome/chrome', '/opt/google/chrome/google-chrome'):
+                    if os.path.exists(real) and os.access(real, os.X_OK):
+                        logger.info(f"Resolving {p} -> {real} (ChromeDriver needs actual binary)")
+                        return real
+            return p
+
+        # Try actual Chrome binary first; /usr/bin/google-chrome is a wrapper ChromeDriver can't use
+        chrome_paths = [
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/usr/local/bin/chromium',
+            '/snap/chromium/current/usr/lib/chromium-browser/chromium-browser',
+            '/snap/chromium/current/usr/lib/chromium-browser/chrome',
+            '/snap/bin/chromium',
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/local/bin/google-chrome',
+            '/usr/local/bin/chrome',
+        ]
+        chrome_found = False
+        chrome_path = None
+        for p in chrome_paths:
+            if _chrome_binary_works(p):
+                chrome_path = _resolve_chrome_binary(p)
+                chrome_found = True
+                break
+        if not chrome_found:
+            for name in ('chromium', 'chromium-browser', 'google-chrome'):
+                cand = shutil.which(name)
+                if cand and _chrome_binary_works(cand):
+                    chrome_path = _resolve_chrome_binary(cand)
+                    chrome_found = True
+                    break
+        if chrome_found:
+            logger.info(f"Found Chrome/Chromium at: {chrome_path}")
+        else:
+            logger.warning("Chrome/Chromium not found or not runnable. Selenium will try system default.")
+            chrome_path = None
         
         # Suppress Selenium WebDriver logs
         selenium_logger = logging.getLogger('selenium')
@@ -35060,19 +35149,74 @@ def _init_selenium_driver():
         chromedriver_logger = logging.getLogger('selenium.webdriver.remote.remote_connection')
         chromedriver_logger.setLevel(logging.WARNING)
         
+        # Configure Chrome options for headless server (no display)
         options = Options()
-        options.add_argument('--headless')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--log-level=3')  # Suppress Chrome logs (0=INFO, 1=WARNING, 2=ERROR, 3=FATAL)
-        options.add_experimental_option('excludeSwitches', ['enable-logging'])  # Disable Chrome logging
-        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
         
-        _selenium_driver = webdriver.Chrome(options=options)
+        # Essential headless options
+        options.add_argument('--headless=new')  # Use new headless mode
+        options.add_argument('--no-sandbox')  # Required for running as root or in containers
+        options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
+        options.add_argument('--disable-gpu')  # Disable GPU hardware acceleration
+        options.add_argument('--disable-software-rasterizer')  # Disable software rasterizer
+        
+        # Additional headless server options
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-background-timer-throttling')
+        options.add_argument('--disable-backgrounding-occluded-windows')
+        options.add_argument('--disable-renderer-backgrounding')
+        options.add_argument('--disable-features=TranslateUI')
+        options.add_argument('--disable-ipc-flooding-protection')
+        options.add_argument('--window-size=1920,1080')  # Set a default window size
+        
+        # Logging and performance
+        options.add_argument('--log-level=3')  # Suppress Chrome logs
+        options.add_experimental_option('excludeSwitches', ['enable-logging'])  # Disable Chrome logging
+        options.add_experimental_option('useAutomationExtension', False)
+        
+        # User agent
+        options.add_argument('user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+        
+        # Do NOT set binary_location by default – matches dev (no system chromedriver).
+        # Selenium Manager auto-finds Chrome and downloads driver. Only set when we have
+        # a real binary (not /usr/bin/google-chrome wrapper) and dev-style auto-detect fails.
+        _use_binary_location = False
+        if chrome_path and chrome_path not in ('/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'):
+            _use_binary_location = True
+            options.binary_location = chrome_path
+            logger.info(f"Setting Chrome binary location to: {chrome_path}")
+        else:
+            logger.info("Not setting binary_location; using Selenium auto-detect (dev-style)")
+        
+        # Set DISPLAY environment variable if not set (for headless servers)
+        if 'DISPLAY' not in os.environ:
+            os.environ['DISPLAY'] = ':99'
+            logger.info("Set DISPLAY environment variable to :99 for headless operation")
+        
+        # Initialize ChromeDriver using Selenium Manager (auto-detect)
+        logger.info("Attempting to initialize ChromeDriver using Selenium Manager (auto-detect)")
+        
+        # Don't set binary_location to let Selenium handle everything
+        temp_options = Options()
+        for arg in options.arguments:
+            temp_options.add_argument(arg)
+        for key, value in options.experimental_options.items():
+            temp_options.add_experimental_option(key, value)
+        # Only set binary_location if we have a path, otherwise let Selenium auto-detect
+        if chrome_path and not chrome_path.startswith('/snap/bin/'):
+            temp_options.binary_location = chrome_path
+        _selenium_driver = webdriver.Chrome(options=temp_options)
+        logger.info("Successfully initialized ChromeDriver using Selenium Manager")
+        
         _selenium_driver.set_page_load_timeout(60)
+        logger.info("Selenium WebDriver initialized successfully for headless server")
         return _selenium_driver
+    except ImportError as e:
+        logger.error(f"Selenium import failed. Make sure selenium is installed: pip install selenium. Error: {e}", exc_info=True)
+        return None
     except Exception as e:
+        logger.error(f"Selenium driver initialization failed. Error type: {type(e).__name__}, Error: {e}", exc_info=True)
+        import traceback
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
         return None
 
 def _ensure_selenium_challenge_passed():

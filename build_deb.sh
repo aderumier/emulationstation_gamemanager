@@ -122,6 +122,16 @@ echo "📦 Copying pixelmatch..."
 rm -rf debian/opt/gamemanager/pixelmatch
 cp -r pixelmatch debian/opt/gamemanager/
 
+# Copy selenium module
+echo "📦 Copying selenium..."
+rm -rf debian/opt/gamemanager/selenium
+cp -r selenium debian/opt/gamemanager/
+
+# Copy typing_extensions module
+echo "📦 Copying typing_extensions..."
+rm -rf debian/opt/gamemanager/typing_extensions
+cp -r typing_extensions debian/opt/gamemanager/
+
 # Tools and plugins
 mkdir -p debian/opt/gamemanager/tools
 cp tools/yt-dlp debian/opt/gamemanager/tools/yt-dlp
@@ -305,6 +315,33 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/pixelmatch/contrib/PIL.py" ]; then
     echo "❌ ERROR: pixelmatch/contrib/PIL.py not found!"
+    exit 1
+fi
+
+# Verify selenium is included
+if [ ! -d "debian/opt/gamemanager/selenium" ]; then
+    echo "❌ ERROR: selenium directory not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/selenium/__init__.py" ]; then
+    echo "❌ ERROR: selenium/__init__.py not found!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/selenium/webdriver/common/linux/selenium-manager" ]; then
+    echo "❌ ERROR: selenium-manager binary not found!"
+    exit 1
+fi
+
+# Verify typing_extensions is included
+if [ ! -d "debian/opt/gamemanager/typing_extensions" ]; then
+    echo "❌ ERROR: typing_extensions directory not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/typing_extensions/__init__.py" ]; then
+    echo "❌ ERROR: typing_extensions/__init__.py not found!"
     exit 1
 fi
 
