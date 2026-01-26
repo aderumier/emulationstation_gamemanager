@@ -88,40 +88,56 @@ class DATScrapperService:
             tree = ET.parse(dat_file_path)
             root = tree.getroot()
             
+            def local_name(tag):
+                """Return local part of tag (strip XML namespace if present)."""
+                return tag.split('}')[-1] if tag and '}' in tag else (tag or '')
+            
             dat_entries = {}
             
-            # Parse each machine/game entry (handle both formats)
-            # Try <machine> first (standard MAME format)
-            entries = root.findall('machine')
-            if not entries:
-                # Try <game> format (some DAT files use this)
-                entries = root.findall('game')
-                print(f"🔧 DEBUG: Using <game> format for DAT file")
+            # Parse each machine/game entry (handle both formats and XML namespaces)
+            entries = []
+            for elem in root.iter():
+                ln = local_name(elem.tag)
+                if ln == 'machine':
+                    entries.append(elem)
+                elif ln == 'game':
+                    entries.append(elem)
+            if entries:
+                # Prefer calling it "machine" if we found at least one machine
+                first_tag = local_name(entries[0].tag)
+                print(f"🔧 DEBUG: Using <{first_tag}> format for DAT file ({len(entries)} entries)")
             else:
-                print(f"🔧 DEBUG: Using <machine> format for DAT file")
+                print(f"🔧 DEBUG: No <machine> or <game> elements found in DAT (check XML namespace/structure)")
+            
+            def find_child(elem, local_tag_name):
+                """Find first child element with given local tag name (ignores namespace)."""
+                for child in elem:
+                    if local_name(child.tag) == local_tag_name:
+                        return child
+                return None
             
             for entry in entries:
                 rom_name = entry.get('name', '').strip()
                 if not rom_name:
                     continue
                 
-                # Extract metadata
-                description = entry.find('description')
+                # Extract metadata (find by local name so namespaced XML works)
+                description = find_child(entry, 'description')
                 description_text = description.text.strip() if description is not None and description.text else ''
                 
-                year = entry.find('year')
+                year = find_child(entry, 'year')
                 year_text = year.text.strip() if year is not None and year.text else ''
                 
-                publisher = entry.find('publisher')
+                publisher = find_child(entry, 'publisher')
                 publisher_text = publisher.text.strip() if publisher is not None and publisher.text else ''
                 
-                developer = entry.find('developer')
+                developer = find_child(entry, 'developer')
                 developer_text = developer.text.strip() if developer is not None and developer.text else ''
                 
-                manufacturer = entry.find('manufacturer')
+                manufacturer = find_child(entry, 'manufacturer')
                 manufacturer_text = manufacturer.text.strip() if manufacturer is not None and manufacturer.text else ''
                 
-                genre = entry.find('genre')
+                genre = find_child(entry, 'genre')
                 genre_text = genre.text.strip() if genre is not None and genre.text else ''
                 
                 # Create normalized name for matching
