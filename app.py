@@ -2688,6 +2688,26 @@ def create_media_filename(rompath_or_romfile, media_extension):
     # Add the media extension
     return f"{rom_filename}{media_extension}"
 
+def rom_path_to_m3u_path(rom_path):
+    """
+    Derive M3U path from a ROM path: strip parenthetical parts from basename (e.g. (disk 1), (tape 2))
+    and replace extension with .m3u. Returns path with ./ prefix.
+    """
+    if not rom_path or not rom_path.strip():
+        return './unknown.m3u'
+    path = rom_path.strip()
+    dir_part = os.path.dirname(path)
+    base = os.path.basename(path)
+    name_no_ext, _ = os.path.splitext(base)
+    # Strip parenthetical parts: (disk 1), (tape 2), (disc A), (side B), etc.
+    name_clean = re.sub(r'\s*\([^)]*\)\s*', '', name_no_ext).strip()
+    if not name_clean:
+        name_clean = name_no_ext
+    new_base = name_clean + '.m3u'
+    if dir_part and dir_part != '.':
+        return (dir_part + '/' + new_base).replace('\\', '/')
+    return './' + new_base
+
 def get_system_name_from_task_data(task_data):
     """Extract system_name from task_data, return None if not found or not applicable"""
     if not task_data:
@@ -19043,6 +19063,106 @@ def update_games_hidden(system_name):
         
     except Exception as e:
         print(f"Error in update_games_hidden endpoint: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/rom-system/<system_name>/games/create-m3u', methods=['POST'])
+@login_required
+def create_m3u_from_games(system_name):
+    """Create a .m3u playlist from selected games: write .m3u file, add/update gamelist entry with first game's metadata and renamed media, hide selected games."""
+    try:
+        data = request.get_json(force=True) or {}
+        rom_paths = data.get('rom_paths', [])
+        if not rom_paths:
+            return jsonify({'error': 'rom_paths is required and must be non-empty'}), 400
+
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.isdir(system_path):
+            return jsonify({'error': 'System ROMs directory not found'}), 404
+
+        games = parse_gamelist_xml(gamelist_path)
+        path_to_game = {g.get('path'): g for g in games if g.get('path')}
+        for p in rom_paths:
+            if p not in path_to_game:
+                return jsonify({'error': f'Game not found in gamelist: {p}'}), 400
+
+        first_game = path_to_game[rom_paths[0]]
+        m3u_path = rom_path_to_m3u_path(rom_paths[0])
+
+        # Write .m3u file in the same subdirectory as the first ROM; lines relative to .m3u location
+        m3u_path_norm = m3u_path.lstrip('./').replace('/', os.sep)
+        m3u_full_path = os.path.join(system_path, m3u_path_norm)
+        m3u_dir = os.path.dirname(m3u_path_norm)  # '' if m3u in system root
+        os.makedirs(os.path.dirname(m3u_full_path) or '.', exist_ok=True)
+        with open(m3u_full_path, 'w', encoding='utf-8') as f:
+            for p in rom_paths:
+                p_norm = p.lstrip('./').replace('/', os.sep)
+                line = os.path.relpath(p_norm, m3u_dir) if m3u_dir else p_norm
+                f.write(line.replace(os.sep, '/') + '\n')
+
+        # Build new entry from first game; path = m3u_path, hidden = false
+        new_entry = {k: v for k, v in first_game.items() if k != 'path' and k != 'id'}
+        new_entry['path'] = m3u_path
+        new_entry['hidden'] = 'false'
+
+        # Media: rename first game's media files to m3u basename and set new entry's media paths
+        config = load_config()
+        media_fields = config.get('media_fields', {})
+        for field_name, field_config in media_fields.items():
+            media_path = first_game.get(field_name, '')
+            if not media_path or not isinstance(media_path, str) or not media_path.strip():
+                new_entry[field_name] = ''
+                continue
+            rel = media_path.strip().lstrip('./').replace('\\', '/')
+            full_src = os.path.join(system_path, rel)
+            if not os.path.isfile(full_src):
+                new_entry[field_name] = ''
+                continue
+            ext = os.path.splitext(full_src)[1]
+            target_filename = create_media_filename(m3u_path, ext)
+            media_dir = field_config.get('directory', field_name)
+            target_rel = 'media/' + media_dir + '/' + target_filename
+            full_dst = os.path.join(system_path, target_rel.replace('/', os.sep))
+            try:
+                os.makedirs(os.path.dirname(full_dst), exist_ok=True)
+                if full_dst != full_src:
+                    shutil.move(full_src, full_dst)
+            except Exception as e:
+                print(f"Warning: could not move media {full_src} -> {full_dst}: {e}")
+                new_entry[field_name] = ''
+                continue
+            new_entry[field_name] = './' + target_rel.replace('\\', '/')
+
+        # Hide selected games
+        rom_paths_set = set(rom_paths)
+        hidden_count = 0
+        for game in games:
+            if game.get('path') in rom_paths_set:
+                game['hidden'] = 'true'
+                hidden_count += 1
+
+        # Update or append new entry
+        existing_idx = next((i for i, g in enumerate(games) if g.get('path') == m3u_path), None)
+        if existing_idx is not None:
+            games[existing_idx] = new_entry
+        else:
+            games.append(new_entry)
+
+        write_gamelist_xml(games, gamelist_path)
+        save_gamelist_to_roms(system_name)
+        notify_gamelist_updated(system_name, len(games))
+
+        return jsonify({
+            'success': True,
+            'm3u_path': m3u_path,
+            'hidden_count': hidden_count
+        })
+    except Exception as e:
+        print(f"Error in create_m3u_from_games: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/rom-system/<system_name>/game/manual-scrap/apply', methods=['POST'])

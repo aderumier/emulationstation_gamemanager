@@ -4141,6 +4141,9 @@ class GameCollectionManager {
                 <a class="dropdown-item" href="#" onclick="gameManager.moveRom(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-folder2-open"></i> Move ROM
                 </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.createM3uForSelected(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                    <i class="bi bi-list-ul"></i> Create .m3u
+                </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.toggleGameHidden(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Unhidden' : 'Hide'} Game
@@ -4157,6 +4160,9 @@ class GameCollectionManager {
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.moveSelectedGames()">
                     <i class="bi bi-folder2-open"></i> Move Selected
+                </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.createM3uForSelected()">
+                    <i class="bi bi-list-ul"></i> Create .m3u
                 </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.hideSelectedGames()">
@@ -4476,6 +4482,36 @@ class GameCollectionManager {
         }
     }
 
+    async createM3uForSelected(contextGame) {
+        let romPaths;
+        if (contextGame && contextGame.path) {
+            romPaths = [contextGame.path];
+        } else {
+            const selectedGames = this.gridApi.getSelectedRows();
+            if (selectedGames.length === 0) {
+                this.showAlert('No games selected', 'warning');
+                return;
+            }
+            romPaths = selectedGames.map(game => game.path);
+        }
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/games/create-m3u`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rom_paths: romPaths })
+            });
+            const result = await response.json();
+            if (result.success) {
+                const n = result.hidden_count || romPaths.length;
+                this.showToast(`Created .m3u and hid ${n} game(s)`, 'success');
+            } else {
+                this.showAlert(result.error || 'Failed to create .m3u', 'error');
+            }
+        } catch (error) {
+            console.error('Error creating .m3u:', error);
+            this.showAlert('Failed to create .m3u', 'error');
+        }
+    }
 
     async moveRom(game) {
         this.movingGame = game;
