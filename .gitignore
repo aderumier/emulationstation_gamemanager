@@ -173,3 +173,6 @@ screenscraper_test.txt
 
 # Tools - exclude large binaries
 tools/deno
+
+# Unused submodule
+google-images-scraper/
