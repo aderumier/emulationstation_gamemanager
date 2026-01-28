@@ -37124,6 +37124,14 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
         cancellation_event = None
         global _steam_cancel_events
         
+        # Initialize variables at the start so they're available in finally block
+        updated_count = 0
+        media_downloaded_count = 0
+        total_images_downloaded = 0
+        skipped_count = 0
+        all_games = None
+        gamelist_path = None
+        
         try:
             print(f"Starting Steam task for system: {system_name}")
             print(f"🔧 DEBUG: async_steam called with selected_text_fields={selected_text_fields}")
@@ -37901,36 +37909,38 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                 pass
             
             # Save gamelist regardless of cancellation status (user might have downloaded some media)
-            try:
-                if is_cancelled():
-                    print(f"💾 Saving updated gamelist for {system_name} (task was cancelled but saving progress)...")
+            # Only save if we have a valid gamelist_path and all_games
+            if gamelist_path and all_games:
+                try:
+                    if is_cancelled():
+                        print(f"💾 Saving updated gamelist for {system_name} (task was cancelled but saving progress)...")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"💾 Saving updated gamelist for {system_name} (task was cancelled but saving progress)...")
+                    else:
+                        print(f"💾 Saving updated gamelist for {system_name}...")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"💾 Saving updated gamelist for {system_name}...")
+                    
+                    save_gamelist_xml(gamelist_path, all_games)
+                    
+                    # Notify clients of gamelist update
+                    notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+                    
+                    if is_cancelled():
+                        print(f"✅ Gamelist saved successfully for {system_name} (cancelled task progress saved)")
+                        if t:
+                            t.log_message(f"✅ Gamelist saved successfully for {system_name} (cancelled task progress saved)")
+                    else:
+                        print(f"✅ Gamelist saved successfully for {system_name}")
+                        if t:
+                            t.log_message(f"✅ Gamelist saved successfully for {system_name}")
+                except Exception as e:
+                    print(f"❌ Error saving gamelist: {e}")
                     t = get_task(task_id)
                     if t:
-                        t.log_message(f"💾 Saving updated gamelist for {system_name} (task was cancelled but saving progress)...")
-                else:
-                    print(f"💾 Saving updated gamelist for {system_name}...")
-                    t = get_task(task_id)
-                    if t:
-                        t.log_message(f"💾 Saving updated gamelist for {system_name}...")
-                
-                save_gamelist_xml(gamelist_path, all_games)
-                
-                # Notify clients of gamelist update
-                notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
-                
-                if is_cancelled():
-                    print(f"✅ Gamelist saved successfully for {system_name} (cancelled task progress saved)")
-                    if t:
-                        t.log_message(f"✅ Gamelist saved successfully for {system_name} (cancelled task progress saved)")
-                else:
-                    print(f"✅ Gamelist saved successfully for {system_name}")
-                    if t:
-                        t.log_message(f"✅ Gamelist saved successfully for {system_name}")
-            except Exception as e:
-                print(f"❌ Error saving gamelist: {e}")
-                t = get_task(task_id)
-                if t:
-                    t.log_message(f"❌ Error saving gamelist: {e}")
+                        t.log_message(f"❌ Error saving gamelist: {e}")
     
     # Run the async function in a new thread
     def run_async():
