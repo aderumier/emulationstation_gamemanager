@@ -36,8 +36,9 @@ hiddenimports = [
     'flask_compress',
     'werkzeug',
     'werkzeug.middleware.proxy_fix',
-    # SocketIO dependencies
+    # SocketIO dependencies (threading driver required when frozen)
     'engineio',
+    'engineio.async_drivers.threading',
     'socketio',
     # HTTP clients
     'requests',

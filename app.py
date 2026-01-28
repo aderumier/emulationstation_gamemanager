@@ -1253,6 +1253,8 @@ app.config['COMPRESS_MIMETYPES'] = [
 app.config['COMPRESS_LEVEL'] = 6
 app.config['COMPRESS_MIN_SIZE'] = 500
 Compress(app)
+# Force-load engineio threading driver so PyInstaller includes it (avoids "Invalid async_mode" when frozen)
+import engineio.async_drivers.threading  # noqa: E402
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 @app.before_request
