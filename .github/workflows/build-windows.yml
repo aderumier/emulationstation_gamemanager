@@ -117,6 +117,15 @@ jobs:
           Copy-Item -Path "var\config\scrapper_genre_mapping.json" -Destination "dist\gamemanager_windows\var\config\" -ErrorAction SilentlyContinue
           Copy-Item -Path "var\config\genres.json" -Destination "dist\gamemanager_windows\var\config\" -ErrorAction SilentlyContinue
           Write-Host "  Copied config files"
+          
+          # Update config.json for Windows (replace Linux path with relative path)
+          $configPath = "dist\gamemanager_windows\var\config\config.json"
+          if (Test-Path $configPath) {
+            $configContent = Get-Content $configPath -Raw -Encoding UTF8
+            $configContent = $configContent -replace '"roms_root_directory":\s*"[^"]*"', '"roms_root_directory": "./roms/"'
+            $configContent | Set-Content $configPath -Encoding UTF8 -NoNewline
+            Write-Host "  Updated config.json for Windows (roms_root_directory)"
+          }
         }
         
         # Copy var/fonts files (like in .deb package)
