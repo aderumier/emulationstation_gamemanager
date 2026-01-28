@@ -61,8 +61,9 @@ hiddenimports = [
     'bcrypt',
     # Environment
     'dotenv',
-    # String matching
+    # String matching (jellyfish has C extension)
     'jellyfish',
+    'jellyfish._jellyfish',
     # PDF processing
     'fitz',  # PyMuPDF
     # Local modules
