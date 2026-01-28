@@ -162,6 +162,13 @@ var/
 !var/db/mobygames/*.json
 !var/db/custom/
 !var/db/custom/*.json
+!var/db/igdb/
+!var/db/igdb/igdb_db.pkl.gz
+!var/db/igdb/igdb_companies.pkl
+!var/db/igdb/igdb_genres.pkl
+!var/db/igdb/igdb_platform_partition_index.pkl
+!var/db/igdb/mediatype.txt
+!var/db/igdb/platforms.json
 !var/fonts/
 !var/fonts/**
 !var/3dbox/
