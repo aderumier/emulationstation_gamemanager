@@ -107,6 +107,65 @@ jobs:
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\config" -Force | Out-Null
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db" -Force | Out-Null
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\task_logs" -Force | Out-Null
+        
+        # Copy var/db files (like in .deb package)
+        Write-Host "Copying var/db files..."
+        
+        # MobyGames databases
+        if (Test-Path "var\db\mobygames") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db\mobygames" -Force | Out-Null
+          Copy-Item -Path "var\db\mobygames\*.json" -Destination "dist\gamemanager_windows\var\db\mobygames\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied MobyGames databases"
+        }
+        
+        # IGDB databases
+        if (Test-Path "var\db\igdb") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db\igdb" -Force | Out-Null
+          Copy-Item -Path "var\db\igdb\*.pkl" -Destination "dist\gamemanager_windows\var\db\igdb\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "var\db\igdb\*.json" -Destination "dist\gamemanager_windows\var\db\igdb\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "var\db\igdb\mediatype.txt" -Destination "dist\gamemanager_windows\var\db\igdb\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied IGDB databases"
+        }
+        
+        # EmuMovies databases
+        if (Test-Path "var\db\emumovies") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db\emumovies" -Force | Out-Null
+          Copy-Item -Path "var\db\emumovies\emumovies.json" -Destination "dist\gamemanager_windows\var\db\emumovies\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "var\db\emumovies\emumovies_index.pkl" -Destination "dist\gamemanager_windows\var\db\emumovies\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied EmuMovies databases"
+        }
+        
+        # Custom databases
+        if (Test-Path "var\db\custom") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db\custom" -Force | Out-Null
+          Copy-Item -Path "var\db\custom\*.json" -Destination "dist\gamemanager_windows\var\db\custom\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied Custom databases"
+        }
+        
+        # Platform cache files
+        if (Test-Path "var\db\screenscraper") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db\screenscraper" -Force | Out-Null
+          Copy-Item -Path "var\db\screenscraper\platforms.json" -Destination "dist\gamemanager_windows\var\db\screenscraper\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied ScreenScraper platform cache"
+        }
+        
+        # Create empty files for cache files that will be populated by the application
+        if (Test-Path "dist\gamemanager_windows\var\db\igdb") {
+          $emptyFiles = @("companies.json", "genres.json", "regions_cache.json", "sample_games.json")
+          foreach ($file in $emptyFiles) {
+            if (-not (Test-Path "dist\gamemanager_windows\var\db\igdb\$file")) {
+              New-Item -ItemType File -Path "dist\gamemanager_windows\var\db\igdb\$file" -Force | Out-Null
+            }
+          }
+        }
+        
+        if (Test-Path "dist\gamemanager_windows\var\db\steam") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db\steam" -Force | Out-Null
+          if (-not (Test-Path "dist\gamemanager_windows\var\db\steam\appindex.json")) {
+            New-Item -ItemType File -Path "dist\gamemanager_windows\var\db\steam\appindex.json" -Force | Out-Null
+          }
+        }
+        
         Write-Host "Distribution folder created"
         
     - name: Create README for Windows
