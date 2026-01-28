@@ -25222,14 +25222,33 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
         if temp_videos_dir is None:
             temp_videos_dir = videos_dir
         
-        task.update_progress(f"  📁 Using temp directory: {temp_videos_dir}")
-        
-        # Use ROM name for temp file naming (rom_file is always provided)
+        # Per-ROM subdir to avoid conflicts when multiple yt-dlp tasks run concurrently
         rom_name = os.path.splitext(os.path.basename(rom_file))[0]
+        safe_rom_name = "".join(c for c in rom_name if c.isalnum() or c in "-_.") or "unknown"
+        safe_rom_name = safe_rom_name.replace("..", "_").strip(".") or "unknown"
+        temp_rom_dir = os.path.join(temp_videos_dir, safe_rom_name)
+        try:
+            os.makedirs(temp_rom_dir, exist_ok=True)
+        except OSError as e:
+            task.update_progress(f"  ❌ Cannot create temp subdir {temp_rom_dir}: {e}")
+            return False
+        # Clean any leftover from a previous run for this ROM
+        try:
+            for f in os.listdir(temp_rom_dir):
+                if f.startswith('temp_'):
+                    try:
+                        os.remove(os.path.join(temp_rom_dir, f))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        
+        task.update_progress(f"  📁 Using temp directory: {temp_rom_dir}")
+        
         temp_filename = f"temp_{rom_name}"
         task.update_progress(f"  🎮 Using ROM name for temp file: {temp_filename}")
         
-        output_template = os.path.join(temp_videos_dir, f"{temp_filename}.%(ext)s")
+        output_template = os.path.join(temp_rom_dir, f"{temp_filename}.%(ext)s")
         
         # Calculate end time for the 30-second section
         end_time = start_time + 30
@@ -25337,19 +25356,28 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
             task.update_progress(f"  🎮 Steam Store URL detected, using playlist index: {playlist_index}")
         task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
         
-        # Add yt-dlp directory to PATH
+        # Add yt-dlp and ffmpeg directories to PATH (yt-dlp needs ffmpeg to merge bestvideo+bestaudio)
         yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+        ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+        ffmpeg_dir = ''
+        if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
+            ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
         env = os.environ.copy()
         current_path = env.get('PATH', '')
-        if yt_dlp_dir not in current_path:
-            env['PATH'] = f"{yt_dlp_dir}:{current_path}"
+        path_additions = [yt_dlp_dir]
+        if ffmpeg_dir and ffmpeg_dir not in current_path:
+            path_additions.append(ffmpeg_dir)
+        for d in path_additions:
+            if d and d not in current_path:
+                current_path = os.pathsep.join([d, current_path])
+        env['PATH'] = current_path
         
         process = subprocess.Popen(
             download_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            cwd=temp_videos_dir,
+            cwd=temp_rom_dir,
             bufsize=1,
             universal_newlines=True,
             env=env
@@ -25434,31 +25462,37 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
                     task.update_progress(f"  🔁 Sections mode failed, trying full download...")
                     download_cmd = build_download_cmd('full', use_cookies=False)
                 
-                # Clean previous temp files
+                # Clean previous temp files (this ROM's subdir only)
                 try:
-                    for f in os.listdir(temp_videos_dir):
+                    for f in os.listdir(temp_rom_dir):
                         if f.startswith('temp_'):
                             try:
-                                os.remove(os.path.join(temp_videos_dir, f))
+                                os.remove(os.path.join(temp_rom_dir, f))
                             except Exception:
                                 pass
                 except Exception:
                     pass
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 
-                # Add yt-dlp directory to PATH
+                # Add yt-dlp and ffmpeg to PATH (same as initial attempt)
                 yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+                ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+                ffmpeg_dir = ''
+                if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
+                    ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
                 env = os.environ.copy()
                 current_path = env.get('PATH', '')
-                if yt_dlp_dir not in current_path:
-                    env['PATH'] = f"{yt_dlp_dir}:{current_path}"
+                for d in ([yt_dlp_dir] + ([ffmpeg_dir] if ffmpeg_dir and ffmpeg_dir not in current_path else [])):
+                    if d and d not in current_path:
+                        current_path = os.pathsep.join([d, current_path])
+                env['PATH'] = current_path
                 
                 process = subprocess.Popen(
                     download_cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    cwd=temp_videos_dir,
+                    cwd=temp_rom_dir,
                     bufsize=1,
                     universal_newlines=True,
                     env=env
@@ -25524,12 +25558,12 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
             # If we tried without cookies for a long video and it failed, try with cookies
             elif skip_cookies_for_long_videos and cookies_present:
                 task.update_progress(f"  🔁 First attempt without cookies failed, trying with cookies...")
-                # Clean previous temp files
+                # Clean previous temp files (this ROM's subdir only)
                 try:
-                    for f in os.listdir(temp_videos_dir):
+                    for f in os.listdir(temp_rom_dir):
                         if f.startswith('temp_'):
                             try:
-                                os.remove(os.path.join(temp_videos_dir, f))
+                                os.remove(os.path.join(temp_rom_dir, f))
                             except Exception:
                                 pass
                 except Exception:
@@ -25538,19 +25572,25 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
                 download_cmd = build_download_cmd(first_mode, use_cookies=True)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 
-                # Add yt-dlp directory to PATH
+                # Add yt-dlp and ffmpeg to PATH (same as initial attempt)
                 yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+                ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+                ffmpeg_dir = ''
+                if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
+                    ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
                 env = os.environ.copy()
                 current_path = env.get('PATH', '')
-                if yt_dlp_dir not in current_path:
-                    env['PATH'] = f"{yt_dlp_dir}:{current_path}"
+                for d in ([yt_dlp_dir] + ([ffmpeg_dir] if ffmpeg_dir and ffmpeg_dir not in current_path else [])):
+                    if d and d not in current_path:
+                        current_path = os.pathsep.join([d, current_path])
+                env['PATH'] = current_path
                 
                 process = subprocess.Popen(
                     download_cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    cwd=temp_videos_dir,
+                    cwd=temp_rom_dir,
                     bufsize=1,
                     universal_newlines=True,
                     env=env
@@ -25633,12 +25673,12 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
                     else:
                         task.update_progress(f"  🍪 PO token: Could not determine video duration, will use cookies")
                 
-                # Clean previous temp files
+                # Clean previous temp files (this ROM's subdir only)
                 try:
-                    for f in os.listdir(temp_videos_dir):
+                    for f in os.listdir(temp_rom_dir):
                         if f.startswith('temp_'):
                             try:
-                                os.remove(os.path.join(temp_videos_dir, f))
+                                os.remove(os.path.join(temp_rom_dir, f))
                             except Exception:
                                 pass
                 except Exception:
@@ -25646,19 +25686,25 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
                 download_cmd = build_download_cmd('po', use_cookies=po_use_cookies)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 
-                # Add yt-dlp directory to PATH
+                # Add yt-dlp and ffmpeg to PATH (same as initial attempt)
                 yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+                ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+                ffmpeg_dir = ''
+                if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
+                    ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
                 env = os.environ.copy()
                 current_path = env.get('PATH', '')
-                if yt_dlp_dir not in current_path:
-                    env['PATH'] = f"{yt_dlp_dir}:{current_path}"
+                for d in ([yt_dlp_dir] + ([ffmpeg_dir] if ffmpeg_dir and ffmpeg_dir not in current_path else [])):
+                    if d and d not in current_path:
+                        current_path = os.pathsep.join([d, current_path])
+                env['PATH'] = current_path
                 
                 process = subprocess.Popen(
                     download_cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    cwd=temp_videos_dir,
+                    cwd=temp_rom_dir,
                     bufsize=1,
                     universal_newlines=True,
                     env=env
@@ -25715,97 +25761,102 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
                     # If PO token without cookies failed and we have cookies, try PO token with cookies
                     if not po_use_cookies and cookies_present:
                         task.update_progress(f"  🔁 PO token without cookies failed, trying PO token with cookies...")
-                # Clean previous temp files
-                try:
-                    for f in os.listdir(videos_dir):
-                        if f.startswith('temp_'):
-                            try:
-                                os.remove(os.path.join(videos_dir, f))
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
-                        
-                download_cmd = build_download_cmd('po', use_cookies=True)
-                task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
-                
-                # Add yt-dlp directory to PATH
-                yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
-                env = os.environ.copy()
-                current_path = env.get('PATH', '')
-                if yt_dlp_dir not in current_path:
-                    env['PATH'] = f"{yt_dlp_dir}:{current_path}"
-                
-                process = subprocess.Popen(
-                    download_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    cwd=temp_videos_dir,
-                    bufsize=1,
-                    universal_newlines=True,
-                    env=env
-                )
-                # Read output again
-                stdout_lines = []
-                try:
-                    import select
-                    import sys
-                    while True:
-                        if is_task_stopped():
-                            process.terminate()
-                            try:
-                                process.wait(timeout=5)
-                            except subprocess.TimeoutExpired:
-                                process.kill()
-                            task.update_progress(f"  🛑 Download cancelled for {game_name}")
-                            return False
-                        if sys.platform != 'win32':
-                            ready, _, _ = select.select([process.stdout], [], [], 0.1)
-                            if ready:
+                    # Clean previous temp files (this ROM's subdir only)
+                    try:
+                        for f in os.listdir(temp_rom_dir):
+                            if f.startswith('temp_'):
+                                try:
+                                    os.remove(os.path.join(temp_rom_dir, f))
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+                    
+                    download_cmd = build_download_cmd('po', use_cookies=True)
+                    task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                    
+                    # Add yt-dlp and ffmpeg to PATH (same as initial attempt)
+                    yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+                    ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+                    ffmpeg_dir = ''
+                    if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
+                        ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
+                    env = os.environ.copy()
+                    current_path = env.get('PATH', '')
+                    for d in ([yt_dlp_dir] + ([ffmpeg_dir] if ffmpeg_dir and ffmpeg_dir not in current_path else [])):
+                        if d and d not in current_path:
+                            current_path = os.pathsep.join([d, current_path])
+                    env['PATH'] = current_path
+                    
+                    process = subprocess.Popen(
+                        download_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        cwd=temp_rom_dir,
+                        bufsize=1,
+                        universal_newlines=True,
+                        env=env
+                    )
+                    stdout_lines = []
+                    try:
+                        import select
+                        import sys
+                        while True:
+                            if is_task_stopped():
+                                process.terminate()
+                                try:
+                                    process.wait(timeout=5)
+                                except subprocess.TimeoutExpired:
+                                    process.kill()
+                                task.update_progress(f"  🛑 Download cancelled for {game_name}")
+                                return False
+                            if sys.platform != 'win32':
+                                ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                                if ready:
+                                    line = process.stdout.readline()
+                                    if not line:
+                                        break
+                                else:
+                                    if process.poll() is not None:
+                                        break
+                                    continue
+                            else:
                                 line = process.stdout.readline()
                                 if not line:
                                     break
-                            else:
-                                if process.poll() is not None:
-                                    break
-                                continue
-                        else:
-                            line = process.stdout.readline()
-                            if not line:
-                                break
-                        line = line.strip()
-                        if line:
-                            if line.startswith('[download]') or line.startswith('[info]') or line.startswith('[youtube]'):
-                                task.update_progress(f"  📥 {line}")
-                            elif any(keyword in line.lower() for keyword in ['progress', 'eta', '%', 'mb', 'gb', 'kb']) and not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
-                                task.update_progress(f"  📥 {line}")
-                            stdout_lines.append(line)
-                    process.wait()
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    task.update_progress(f"  ⏰ Download timeout for {game_name}")
-                    return False
-                except Exception as e:
-                    try:
-                        process.terminate()
-                        process.wait(timeout=5)
+                            line = line.strip()
+                            if line:
+                                if line.startswith('[download]') or line.startswith('[info]') or line.startswith('[youtube]'):
+                                    task.update_progress(f"  📥 {line}")
+                                elif any(keyword in line.lower() for keyword in ['progress', 'eta', '%', 'mb', 'gb', 'kb']) and not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
+                                    task.update_progress(f"  📥 {line}")
+                                stdout_lines.append(line)
+                        process.wait()
                     except subprocess.TimeoutExpired:
                         process.kill()
-                    task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
-                    return False
-                        
-                if process.returncode == 0:
-                    fallback_success = True
-                    task.update_progress(f"  ✅ Download succeeded with PO token + cookies for {game_name}")
+                        task.update_progress(f"  ⏰ Download timeout for {game_name}")
+                        return False
+                    except Exception as e:
+                        try:
+                            process.terminate()
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                        task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
+                        return False
+                    
+                    if process.returncode == 0:
+                        fallback_success = True
+                        task.update_progress(f"  ✅ Download succeeded with PO token + cookies for {game_name}")
+                    else:
+                        task.update_progress(f"  ❌ Download failed for {game_name} even with PO token + cookies (code: {process.returncode})")
+                        if stdout_lines:
+                            task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
+                        return False
                 else:
-                    task.update_progress(f"  ❌ Download failed for {game_name} even with PO token + cookies (code: {process.returncode})")
-                    if stdout_lines:
-                        task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
-                    return False
-            else:
-                fallback_success = True
-                task.update_progress(f"  ✅ Download succeeded with PO token for {game_name}")
+                    fallback_success = True
+                    task.update_progress(f"  ✅ Download succeeded with PO token for {game_name}")
             
             if not fallback_success:
                 # Log error details for debugging
@@ -25818,23 +25869,34 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
             task.update_progress(f"  ✅ Download completed for {game_name}")
 
         
-        # Find the downloaded file - look for the specific temp file we created
-        # Check for various formats that yt-dlp might download
-        possible_formats = ['.mp4', '.mkv', '.webm', '.avi', '.mov', '']  # Add empty string for no extension
-        temp_file = None
-        temp_path = None
-        
-        for fmt in possible_formats:
-            candidate_file = f"{temp_filename}{fmt}"
-            candidate_path = os.path.join(temp_videos_dir, candidate_file)
-            if os.path.exists(candidate_path):
-                temp_file = candidate_file
-                temp_path = candidate_path
-                break
+        # Find the downloaded file - yt-dlp may produce temp_filename.ext, temp_filename.fXXX.mp4, temp_filename.fXXX.fYYY.mkv (merged), etc.
+        video_extensions = ('.mp4', '.mkv', '.webm', '.avi', '.mov')
+        candidates = []
+        try:
+            for f in os.listdir(temp_rom_dir):
+                if not f.startswith(temp_filename):
+                    continue
+                base, ext = os.path.splitext(f)
+                if ext.lower() not in video_extensions:
+                    continue
+                path = os.path.join(temp_rom_dir, f)
+                if not os.path.isfile(path):
+                    continue
+                # Prefer: no .f in name (single/merged) > merged (.fXXX.fYYY) > format-specific; break ties by size (prefer video/merged)
+                has_f = '.f' in base
+                count_f = base.count('.f')
+                size = os.path.getsize(path)
+                candidates.append((has_f, -count_f, -size, f, path))
+        except Exception as e:
+            task.update_progress(f"  ❌ Error listing temp directory: {e}")
+            return False
+        candidates.sort(key=lambda x: (x[0], x[1], x[2]))
+        temp_file = candidates[0][3] if candidates else None
+        temp_path = candidates[0][4] if candidates else None
         
         if not temp_file or not temp_path:
             task.update_progress(f"  ❌ Expected temp file not found with any format")
-            task.update_progress(f"  Available files: {os.listdir(temp_videos_dir)}")
+            task.update_progress(f"  Available files: {os.listdir(temp_rom_dir)}")
             return False
         
         # Note: Format conversion will be handled by apply_video_processing later
@@ -25868,7 +25930,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
         
         # Move processed file to final location
         # Check if processing created a processed file
-        processed_path = os.path.join(temp_videos_dir, f"{os.path.splitext(temp_file)[0]}_processed.mp4")
+        processed_path = os.path.join(temp_rom_dir, f"{os.path.splitext(temp_file)[0]}_processed.mp4")
         final_source_path = processed_path if os.path.exists(processed_path) else temp_path
         
         task.update_progress(f"  📁 Temp file: {temp_file}")
@@ -25888,10 +25950,18 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
             shutil.move(final_source_path, output_path)
             task.update_progress(f"  📁 Moved {os.path.basename(final_source_path)} to final location: {output_filename_only}")
             
-            # Clean up any remaining temp files
+            # Clean up any remaining temp files in this ROM's subdir
             if os.path.exists(temp_path) and temp_path != final_source_path:
-                os.remove(temp_path)
-                task.update_progress(f"  🗑️ Cleaned up original temp file: {temp_file}")
+                try:
+                    os.remove(temp_path)
+                    task.update_progress(f"  🗑️ Cleaned up original temp file: {temp_file}")
+                except OSError:
+                    pass
+            # Remove this ROM's temp subdir (avoids conflicts; no longer needed)
+            try:
+                shutil.rmtree(temp_rom_dir, ignore_errors=True)
+            except Exception:
+                pass
         else:
             task.update_progress(f"  ❌ No processed file found: {os.path.basename(final_source_path)}")
             return False
