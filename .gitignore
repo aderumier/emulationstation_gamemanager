@@ -68,6 +68,9 @@ logs/
 *.sqlite3
 database-latest.json
 
+# IGDB: uncompressed db (we commit igdb_db.pkl.gz only; decompressed in CI)
+var/db/igdb/igdb_db.pkl
+
 # Media files and directories
 media/
 medias/
@@ -164,6 +167,8 @@ var/
 !var/3dbox/
 !var/3dbox/templates/
 !var/3dbox/templates/**
+!var/cache/
+!var/cache/steam_partitioned_index.pkl
 # Exclude credentials files for security
 var/config/credentials.json
 var/config/credentials.enc

@@ -66,6 +66,11 @@ cp var/db/mobygames/*.json debian/opt/gamemanager/var/db/mobygames/
 # IGDB databases and pickle files
 echo "📦 Copying IGDB databases and pickle files..."
 mkdir -p debian/opt/gamemanager/var/db/igdb
+# Decompress igdb_db.pkl.gz if present (committed compressed to stay under GitHub 100MB limit)
+if [ -f "var/db/igdb/igdb_db.pkl.gz" ] && [ ! -f "var/db/igdb/igdb_db.pkl" ]; then
+  echo "  Decompressing igdb_db.pkl.gz..."
+  gunzip -k -f var/db/igdb/igdb_db.pkl.gz 2>/dev/null || gzip -d -k -f var/db/igdb/igdb_db.pkl.gz 2>/dev/null || true
+fi
 cp var/db/igdb/*.pkl debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB pickle files found, skipping..."
 cp var/db/igdb/mediatype.txt debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB mediatype.txt found, skipping..."
 cp var/db/igdb/*.json debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB JSON files found, skipping..."
@@ -80,6 +85,11 @@ cp var/db/emumovies/emumovies_index.pkl debian/opt/gamemanager/var/db/emumovies/
 echo "📦 Copying Custom databases..."
 mkdir -p debian/opt/gamemanager/var/db/custom
 cp var/db/custom/*.json debian/opt/gamemanager/var/db/custom/ 2>/dev/null || echo "⚠️  No Custom JSON databases found, skipping..."
+
+# Steam cache (partitioned index)
+echo "📦 Copying var/cache (Steam partitioned index)..."
+mkdir -p debian/opt/gamemanager/var/cache
+cp var/cache/steam_partitioned_index.pkl debian/opt/gamemanager/var/cache/ 2>/dev/null || echo "⚠️  No steam_partitioned_index.pkl found, skipping..."
 
 # Fonts
 echo "📦 Copying fonts..."

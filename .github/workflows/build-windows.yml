@@ -13,6 +13,8 @@ on:
       - 'gamemanager.spec'
       - '.github/workflows/build-windows.yml'
       - 'requirements.txt'
+      - 'var/db/igdb/igdb_db.pkl.gz'
+      - 'var/cache/steam_partitioned_index.pkl'
 
 jobs:
   build:
@@ -80,6 +82,15 @@ jobs:
         New-Item -ItemType Directory -Path "tools\windows" -Force | Out-Null
         Invoke-WebRequest -Uri $ytdlpUrl -OutFile "tools\windows\yt-dlp.exe"
         Write-Host "yt-dlp downloaded"
+    
+    - name: Decompress IGDB database (igdb_db.pkl.gz -> igdb_db.pkl)
+      run: |
+        if (Test-Path "var\db\igdb\igdb_db.pkl.gz") {
+          python -c "import gzip; p='var/db/igdb/igdb_db.pkl'; f=gzip.open('var/db/igdb/igdb_db.pkl.gz','rb'); open(p,'wb').write(f.read()); f.close()"
+          Write-Host "Decompressed igdb_db.pkl.gz -> igdb_db.pkl"
+        } else {
+          Write-Host "No igdb_db.pkl.gz found, skipping"
+        }
         
     - name: Build executable with PyInstaller
       run: |
@@ -106,6 +117,7 @@ jobs:
         # Create var directory structure
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\config" -Force | Out-Null
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db" -Force | Out-Null
+        New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\cache" -Force | Out-Null
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\task_logs" -Force | Out-Null
         
         # Copy var/config files (like in .deb package)
@@ -118,14 +130,21 @@ jobs:
           Copy-Item -Path "var\config\genres.json" -Destination "dist\gamemanager_windows\var\config\" -ErrorAction SilentlyContinue
           Write-Host "  Copied config files"
           
-          # Update config.json for Windows (replace Linux path with relative path)
+          # Update config.json for Windows (set roms_root_directory for Retrobat)
           $configPath = "dist\gamemanager_windows\var\config\config.json"
           if (Test-Path $configPath) {
             $configContent = Get-Content $configPath -Raw -Encoding UTF8
-            $configContent = $configContent -replace '"roms_root_directory":\s*"[^"]*"', '"roms_root_directory": "./roms/"'
+            $configContent = $configContent -replace '"roms_root_directory":\s*"[^"]*"', '"roms_root_directory": "R:\\\\retrobat\\\\roms\\\\"'
             $configContent | Set-Content $configPath -Encoding UTF8 -NoNewline
             Write-Host "  Updated config.json for Windows (roms_root_directory)"
           }
+        }
+        
+        # Copy var/cache (Steam partitioned index)
+        Write-Host "Copying var/cache files..."
+        if (Test-Path "var\cache\steam_partitioned_index.pkl") {
+          Copy-Item -Path "var\cache\steam_partitioned_index.pkl" -Destination "dist\gamemanager_windows\var\cache\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied steam_partitioned_index.pkl"
         }
         
         # Copy var/fonts files (like in .deb package)
