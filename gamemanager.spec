@@ -10,6 +10,9 @@ from pathlib import Path
 # Get the base directory
 base_dir = Path(SPECPATH)
 
+# Block cipher (set to None for no encryption)
+block_cipher = None
+
 # Collect all data files
 datas = [
     # Templates
