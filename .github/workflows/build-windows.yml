@@ -96,9 +96,10 @@ jobs:
         if (Test-Path "dist\_internal") {
           Copy-Item -Path "dist\_internal" -Destination "dist\gamemanager_windows\_internal" -Recurse -Force
         }
-        # Copy tools
-        if (Test-Path "tools") {
-          Copy-Item -Path "tools" -Destination "dist\gamemanager_windows\tools" -Recurse -Force
+        # Copy only Windows tools (not the scraper tools)
+        if (Test-Path "tools\windows") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\tools\windows" -Force | Out-Null
+          Copy-Item -Path "tools\windows\*" -Destination "dist\gamemanager_windows\tools\windows" -Recurse -Force
         }
         # Create var directory structure
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\config" -Force | Out-Null
