@@ -4,6 +4,7 @@ Game Utilities - Common functions for game name normalization and matching
 """
 
 import os
+import sys
 import subprocess
 import json
 import re
@@ -11,6 +12,48 @@ import unicodedata
 from functools import lru_cache
 
 import jellyfish
+
+# Helper function to find external tools (Windows-aware)
+def find_tool(tool_name, windows_exe=None):
+    """
+    Find an external tool, checking bundled location first, then system PATH.
+    
+    Args:
+        tool_name: Name of the tool (e.g., 'convert', 'identify')
+        windows_exe: Windows executable name if different (e.g., 'convert.exe')
+    
+    Returns:
+        Path to the tool executable, or just the name if not found (will use PATH)
+    """
+    # Get base directory (where executable or script is located)
+    if getattr(sys, 'frozen', False):
+        # Running from PyInstaller bundle
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        # Running as script
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    if sys.platform == 'win32':
+        exe_name = windows_exe if windows_exe else f"{tool_name}.exe"
+        
+        # Check bundled tools/windows/ directory
+        bundled_paths = [
+            os.path.join(base_dir, 'tools', 'windows', tool_name, exe_name),
+            os.path.join(base_dir, 'tools', 'windows', exe_name),
+            os.path.join(base_dir, 'tools', tool_name, exe_name),
+        ]
+        
+        for path in bundled_paths:
+            if os.path.exists(path):
+                return path
+        
+        # Return with .exe extension for Windows
+        return exe_name
+    else:
+        # Linux/Unix: use system binaries (they're in PATH)
+        # Only bundled tools like yt-dlp are in tools/ directory
+        # For system tools (ffmpeg, convert, identify), just return the name
+        return tool_name
 
 ARTICLE_PATTERN_BEGIN = re.compile(r"^\b(|a|an|the|le|la|l'|un|une|el|los|las|de|der|die|das)\b")
 ARTICLE_PATTERN_END = re.compile(r",\s?(the|a|an|le|la|l'|un|une|el|los|las|de|der|die|das)(?=\s|$|:)")
@@ -265,13 +308,15 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
             output_path = base_path + '.tmp' + current_extension
         
         # Build ImageMagick convert command
-        cmd = ['convert', file_path]
+        convert_cmd = find_tool('convert', 'convert.exe')
+        cmd = [convert_cmd, file_path]
         
         # Handle transparency for JPEG conversion
         if needs_conversion and target_extension and target_extension.lower() in ['.jpg', '.jpeg']:
             # Check if image has transparency (RGBA, LA, or P mode)
             try:
-                identify_alpha_cmd = ['identify', '-format', '%[channels]', file_path]
+                identify_cmd = find_tool('identify', 'identify.exe')
+                identify_alpha_cmd = [identify_cmd, '-format', '%[channels]', file_path]
                 alpha_result = subprocess.run(identify_alpha_cmd, capture_output=True, text=True, timeout=10)
                 if alpha_result.returncode == 0 and 'a' in alpha_result.stdout.lower():
                     # Image has alpha channel, add white background and remove alpha

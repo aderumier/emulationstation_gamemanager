@@ -1,0 +1,184 @@
+name: Build Windows Executable
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'app.py'
+      - 'gamemanager.spec'
+      - '.github/workflows/build-windows.yml'
+      - 'requirements.txt'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+        
+    - name: Download FFmpeg
+      run: |
+        $ffmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+        $ffmpegZip = "$env:TEMP\ffmpeg.zip"
+        Invoke-WebRequest -Uri $ffmpegUrl -OutFile $ffmpegZip
+        Expand-Archive -Path $ffmpegZip -DestinationPath "$env:TEMP\ffmpeg" -Force
+        $ffmpegDir = Get-ChildItem "$env:TEMP\ffmpeg" -Directory | Select-Object -First 1
+        New-Item -ItemType Directory -Path "tools\windows\ffmpeg" -Force | Out-Null
+        Copy-Item "$ffmpegDir\bin\ffmpeg.exe" "tools\windows\ffmpeg\ffmpeg.exe"
+        Copy-Item "$ffmpegDir\bin\ffprobe.exe" "tools\windows\ffmpeg\ffprobe.exe"
+        Write-Host "FFmpeg downloaded and extracted"
+        
+    - name: Download ImageMagick
+      run: |
+        $imagemagickUrl = "https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-15-Q16-HDRI-x64-dll.exe"
+        $imagemagickInstaller = "$env:TEMP\imagemagick.exe"
+        # Try to download portable version first, fallback to installer
+        try {
+          $portableUrl = "https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-15-Q16-HDRI-x64.zip"
+          Invoke-WebRequest -Uri $portableUrl -OutFile "$env:TEMP\imagemagick.zip" -ErrorAction Stop
+          Expand-Archive -Path "$env:TEMP\imagemagick.zip" -DestinationPath "$env:TEMP\imagemagick" -Force
+          $imDir = Get-ChildItem "$env:TEMP\imagemagick" -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Path "tools\windows\imagemagick" -Force | Out-Null
+          Copy-Item "$imDir\ImageMagick-*\bin\convert.exe" "tools\windows\imagemagick\convert.exe" -ErrorAction SilentlyContinue
+          Copy-Item "$imDir\ImageMagick-*\bin\identify.exe" "tools\windows\imagemagick\identify.exe" -ErrorAction SilentlyContinue
+          # Try alternative path structure
+          if (-not (Test-Path "tools\windows\imagemagick\convert.exe")) {
+            $binDir = Get-ChildItem "$env:TEMP\imagemagick" -Recurse -Filter "convert.exe" | Select-Object -First 1
+            if ($binDir) {
+              Copy-Item $binDir.FullName "tools\windows\imagemagick\convert.exe"
+              Copy-Item $binDir.DirectoryName\identify.exe "tools\windows\imagemagick\identify.exe"
+            }
+          }
+        } catch {
+          Write-Host "Portable version not available, will need manual ImageMagick setup"
+          New-Item -ItemType Directory -Path "tools\windows\imagemagick" -Force | Out-Null
+        }
+        Write-Host "ImageMagick setup completed"
+        
+    - name: Download yt-dlp
+      run: |
+        $ytdlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+        New-Item -ItemType Directory -Path "tools\windows" -Force | Out-Null
+        Invoke-WebRequest -Uri $ytdlpUrl -OutFile "tools\windows\yt-dlp.exe"
+        Write-Host "yt-dlp downloaded"
+        
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller --clean gamemanager.spec
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "PyInstaller build failed"
+          exit 1
+        }
+        
+    - name: Create distribution folder
+      run: |
+        New-Item -ItemType Directory -Path "dist\gamemanager_windows" -Force | Out-Null
+        # Copy executable
+        Copy-Item "dist\gamemanager.exe" "dist\gamemanager_windows\gamemanager.exe"
+        # Copy _internal folder (PyInstaller files)
+        if (Test-Path "dist\_internal") {
+          Copy-Item -Path "dist\_internal" -Destination "dist\gamemanager_windows\_internal" -Recurse -Force
+        }
+        # Copy tools
+        if (Test-Path "tools") {
+          Copy-Item -Path "tools" -Destination "dist\gamemanager_windows\tools" -Recurse -Force
+        }
+        # Create var directory structure
+        New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\config" -Force | Out-Null
+        New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db" -Force | Out-Null
+        New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\task_logs" -Force | Out-Null
+        Write-Host "Distribution folder created"
+        
+    - name: Create README for Windows
+      run: |
+        @"
+# GameManager for Windows
+
+This is a standalone Windows executable of GameManager.
+
+## Requirements
+
+- Windows 10 or later
+- No additional software installation required (all dependencies are bundled)
+
+## Installation
+
+1. Extract the zip file to a location of your choice
+2. Run `gamemanager.exe`
+3. Open your browser and navigate to http://localhost:5000
+
+## External Tools
+
+The following tools are bundled in the `tools/windows/` directory:
+
+- **ffmpeg**: Video processing (ffmpeg.exe, ffprobe.exe)
+- **ImageMagick**: Image processing (convert.exe, identify.exe)
+- **yt-dlp**: YouTube video downloads (yt-dlp.exe)
+
+These tools are automatically detected and used by the application.
+
+## Configuration
+
+Configuration files are stored in the `var/` directory:
+- `var/config/` - Application configuration
+- `var/db/` - Database files
+- `var/task_logs/` - Task logs
+
+## Troubleshooting
+
+If the application doesn't start:
+1. Check Windows Defender or antivirus software (PyInstaller executables sometimes trigger false positives)
+2. Ensure all files were extracted correctly
+3. Check the console window for error messages
+
+## Support
+
+For issues and support, please visit the GitHub repository.
+"@ | Out-File -FilePath "dist\gamemanager_windows\README_WINDOWS.txt" -Encoding UTF8
+        
+    - name: Create zip archive
+      run: |
+        $version = if ($env:GITHUB_REF -like "refs/tags/*") {
+          $env:GITHUB_REF -replace "refs/tags/v", ""
+        } else {
+          $env:GITHUB_SHA.Substring(0, 7)
+        }
+        $zipName = "gamemanager-windows-$version.zip"
+        Compress-Archive -Path "dist\gamemanager_windows\*" -DestinationPath $zipName -Force
+        Write-Host "Created archive: $zipName"
+        echo "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: gamemanager-windows
+        path: ${{ env.ZIP_NAME }}
+        retention-days: 30
+        
+    - name: Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ env.ZIP_NAME }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

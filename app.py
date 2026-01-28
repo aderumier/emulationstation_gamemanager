@@ -21,9 +21,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import sys
 import os
 
+# Detect if running from PyInstaller bundle
+if getattr(sys, 'frozen', False):
+    # Running from PyInstaller bundle
+    _app_dir = sys._MEIPASS
+    _base_dir = os.path.dirname(sys.executable)
+else:
+    # Running as script
+    _app_dir = os.path.dirname(os.path.abspath(__file__))
+    _base_dir = _app_dir
+
 # Ensure current directory is first in sys.path to use embedded libraries
 # (selenium, pyrate_limiter, pixelmatch) instead of system-installed versions
-_app_dir = os.path.dirname(os.path.abspath(__file__))
 if _app_dir not in sys.path:
     sys.path.insert(0, _app_dir)
 elif sys.path[0] != _app_dir:
@@ -81,20 +90,55 @@ from custom_scraper_service import CustomScraperService
 # - pyrate_limiter/ - Rate limiting
 # - pixelmatch/ - Image comparison
 
+# Helper functions to find external tools (Windows-aware)
+def find_tool(tool_name, windows_exe=None):
+    """
+    Find an external tool, checking bundled location first, then system PATH.
+    
+    Args:
+        tool_name: Name of the tool (e.g., 'ffmpeg', 'convert')
+        windows_exe: Windows executable name if different (e.g., 'ffmpeg.exe')
+    
+    Returns:
+        Path to the tool executable, or just the name if not found (will use PATH)
+    """
+    if sys.platform == 'win32':
+        exe_name = windows_exe if windows_exe else f"{tool_name}.exe"
+        
+        # Check bundled tools/windows/ directory
+        bundled_paths = [
+            os.path.join(_base_dir, 'tools', 'windows', tool_name, exe_name),
+            os.path.join(_base_dir, 'tools', 'windows', exe_name),
+            os.path.join(_base_dir, 'tools', tool_name, exe_name),
+        ]
+        
+        for path in bundled_paths:
+            if os.path.exists(path):
+                return path
+        
+        # Return with .exe extension for Windows
+        return exe_name
+    else:
+        # Linux/Unix: use system binaries (they're in PATH)
+        # Only bundled tools like yt-dlp are in tools/ directory
+        # For system tools (ffmpeg, convert, identify), just return the name
+        return tool_name
+
 # FFmpeg cropping functions for auto-cropping black borders
 def cropdetect(video_file_path, start_time, duration):
     """Detect crop dimensions for removing black borders"""
     try:
         print(f"cropdetect: Analyzing {video_file_path} from {start_time}s for {duration}s")
         
+        ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
         proc = sp.Popen([
-            "ffmpeg", 
+            ffmpeg_cmd, 
             "-ss", str(start_time), 
             "-i", video_file_path, 
             "-to", str(duration), 
             "-vf", "cropdetect", 
             "-f", "rawvideo", 
-            "-y", "/dev/null"
+            "-y", "/dev/null" if sys.platform != 'win32' else "NUL"
         ], stdout=sp.PIPE, stderr=sp.PIPE)
         
         infos = proc.stderr.read()
@@ -112,8 +156,9 @@ def cropdetect(video_file_path, start_time, duration):
             
             # Check if crop is needed (if crop dimensions are different from full video)
             # Get video dimensions first
+            ffprobe_cmd = find_tool('ffprobe', 'ffprobe.exe')
             video_info_proc = sp.Popen([
-                "ffprobe", 
+                ffprobe_cmd, 
                 "-v", "quiet",
                 "-print_format", "json",
                 "-show_streams",
@@ -175,7 +220,7 @@ def crop_video(video_file_path, newfile, start_time, duration):
         
         # Log the exact FFmpeg command that will be executed
         ffmpeg_cmd = [
-            "ffmpeg", 
+            find_tool('ffmpeg', 'ffmpeg.exe'), 
             "-ss", str(start_time), 
             "-i", video_file_path,
             "-to", str(duration), 
@@ -1133,13 +1178,28 @@ def ensure_yt_dlp_binary():
 
 def get_yt_dlp_path():
     """Get the path to the yt-dlp binary, ensuring it exists"""
-    tools_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools')
+    # Check bundled location first (Windows executable)
+    if sys.platform == 'win32':
+        # Windows: check for yt-dlp.exe in tools/windows/
+        bundled_path = os.path.join(_base_dir, 'tools', 'windows', 'yt-dlp.exe')
+        if os.path.exists(bundled_path):
+            return bundled_path
+        # Also check tools/yt-dlp.exe
+        alt_path = os.path.join(_base_dir, 'tools', 'yt-dlp.exe')
+        if os.path.exists(alt_path):
+            return alt_path
+    
+    # Check tools/yt-dlp (Linux/Unix)
+    tools_dir = os.path.join(_base_dir, 'tools')
     yt_dlp_path = os.path.join(tools_dir, 'yt-dlp')
     
     if os.path.exists(yt_dlp_path):
         return yt_dlp_path
+    
+    # Fallback to system yt-dlp if tools version doesn't exist
+    if sys.platform == 'win32':
+        return 'yt-dlp.exe'
     else:
-        # Fallback to system yt-dlp if tools version doesn't exist
         return 'yt-dlp'
 
 app = Flask(__name__)
@@ -4050,8 +4110,9 @@ def reencode_video(task, video_path, game_name, resolution, fadein, fadeout, sys
         fade_out_start = None
         if fadein or fadeout:
             try:
+                ffprobe_cmd = find_tool('ffprobe', 'ffprobe.exe')
                 duration_result = subprocess.run([
-                    'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                    ffprobe_cmd, '-v', 'quiet', '-show_entries', 'format=duration',
                     '-of', 'csv=p=0', video_path
                 ], capture_output=True, text=True, timeout=30)
                 
@@ -4082,7 +4143,8 @@ def reencode_video(task, video_path, game_name, resolution, fadein, fadeout, sys
             af_filters.append(f'afade=t=out:st={fade_out_start}:d=2')
         
         # Build ffmpeg command
-        process_cmd = ['ffmpeg', '-i', video_path]
+        ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+        process_cmd = [ffmpeg_cmd, '-i', video_path]
         
         # Add video filters if any
         vf_filter = ','.join(video_filters) if video_filters else None
@@ -17504,8 +17566,9 @@ def extract_first_frame():
             print(f"Extracting frame at time: {frame_time} seconds (current video position)")
         else:
             # Get video duration to calculate middle frame time
+            ffprobe_cmd = find_tool('ffprobe', 'ffprobe.exe')
             duration_cmd = [
-                'ffprobe',
+                ffprobe_cmd,
                 '-v', 'quiet',
                 '-show_entries', 'format=duration',
                 '-of', 'default=noprint_wrappers=1:nokey=1',
@@ -17543,8 +17606,9 @@ def extract_first_frame():
         
         # Extract frame from video using ffmpeg
         # Use -ss before -i for faster seeking (input seeking)
+        ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
         cmd = [
-            'ffmpeg',
+            ffmpeg_cmd,
             '-ss', str(frame_time),  # Seek to specified time (or middle)
             '-i', video_path,
             '-vframes', '1',
@@ -17964,8 +18028,9 @@ def remove_game_media_background(system_name):
                 # Use ImageMagick to remove the detected background color
                 # -fuzz 10% handles slight variations in color
                 # -transparent removes the detected background color
+                convert_cmd = find_tool('convert', 'convert.exe')
                 cmd = [
-                    'convert',
+                    convert_cmd,
                     full_media_path,
                     '-fuzz', '10%',  # 10% threshold for color matching
                     '-transparent', background_color,  # Remove detected background color
@@ -24977,8 +25042,9 @@ def get_video_duration(video_path):
         import subprocess
         
         # Use ffprobe to get video duration
+        ffprobe_cmd = find_tool('ffprobe', 'ffprobe.exe')
         result = subprocess.run([
-            'ffprobe', 
+            ffprobe_cmd, 
             '-v', 'quiet',
             '-show_entries', 'format=duration',
             '-of', 'csv=p=0',
@@ -25733,7 +25799,8 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, disable
             video_filters.append(f'scale=ceil(iw*{force_resolution}/ih/2)*2:{force_resolution}')
         
         # FFmpeg command with combined filters
-        process_cmd = ['ffmpeg']
+        ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+        process_cmd = [ffmpeg_cmd]
         
         # Add CUDA hardware acceleration if enabled
         if enable_cuda:
@@ -25756,8 +25823,9 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, disable
             else:
                 # Use original video duration if no cutting
                 try:
+                    ffprobe_cmd = find_tool('ffprobe', 'ffprobe.exe')
                     duration_result = subprocess.run([
-                        'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                        ffprobe_cmd, '-v', 'quiet', '-show_entries', 'format=duration',
                         '-of', 'csv=p=0', video_path
                     ], capture_output=True, text=True, timeout=30)
                     
@@ -25951,7 +26019,8 @@ def run_manual_crop_task(task_id, data):
         
         # Check if ffmpeg is available
         try:
-            result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=10)
+            ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+            result = subprocess.run([ffmpeg_cmd, '-version'], capture_output=True, text=True, timeout=10)
             if result.returncode != 0:
                 task.complete(False, 'ffmpeg is not installed or not available')
                 return
@@ -25966,8 +26035,9 @@ def run_manual_crop_task(task_id, data):
         # Apply crop using ffmpeg
         task.update_progress(f"Applying manual crop with dimensions: {crop_dimensions}")
         
+        ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
         crop_cmd = [
-            'ffmpeg',
+            ffmpeg_cmd,
             '-i', video_path,
             '-filter:v', f'crop={crop_dimensions}',
             '-c:a', 'copy',  # Copy audio without re-encoding
@@ -26142,7 +26212,8 @@ def run_image_crop_task(task_id, data):
         
         # Check if ImageMagick is available
         try:
-            result = subprocess.run(['convert', '-version'], capture_output=True, text=True, timeout=10)
+            convert_cmd = find_tool('convert', 'convert.exe')
+            result = subprocess.run([convert_cmd, '-version'], capture_output=True, text=True, timeout=10)
             if result.returncode != 0:
                 task.complete(False, 'ImageMagick is not installed or not available')
                 return
@@ -26158,8 +26229,9 @@ def run_image_crop_task(task_id, data):
         task.update_progress(f"Applying image crop with dimensions: {crop_width}x{crop_height} at ({crop_x},{crop_y})")
         
         # ImageMagick crop syntax: -crop WIDTHxHEIGHT+X+Y
+        convert_cmd = find_tool('convert', 'convert.exe')
         crop_cmd = [
-            'convert',
+            convert_cmd,
             image_path,
             '-crop', f'{crop_width}x{crop_height}+{crop_x}+{crop_y}',
             '+repage',  # Remove virtual canvas
@@ -26706,7 +26778,8 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
         
         # Validate ImageMagick is available
         try:
-            result = subprocess.run(['convert', '-version'], 
+            convert_cmd = find_tool('convert', 'convert.exe')
+            result = subprocess.run([convert_cmd, '-version'], 
                                   capture_output=True, text=True, timeout=5)
             if result.returncode != 0:
                 task.complete(False, 'ImageMagick not available. Please install ImageMagick.')
@@ -27043,7 +27116,8 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
         
         # Validate ImageMagick is available
         try:
-            result = subprocess.run(['convert', '-version'], 
+            convert_cmd = find_tool('convert', 'convert.exe')
+            result = subprocess.run([convert_cmd, '-version'], 
                                   capture_output=True, text=True, timeout=5)
             if result.returncode != 0:
                 task.complete(False, 'ImageMagick not available. Please install ImageMagick.')
@@ -27171,8 +27245,9 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 
                 # For bold: use stroke with same color as fill to simulate bold
                 # For italic: use shear to skew text horizontally
+                convert_cmd = find_tool('convert', 'convert.exe')
                 cmd = [
-                    'convert',
+                    convert_cmd,
                     '-background', 'none',  # Transparent background
                     '-fill', color,         # Text color
                     '-font', font_path,     # Font family (or path to custom font)
@@ -27211,7 +27286,8 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                         continue
                     
                     # Get text dimensions and draw underline
-                    identify_cmd = ['identify', '-format', '%wx%h', temp_text]
+                    identify_cmd = find_tool('identify', 'identify.exe')
+                    identify_cmd = [identify_cmd, '-format', '%wx%h', temp_text]
                     dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                     if dim_result.returncode == 0:
                         width, height = dim_result.stdout.strip().split('x')
@@ -30214,8 +30290,9 @@ def generate_logo_preview():
             # Calculate approximate width needed based on max_chars_per_line
             caption_width = int(font_size * max_chars_per_line * 0.6)  # Approximate width
             
+            convert_cmd = find_tool('convert', 'convert.exe')
             cmd_base = [
-                'convert',
+                convert_cmd,
                 '-background', 'none',
                 '-fill', color,
                 '-font', font_path,
@@ -30231,7 +30308,8 @@ def generate_logo_preview():
                 return jsonify({'error': f'ImageMagick failed: {result.stderr}'}), 500
             
             # Step 2: Apply effects
-            cmd = ['convert', temp_base]
+            convert_cmd = find_tool('convert', 'convert.exe')
+            cmd = [convert_cmd, temp_base]
             
             # Apply italic (shear) if needed - do this before bold
             if italic:
@@ -30257,7 +30335,8 @@ def generate_logo_preview():
             # Step 3: Add underline if needed
             if underline:
                 # Get text dimensions and draw underline
-                identify_cmd = ['identify', '-format', '%wx%h', output_path]
+                identify_cmd = find_tool('identify', 'identify.exe')
+                identify_cmd = [identify_cmd, '-format', '%wx%h', output_path]
                 dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                 if dim_result.returncode == 0:
                     width, height = dim_result.stdout.strip().split('x')
