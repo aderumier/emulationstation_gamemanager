@@ -12844,7 +12844,8 @@ def download_multiscraper_media_endpoint():
                         target_path = processed_path
                         media_filename = os.path.basename(processed_path)
 
-            relative_path = os.path.join('.', target_dir, media_filename).replace('\\', '/')
+            # Construct path with forward slashes (gamelist.xml format requires forward slashes)
+            relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/')
             game[media_type] = relative_path
             success = True
 
@@ -12979,6 +12980,7 @@ def download_multiscraper_media_endpoint():
                             shutil.move(temp_file, final_path)
                     
                     # Update gamelist
+                    # Construct path with forward slashes (gamelist.xml format requires forward slashes)
                     relative_path = f'./media/{media_subdirectory}/{os.path.basename(final_path)}'
                     game[media_type] = relative_path
                     success = True
@@ -13045,8 +13047,9 @@ def download_multiscraper_media_endpoint():
                 print(f"✅ ScreenScraper video saved to: {file_path}")
                 
                 # Update gamelist with the media path (must start with ./ like other media downloads)
-                relative_path = os.path.join('.', target_dir, media_filename)
-                game[media_type] = relative_path.replace('\\', '/')
+                # Construct path with forward slashes (gamelist.xml format requires forward slashes)
+                relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/')
+                game[media_type] = relative_path
                 
                 success = True
             except Exception as e:
@@ -13122,8 +13125,9 @@ def download_multiscraper_media_endpoint():
                 print(f"✅ ScreenScraper PDF saved to: {file_path}")
                 
                 # Update gamelist with the media path (must start with ./ like other media downloads)
-                relative_path = os.path.join('.', target_dir, media_filename)
-                game[media_type] = relative_path.replace('\\', '/')
+                # Construct path with forward slashes (gamelist.xml format requires forward slashes)
+                relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/')
+                game[media_type] = relative_path
                 
                 success = True
             except Exception as e:
@@ -13196,7 +13200,8 @@ def download_multiscraper_media_endpoint():
                     success = convert_cbz_to_pdf_file(temp_cbz_path, target_path)
                     
                     if success:
-                        relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
+                        # Construct path with forward slashes (gamelist.xml format requires forward slashes)
+                        relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/')
                         game[media_type] = relative_path
                         print(f'✅ Converted CBZ to PDF for {media_type}')
                     else:
@@ -13252,7 +13257,8 @@ def download_multiscraper_media_endpoint():
                     success = convert_pdf_to_cbz_file(temp_pdf_path, target_path)
                     
                     if success:
-                        relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
+                        # Construct path with forward slashes (gamelist.xml format requires forward slashes)
+                        relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/')
                         game[media_type] = relative_path
                         print(f'✅ Converted PDF to CBZ for {media_type}')
                     else:
@@ -13282,7 +13288,8 @@ def download_multiscraper_media_endpoint():
                     success = create_cbz_from_images(urls_array, target_path)
                 
                 if success:
-                    relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
+                    # Construct path with forward slashes (gamelist.xml format requires forward slashes)
+                    relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/')
                     game[media_type] = relative_path
                     print(f'✅ Created {target_ext} from {len(urls_array)} images for {media_type}')
                 else:
@@ -13305,7 +13312,8 @@ def download_multiscraper_media_endpoint():
                     success = create_cbz_from_images([media_url], target_path)
                 
                 if success:
-                    relative_path = os.path.join('.', target_dir, target_filename).replace('\\', '/')
+                    # Construct path with forward slashes (gamelist.xml format requires forward slashes)
+                    relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/')
                     game[media_type] = relative_path
                     print(f'✅ Created {target_ext} from single image for {media_type}')
                 else:
@@ -14530,7 +14538,8 @@ def download_and_save_media(media_url, game, media_type, system_name):
             print(f"🔧 DEBUG: Skipping image processing for PDF (manual) type")
         
         # Update game data
-        relative_path = os.path.join('.', target_dir, media_filename)
+        # Construct path with forward slashes (gamelist.xml format requires forward slashes)
+        relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/')
         game[media_type] = relative_path
         print(f"🔧 DEBUG: Updated game[{media_type}] = {relative_path}")
         
