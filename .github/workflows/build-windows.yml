@@ -108,6 +108,41 @@ jobs:
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db" -Force | Out-Null
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\task_logs" -Force | Out-Null
         
+        # Copy var/config files (like in .deb package)
+        Write-Host "Copying var/config files..."
+        if (Test-Path "var\config") {
+          Copy-Item -Path "var\config\config.json" -Destination "dist\gamemanager_windows\var\config\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "var\config\scrappers.json" -Destination "dist\gamemanager_windows\var\config\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "var\config\systems.json" -Destination "dist\gamemanager_windows\var\config\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "var\config\scrapper_genre_mapping.json" -Destination "dist\gamemanager_windows\var\config\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "var\config\genres.json" -Destination "dist\gamemanager_windows\var\config\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied config files"
+        }
+        
+        # Copy var/fonts files (like in .deb package)
+        Write-Host "Copying var/fonts files..."
+        if (Test-Path "var\fonts") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\fonts" -Force | Out-Null
+          Copy-Item -Path "var\fonts\*" -Destination "dist\gamemanager_windows\var\fonts\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied font files"
+        }
+        
+        # Copy var/2dbox/templates files (like in .deb package)
+        Write-Host "Copying var/2dbox/templates files..."
+        if (Test-Path "var\2dbox\templates") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\2dbox\templates" -Force | Out-Null
+          Copy-Item -Path "var\2dbox\templates\*" -Destination "dist\gamemanager_windows\var\2dbox\templates\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied 2D box templates"
+        }
+        
+        # Copy var/3dbox/templates files (like in .deb package)
+        Write-Host "Copying var/3dbox/templates files..."
+        if (Test-Path "var\3dbox\templates") {
+          New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\3dbox\templates" -Force | Out-Null
+          Copy-Item -Path "var\3dbox\templates\*" -Destination "dist\gamemanager_windows\var\3dbox\templates\" -ErrorAction SilentlyContinue
+          Write-Host "  Copied 3D box templates"
+        }
+        
         # Copy var/db files (like in .deb package)
         Write-Host "Copying var/db files..."
         
