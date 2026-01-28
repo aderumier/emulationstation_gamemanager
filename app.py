@@ -6916,46 +6916,15 @@ def index():
 @app.route('/roms/<path:filename>')
 def serve_rom_file(filename):
     """Serve ROM files and media"""
-    from flask import Response
-    from urllib.parse import unquote
-    
-    try:
-        # URL decode the filename to handle %20 and other encoded characters
-        decoded_filename = unquote(filename)
-        
-        # Normalize path separators for Windows
-        normalized_filename = decoded_filename.replace('\\', '/')
-        
-        # Construct full file path for verification (Windows-compatible)
-        full_path = os.path.normpath(os.path.join(ROMS_FOLDER, normalized_filename))
-        
-        # Verify file exists (helps with debugging on Windows)
-        if not os.path.exists(full_path):
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"File not found: {full_path} (decoded from '{filename}')")
-            if not os.path.exists(ROMS_FOLDER):
-                logger.error(f"ROMS_FOLDER does not exist: {ROMS_FOLDER}")
-            from flask import abort
-            abort(404)
-        
-        # Check if it's a PDF and set proper content type with CORS headers
-        if normalized_filename.lower().endswith('.pdf'):
-            response = send_from_directory(ROMS_FOLDER, normalized_filename, mimetype='application/pdf')
-            # Add CORS headers for PDF files to allow EmbedPDF to load them
-            response.headers['Access-Control-Allow-Origin'] = '*'
-            response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-            return response
-        
-        return send_from_directory(ROMS_FOLDER, normalized_filename)
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error serving ROM file '{filename}': {e}", exc_info=True)
-        # Return 404 on any error to avoid exposing internal details
-        from flask import abort
-        abort(404)
+    # Check if it's a PDF and set proper content type with CORS headers
+    if filename.lower().endswith('.pdf'):
+        response = send_from_directory(ROMS_FOLDER, filename, mimetype='application/pdf')
+        # Add CORS headers for PDF files to allow EmbedPDF to load them
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
+    return send_from_directory(ROMS_FOLDER, filename)
 
 @app.route('/var/temp/<path:filename>')
 @login_required
