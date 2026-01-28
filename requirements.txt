@@ -35,8 +35,11 @@ Wand>=0.6.0
 # String matching (Jaro-Winkler similarity)
 jellyfish>=1.0.0
 
-# PDF processing (installed via Debian package: python3-pymupdf)
-# PyMuPDF>=1.23.0
+# WebSocket (python3-websocket in Debian; used by Flask-SocketIO/engineio)
+websocket-client>=1.0.0
+
+# PDF processing (used for PDF/CBZ viewer in app)
+PyMuPDF>=1.23.0
 
 # IGDB API integration (using httpx directly)
 # Note: pyrate_limiter is deployed locally in the app directory
@@ -62,10 +65,5 @@ jellyfish>=1.0.0
 # psutil>=5.9.0
 
 # Note: This application uses Python 3.8+ standard library features
-# No additional packages are required beyond Flask, Flask-CORS, Flask-SocketIO, and requests
-# 
-# Additional system packages required:
-# - python3-jellyfish (for Jaro-Winkler similarity calculations)
-#   Install with: sudo apt install python3-jellyfish
-# 
 # Note: pixelmatch is included locally in the pixelmatch/ directory
+# Note: On Debian, equivalent packages: python3-flask, python3-jellyfish, python3-pymupdf, etc.
