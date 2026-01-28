@@ -33355,10 +33355,9 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
         return game, False, True  # game, found, error
 
 def run_igdb_scraper_task(system_name, task_id, selected_games=None, overwrite_text_fields=False, overwrite_media_fields=False, selected_fields=None):
-    """Run IGDB scraper task for a specific system"""
+    """Run IGDB scraper task for a specific system (uses threading, not multiprocessing to avoid Windows cache reload)"""
     import asyncio
-    import multiprocessing
-    import queue
+    import threading
     
     print(f"🔧 DEBUG: run_igdb_scraper_task received parameters - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)}), overwrite_media_fields: {overwrite_media_fields} (type: {type(overwrite_media_fields)}), selected_fields: {selected_fields} (type: {type(selected_fields)})")
     
@@ -33372,34 +33371,28 @@ def run_igdb_scraper_task(system_name, task_id, selected_games=None, overwrite_t
     # Get IGDB config (still needed for field mappings and settings)
     igdb_config = get_igdb_config()
     
-    # Create result queue for progress updates
-    result_q = multiprocessing.Queue()
-    
-    # Create cancel map for task cancellation
-    cancel_map = multiprocessing.Manager().dict()
+    # Create cancel map for task cancellation (simple dict for threading)
+    cancel_map = {task_id: False}
     
     # Store the cancel map globally so it can be accessed for cancellation
     global _igdb_cancel_maps
     _igdb_cancel_maps[task_id] = cancel_map
     
-    # Start the async scraper in a subprocess with result queue
-    process = multiprocessing.Process(
-        target=_run_igdb_scraper_worker,
-        args=(system_name, task_id, selected_games, result_q, cancel_map, overwrite_text_fields, overwrite_media_fields, selected_fields)
-    )
-    process.start()
-    
-    # Start result listener to handle progress updates (runs in main process)
-    listener_thread = threading.Thread(
-        target=_igdb_scraping_result_listener,
-        args=(result_q, process, system_name),
+    # Start the async scraper in a thread (not subprocess - avoids Windows cache reload)
+    thread = threading.Thread(
+        target=_run_igdb_scraper_thread,
+        args=(system_name, task_id, selected_games, cancel_map, overwrite_text_fields, overwrite_media_fields, selected_fields),
         daemon=True
     )
-    listener_thread.start()
+    thread.start()
 
-def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, cancel_map, overwrite_text_fields=False, overwrite_media_fields=False, selected_fields=None):
-    """IGDB scraper worker process"""
+def _run_igdb_scraper_thread(system_name, task_id, selected_games, cancel_map, overwrite_text_fields=False, overwrite_media_fields=False, selected_fields=None):
+    """IGDB scraper thread worker (uses threading instead of multiprocessing to avoid Windows cache reload)"""
     import asyncio
+    
+    def is_cancelled():
+        """Check if the IGDB task should be cancelled"""
+        return cancel_map.get(task_id, False)
     
     async def async_scraper():
         try:
@@ -33409,12 +33402,9 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             # Get IGDB configuration
             igdb_config = get_igdb_config()
             if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task_id,
-                    'message': "IGDB integration is disabled",
-                    'progress_percentage': 100
-                })
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "IGDB integration is disabled")
                 return
             
             # Add overwrite settings to IGDB config
@@ -33436,51 +33426,33 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
             
             if not system_config:
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task_id,
-                    'message': f"System '{system_name}' not configured",
-                    'progress_percentage': 100
-                })
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"System '{system_name}' not configured")
                 return
             
             # Get IGDB platform ID (convert name to ID if needed)
             igdb_platform_name_or_id = system_config.get('igdb')
             if not igdb_platform_name_or_id:
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task_id,
-                    'message': f"No IGDB platform configured for system '{system_name}'",
-                    'progress_percentage': 100
-                })
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"No IGDB platform configured for system '{system_name}'")
                 return
             
             # Ensure platform cache is available and convert name to ID
             platform_cache = await ensure_igdb_platform_cache()
             igdb_platform_id = get_igdb_platform_id(igdb_platform_name_or_id, platform_cache)
             if not igdb_platform_id:
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task_id,
-                    'message': f"Invalid IGDB platform '{igdb_platform_name_or_id}' for system '{system_name}'",
-                    'progress_percentage': 100
-                })
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"Invalid IGDB platform '{igdb_platform_name_or_id}' for system '{system_name}'")
                 return
             
             # Check if local IGDB service is available
             if not global_igdb_service or not global_igdb_service.is_loaded():
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task_id,
-                    'message': "IGDB local database not available. Please run the IGDB dump first.",
-                    'progress_percentage': 100
-                })
-                result_q.put({
-                    'type': 'complete',
-                    'task_id': task_id,
-                    'success': False,
-                    'message': "IGDB local database not available. Please run the IGDB dump first to populate the local database."
-                })
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "IGDB local database not available. Please run the IGDB dump first.")
                 return
             
             print(f"✅ Using local IGDB database for scraping (no API calls)")
@@ -33488,12 +33460,9 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             # Get gamelist path
             gamelist_path = get_gamelist_path(system_name)
             if not os.path.exists(gamelist_path):
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task_id,
-                    'message': f"Gamelist not found: {gamelist_path}",
-                    'progress_percentage': 100
-                })
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"Gamelist not found: {gamelist_path}")
                 return
             
             # Parse gamelist
@@ -33504,12 +33473,9 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             total_games = len(all_games)
             
             if total_games == 0:
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task_id,
-                    'message': "No games found in gamelist",
-                    'progress_percentage': 100
-                })
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "No games found in gamelist")
                 return
             
             # Filter games based on selection
@@ -33518,30 +33484,19 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 # Filter to only selected games by ROM file path
                 games = [g for g in all_games if g.find('path').text in selected_games]
                 if not games:
-                    result_q.put({
-                        'type': 'progress',
-                        'task_id': task_id,
-                        'message': f"None of the selected ROM files found in gamelist",
-                        'progress_percentage': 100
-                    })
+                    t = get_task(task_id)
+                    if t:
+                        t.complete(False, f"None of the selected ROM files found in gamelist")
                     return
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task_id,
-                    'message': f"Processing {len(games)} selected games out of {total_games} total games",
-                    'current_step': 0,
-                    'total_steps': len(games),
-                    'progress_percentage': 0
-                })
+                t = get_task(task_id)
+                if t:
+                    t.update_progress(f"Processing {len(games)} selected games out of {total_games} total games", 
+                                     progress_percentage=0, current_step=0, total_steps=len(games))
             else:
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task_id,
-                    'message': f"Processing all {total_games} games",
-                    'current_step': 0,
-                    'total_steps': total_games,
-                    'progress_percentage': 0
-                })
+                t = get_task(task_id)
+                if t:
+                    t.update_progress(f"Processing all {total_games} games", 
+                                     progress_percentage=0, current_step=0, total_steps=total_games)
             
             print(f"Found {len(games)} games to process")
             
@@ -33557,13 +33512,11 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             
             for i in range(0, len(games), batch_size):
                 # Check for cancellation before processing each batch
-                if cancel_map and cancel_map.get(task_id):
-                    result_q.put({
-                        'type': 'progress',
-                        'task_id': task_id,
-                        'message': '🛑 Task stopped by user - saving gamelist...',
-                        'progress_percentage': int((processed_count / len(games)) * 100)
-                    })
+                if is_cancelled():
+                    t = get_task(task_id)
+                    if t:
+                        t.update_progress('🛑 Task stopped by user - saving gamelist...', 
+                                         progress_percentage=int((processed_count / len(games)) * 100))
                     # Save the gamelist before exiting with explicit flushing
                     print(f"DEBUG: Saving gamelist to {gamelist_path} before task stop...")
                     save_formatted_gamelist_xml(tree, gamelist_path)
@@ -33576,22 +33529,14 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                         print("DEBUG: Gamelist file flushed to disk")
                     except Exception as e:
                         print(f"Warning: Could not flush gamelist file: {e}")
-                    result_q.put({
-                        'type': 'result',
-                        'task_id': task_id,
-                        'success': False,
-                        'error': 'Task stopped by user',
-                        'stopped': True
-                    })
+                    t = get_task(task_id)
+                    if t:
+                        t.complete(True, f"IGDB task stopped by user - {found_count} games updated")
                     return
                 
                 batch = games[i:i + batch_size]
                 
-                # Create tasks for concurrent processing using asyncio.gather
-                import asyncio
-                
                 # Create semaphore for concurrency control (max 8 concurrent)
-                # This matches the httpx connection pool size
                 semaphore = asyncio.Semaphore(8)
                 
                 async def process_game_with_concurrency_limit(game):
@@ -33605,9 +33550,6 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                         )
                 
                 # Process batch with concurrency control using asyncio.gather
-                # - Rate limiting: 4 requests per second (handled by PyrateLimiter)
-                # - Connection pooling: Max 8 parallel connections (handled by httpx)
-                # - Concurrency control: Max 8 concurrent tasks (handled by asyncio.Semaphore)
                 tasks = [process_game_with_concurrency_limit(game) for game in batch]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 
@@ -33624,8 +33566,6 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                             # Get IGDB data to collect company IDs
                             igdbid_elem = game.find('igdbid')
                             if igdbid_elem and igdbid_elem.text:
-                                # We need to get the full game data to extract company IDs
-                                # For now, we'll handle this in the next iteration
                                 pass
                         if found:
                             found_count += 1
@@ -33643,16 +33583,12 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                         # Send individual game progress update
                         progress_percent = int((processed_count / len(games)) * 100)
                         status_icon = "✅" if found else "❌" if error else "⏭️"
-                        progress_update = {
-                            'type': 'progress',
-                            'task_id': task_id,
-                            'message': f"{status_icon} {game_name}",
-                            'current_step': processed_count,
-                            'total_steps': len(games),
-                            'progress_percentage': progress_percent
-                        }
-                        print(f"DEBUG: Sending progress update: {progress_update}")
-                        result_q.put(progress_update)
+                        t = get_task(task_id)
+                        if t:
+                            t.update_progress(f"{status_icon} {game_name}", 
+                                             progress_percentage=progress_percent,
+                                             current_step=processed_count,
+                                             total_steps=len(games))
                 
                 # Update company cache if we found new company IDs
                 if batch_company_ids:
@@ -33667,135 +33603,43 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 print("💾 Gamelist saved (no games updated)")
             
             # Complete task
-            result_q.put({
-                'type': 'result',
-                'task_id': task_id,
-                'success': True,
-                'message': f"✅ IGDB scraping completed! Found {found_count} games, {error_count} errors",
-                'total_games': total_games,
-                'updated_count': found_count
-            })
+            t = get_task(task_id)
+            if t:
+                t.complete(True, f"✅ IGDB scraping completed! Found {found_count} games, {error_count} errors")
             print(f"IGDB scraper completed for {system_name}: {found_count} games found, {error_count} errors")
+            
+            # Notify clients of gamelist update
+            try:
+                notify_gamelist_updated(system_name, total_games, updated_count=found_count)
+            except Exception as e:
+                print(f"Warning: Could not notify clients of gamelist update: {e}")
             
         except Exception as e:
             print(f"Error in IGDB scraper task: {e}")
-            result_q.put({
-                'type': 'result',
-                'task_id': task_id,
-                'success': False,
-                'error': str(e)
-            })
+            import traceback
+            traceback.print_exc()
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"IGDB task failed: {str(e)}")
         finally:
-            # No async client to close - using local database
-            pass
+            # Clean up cancel map
+            try:
+                global _igdb_cancel_maps
+                if task_id in _igdb_cancel_maps:
+                    del _igdb_cancel_maps[task_id]
+            except Exception:
+                pass
     
-    # Run the async scraper
-    asyncio.run(async_scraper())
-def _igdb_scraping_result_listener(result_q, process, system_name):
-    """Listen for results from IGDB scraper worker and update task progress"""
-    import queue
-    
-    print(f"DEBUG: IGDB result listener started for process {process.pid}")
-    
-    while process.is_alive():
-        try:
-            res = result_q.get(timeout=1)
-            if res is None:
-                break
-                
-            print(f"DEBUG: IGDB result listener received: {res}")
-                
-            # Handle progress updates
-            if isinstance(res, dict) and res.get('type') == 'progress':
-                msg_task_id = res.get('task_id')
-                message = res.get('message', '')
-                curr = res.get('current_step')
-                total = res.get('total_steps')
-                pct = res.get('progress_percentage')
-                
-                print(f"DEBUG: Processing progress update for task {msg_task_id}: {message}")
-                
-                if msg_task_id and msg_task_id in tasks:
-                    try:
-                        t = tasks[msg_task_id]
-                        if t.status == TASK_STATUS_RUNNING:
-                            t.update_progress(message, progress_percentage=pct, current_step=curr, total_steps=total)
-                            print(f"DEBUG: Updated task {msg_task_id} progress: {message}")
-                        else:
-                            print(f"DEBUG: Task {msg_task_id} status is {t.status}, not running")
-                    except Exception as e:
-                        print(f"DEBUG: Error updating task {msg_task_id}: {e}")
-                else:
-                    print(f"DEBUG: Task {msg_task_id} not found in tasks dictionary")
-                continue
-            
-            # Handle final result
-            task_id = res.get('task_id')
-            if task_id and task_id in tasks:
-                try:
-                    t = tasks[task_id]
-                    if res.get('success'):
-                        t.complete(True, res.get('message', 'IGDB scraping completed successfully'))
-                        
-                        # Notify clients that gamelist was updated (refresh grid)
-                        try:
-                            total_games = res.get('total_games', 0)
-                            updated_count = res.get('updated_count', 0)
-                            notify_gamelist_updated(system_name, total_games, updated_count=updated_count)
-                            print(f"🔔 Notified clients of gamelist update: {total_games} total games, {updated_count} updated")
-                        except Exception as e:
-                            print(f"⚠️ Warning: Failed to notify clients of gamelist update: {e}")
-                        
-                        # Emit task completion event to refresh task grid (non-blocking)
-                        emit_non_blocking('task_completed', {
-                            'task_type': 'igdb_scraping',
-                            'success': True,
-                            'message': res.get('message', 'IGDB scraping completed successfully'),
-                            'system_name': system_name
-                        })
-                    elif res.get('stopped'):
-                        # Task was stopped by user - treat as completed since gamelist was saved
-                        t.complete(True, res.get('error', 'Task stopped by user'))
-                        
-                        # Emit task completion event to refresh task grid (same as successful completion, non-blocking)
-                        emit_non_blocking('task_completed', {
-                            'task_type': 'igdb_scraping',
-                            'success': True,
-                            'stopped': True,
-                            'message': res.get('error', 'Task stopped by user'),
-                            'system_name': system_name
-                        })
-                    else:
-                        t.complete(False, res.get('error', 'IGDB scraping failed'))
-                        
-                        # Emit task failure event (non-blocking)
-                        emit_non_blocking('task_completed', {
-                            'task_type': 'igdb_scraping',
-                            'success': False,
-                            'message': res.get('error', 'IGDB scraping failed'),
-                            'system_name': system_name
-                        })
-                except Exception as e:
-                    print(f"DEBUG: Error completing task {task_id}: {e}")
-                
-                # Clean up the IGDB cancel map when task completes
-                try:
-                    global _igdb_cancel_maps
-                    if task_id in _igdb_cancel_maps:
-                        del _igdb_cancel_maps[task_id]
-                        print(f"DEBUG: Cleaned up IGDB cancel map for task {task_id}")
-                except Exception as e:
-                    print(f"DEBUG: Error cleaning up IGDB cancel map: {e}")
-                
-                break
-                
-        except queue.Empty:
-            continue
-        except Exception as e:
-            print(f"Error in IGDB result listener: {e}")
-            break
-    
-    print(f"DEBUG: IGDB result listener ended for process {process.pid}")
+    # Run the async scraper in a new event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(async_scraper())
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+    finally:
+        loop.close()
 
 def run_screenscraper_task(system_name, task_id, selected_games=None, selected_fields=None, overwrite_text_fields=False, overwrite_media_fields=False, search_by_name=False):
     print(f"🔧 DEBUG: run_screenscraper_task called with - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}, search_by_name: {search_by_name}")
