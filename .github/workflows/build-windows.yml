@@ -109,7 +109,7 @@ jobs:
         
     - name: Create README for Windows
       run: |
-        @"
+        $readmeContent = @'
 # GameManager for Windows
 
 This is a standalone Windows executable of GameManager.
@@ -152,7 +152,8 @@ If the application doesn't start:
 ## Support
 
 For issues and support, please visit the GitHub repository.
-"@ | Out-File -FilePath "dist\gamemanager_windows\README_WINDOWS.txt" -Encoding UTF8
+'@
+        $readmeContent | Out-File -FilePath "dist\gamemanager_windows\README_WINDOWS.txt" -Encoding UTF8
         
     - name: Create zip archive
       run: |
