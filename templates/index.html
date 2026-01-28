@@ -4218,6 +4218,39 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         <li><strong>Hero:</strong> <code>https://shared.steamstatic.com/store_item_assets/steam/apps/&lt;steamid&gt;/library_hero.jpg</code></li>
                                     </ul>
                                 </div>
+                                
+                                <!-- Steam API Credentials -->
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <h6><i class="bi bi-key-fill me-2"></i>Steam Web API Credentials</h6>
+                                        <div class="card">
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-md-8">
+                                                        <div class="mb-3">
+                                                            <label for="steamApiKey" class="form-label">API Key</label>
+                                                            <input type="password" class="form-control" id="steamApiKey" placeholder="Enter your Steam Web API key">
+                                                            <div class="form-text">Your Steam Web API key for authentication. Get one at <a href="https://steamcommunity.com/dev/apikey" target="_blank">Steam Community</a></div>
+                                                            <div class="form-text text-muted" id="steamApiKeyHelp" style="display: none;">
+                                                                <i class="bi bi-info-circle me-1"></i>Field shows dots when credentials are configured. Clear and enter new key to update.
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <div class="d-flex gap-2">
+                                                            <button type="button" class="btn btn-primary btn-sm" id="saveSteamCredentialsBtn">
+                                                                <i class="bi bi-check-circle me-1"></i>Save
+                                                            </button>
+                                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="testSteamConnectionBtn">
+                                                                <i class="bi bi-wifi me-1"></i>Test
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

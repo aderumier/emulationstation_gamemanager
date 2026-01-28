@@ -27,7 +27,8 @@ class SteamService:
     def __init__(self, cache_dir: str = "var/db/steam"):
         self.cache_dir = cache_dir
         self.app_index_file = os.path.join(cache_dir, "appindex.json")
-        self.steam_api_url = "https://api.steampowered.com/ISteamApps/GetAppList/v0002/"
+        # Steam Web API v1 with authentication (v2 no longer works without key)
+        self.steam_api_url = "https://api.steampowered.com/IStoreService/GetAppList/v1/"
         self.cache_retention_hours = 24
         
         # Indexing cache for performance
@@ -48,6 +49,40 @@ class SteamService:
         # Try to load partitioned index from cache, but don't build it here
         # The partitioned index will be built in a background thread
         self._partitioned_index_loaded_from_cache = self._load_partitioned_index_from_cache()
+    
+    def get_api_key(self) -> Optional[str]:
+        """Get Steam API key from credentials"""
+        try:
+            credentials_path = 'var/config/credentials.json'
+            if os.path.exists(credentials_path):
+                with open(credentials_path, 'r') as f:
+                    credentials = json.load(f)
+                return credentials.get('steam_api_key')
+            return None
+        except Exception as e:
+            logger.error(f"Error loading Steam API key: {e}")
+            return None
+    
+    def save_api_key(self, api_key: str) -> bool:
+        """Save Steam API key to credentials"""
+        try:
+            credentials_path = 'var/config/credentials.json'
+            os.makedirs(os.path.dirname(credentials_path), exist_ok=True)
+            
+            credentials = {}
+            if os.path.exists(credentials_path):
+                with open(credentials_path, 'r') as f:
+                    credentials = json.load(f)
+            
+            credentials['steam_api_key'] = api_key
+            
+            with open(credentials_path, 'w') as f:
+                json.dump(credentials, f, indent=2)
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error saving Steam API key: {e}")
+            return False
     
     def close(self):
         """Close any open connections or resources"""
@@ -119,20 +154,71 @@ class SteamService:
             return False
     
     async def fetch_app_index(self) -> Optional[List[Dict]]:
-        """Fetch Steam app index from API"""
+        """Fetch Steam app index from API (requires API key for v1 endpoint)"""
         try:
+            api_key = self.get_api_key()
+            if not api_key:
+                logger.error("Steam API key not configured. Please set your Steam Web API key in Scrapper Configuration > Steam.")
+                return None
+            
             logger.info("Fetching Steam app index from API...")
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(self.steam_api_url)
-                response.raise_for_status()
+            # v1 API requires key parameter and returns paginated results
+            all_apps = []
+            last_appid = 0
+            max_results = 50000  # Request max per page
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                while True:
+                    params = {
+                        'key': api_key,
+                        'max_results': max_results,
+                        'include_games': 'true',
+                        'include_dlc': 'false',
+                        'include_software': 'false',
+                        'include_videos': 'false',
+                        'include_hardware': 'false'
+                    }
+                    if last_appid > 0:
+                        params['last_appid'] = last_appid
+                    
+                    response = await client.get(self.steam_api_url, params=params)
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    response_data = data.get('response', {})
+                    apps = response_data.get('apps', [])
+                    
+                    if not apps:
+                        break
+                    
+                    # Convert v1 format to v2 format for compatibility
+                    for app in apps:
+                        all_apps.append({
+                            'appid': app.get('appid'),
+                            'name': app.get('name', '')
+                        })
+                    
+                    # Check if there are more results
+                    have_more = response_data.get('have_more_results', False)
+                    if not have_more:
+                        break
+                    
+                    last_appid = response_data.get('last_appid', 0)
+                    if last_appid == 0:
+                        break
+                    
+                    logger.info(f"Fetched {len(all_apps)} apps so far, continuing...")
                 
-                data = response.json()
-                apps = data.get('applist', {}).get('apps', [])
+                logger.info(f"Fetched {len(all_apps)} Steam apps from API")
+                return all_apps
                 
-                logger.info(f"Fetched {len(apps)} Steam apps from API")
-                return apps
-                
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 403:
+                logger.error("Steam API key is invalid or unauthorized. Please check your API key.")
+            else:
+                logger.error(f"HTTP error fetching Steam app index: {e}")
+            return None
         except Exception as e:
             logger.error(f"Error fetching Steam app index: {e}")
             return None

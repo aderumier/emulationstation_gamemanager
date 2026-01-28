@@ -27765,6 +27765,7 @@ class GameCollectionManager {
         
         // Load credentials values for all services
         await this.loadScreenscraperCredentialsValues();
+        await this.loadSteamCredentialsValues();
         await this.loadSteamgriddbCredentialsValues();
         await this.loadEmumoviesCredentialsStatus();
         
@@ -29075,6 +29076,151 @@ class GameCollectionManager {
         }
     }
     
+    // Steam API Credentials functions
+    async loadSteamCredentialsValues() {
+        try {
+            const response = await fetch('/api/steam-credentials');
+            const data = await response.json();
+            
+            if (data.success) {
+                const apiKeyInput = document.getElementById('steamApiKey');
+                const helpText = document.getElementById('steamApiKeyHelp');
+                
+                if (apiKeyInput) {
+                    if (data.has_credentials) {
+                        // Fill with dots to show that credentials exist
+                        const dots = '•'.repeat(Math.min(data.api_key_length, 20)); // Max 20 dots for display
+                        apiKeyInput.value = dots;
+                        apiKeyInput.placeholder = `API Key configured (${data.api_key_length} characters)`;
+                        
+                        // Show help text
+                        if (helpText) {
+                            helpText.style.display = 'block';
+                        }
+                    } else {
+                        apiKeyInput.value = '';
+                        apiKeyInput.placeholder = 'Enter your Steam Web API key';
+                        
+                        // Hide help text
+                        if (helpText) {
+                            helpText.style.display = 'none';
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+        }
+    }
+    
+    async saveSteamCredentials() {
+        const apiKeyInput = document.getElementById('steamApiKey');
+        if (!apiKeyInput) {
+            this.showAlert('API key input not found', 'danger');
+            return;
+        }
+        
+        let apiKey = apiKeyInput.value.trim();
+        
+        // If the field contains only dots, it means the user hasn't entered a new key
+        if (apiKey && apiKey.match(/^•+$/)) {
+            this.showAlert('Please enter a new API key to update credentials', 'info');
+            return;
+        }
+        
+        if (!apiKey) {
+            this.showAlert('Please enter an API key', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/steam-credentials', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    api_key: apiKey
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert('Steam credentials saved successfully', 'success');
+                // Reload values to show dots
+                this.loadSteamCredentialsValues();
+            } else {
+                this.showAlert(`Failed to save Steam credentials: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error saving Steam credentials', 'danger');
+        }
+    }
+    
+    async testSteamConnection() {
+        // Check if we have credentials configured
+        const apiKeyInput = document.getElementById('steamApiKey');
+        const apiKey = apiKeyInput.value.trim();
+        
+        // If the field contains dots, it means credentials are configured but hidden
+        if (apiKey.includes('•')) {
+            // Get the real API key from the backend
+            try {
+                const response = await fetch('/api/steam-credentials?include_key=true');
+                const data = await response.json();
+                
+                if (data.success && data.has_credentials && data.api_key) {
+                    // Use the real API key from the backend
+                    await this.testSteamConnectionWithKey(data.api_key);
+                } else {
+                    this.showAlert('No API key configured. Please enter your API key first.', 'warning');
+                }
+            } catch (error) {
+                this.showAlert('Error retrieving API key. Please enter your API key manually.', 'warning');
+            }
+        } else if (!apiKey) {
+            this.showAlert('Please enter API Key', 'warning');
+            return;
+        } else {
+            // Use the manually entered API key
+            await this.testSteamConnectionWithKey(apiKey);
+        }
+    }
+    
+    async testSteamConnectionWithKey(apiKey) {
+        // Disable button and show loading state
+        const testBtn = document.getElementById('testSteamConnectionBtn');
+        const originalText = testBtn.innerHTML;
+        testBtn.disabled = true;
+        testBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Testing...';
+        
+        try {
+            const response = await fetch('/api/test-steam-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    api_key: apiKey
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(data.message || 'Steam API connection successful!', 'success');
+            } else {
+                this.showAlert(data.error || 'Steam API connection failed', 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error testing Steam connection', 'danger');
+        } finally {
+            // Restore button state
+            testBtn.disabled = false;
+            testBtn.innerHTML = originalText;
+        }
+    }
+    
     initializeIgdbConfigModal() {
         // Refresh button
         const refreshIgdbMappingsBtn = document.getElementById('refreshIgdbMappingsBtn');
@@ -29855,6 +30001,32 @@ class GameCollectionManager {
         if (refreshSteamMappingsBtn) {
             refreshSteamMappingsBtn.addEventListener('click', () => {
                 this.loadSteamMappingsData();
+            });
+        }
+        
+        // Steam credentials save button
+        const saveSteamCredentialsBtn = document.getElementById('saveSteamCredentialsBtn');
+        if (saveSteamCredentialsBtn) {
+            saveSteamCredentialsBtn.addEventListener('click', () => {
+                this.saveSteamCredentials();
+            });
+        }
+        
+        // Steam credentials test button
+        const testSteamConnectionBtn = document.getElementById('testSteamConnectionBtn');
+        if (testSteamConnectionBtn) {
+            testSteamConnectionBtn.addEventListener('click', () => {
+                this.testSteamConnection();
+            });
+        }
+        
+        // Clear dots when user focuses on Steam API key input
+        const steamApiKeyInput = document.getElementById('steamApiKey');
+        if (steamApiKeyInput) {
+            steamApiKeyInput.addEventListener('focus', () => {
+                if (steamApiKeyInput.value && steamApiKeyInput.value.match(/^•+$/)) {
+                    steamApiKeyInput.value = '';
+                }
             });
         }
 

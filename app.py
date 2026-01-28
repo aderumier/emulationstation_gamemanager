@@ -8723,6 +8723,103 @@ def manage_steamgriddb_mappings():
     except Exception as e:
         return jsonify({'error': f'Failed to manage SteamGridDB mappings: {str(e)}'}), 500
 
+@app.route('/api/steam-credentials', methods=['GET', 'POST'])
+@login_required
+def manage_steam_credentials():
+    """Manage Steam Web API credentials"""
+    try:
+        if request.method == 'GET':
+            # Return current credentials status
+            from steam_service import SteamService
+            service = SteamService()
+            api_key = service.get_api_key()
+            
+            # Check if the request wants the actual API key (for test connection)
+            include_key = request.args.get('include_key', 'false').lower() == 'true'
+            
+            response_data = {
+                'success': True,
+                'has_credentials': bool(api_key),
+                'api_key_length': len(api_key) if api_key else 0
+            }
+            
+            # Include the actual API key if requested
+            if include_key and api_key:
+                response_data['api_key'] = api_key
+            
+            return jsonify(response_data)
+        
+        elif request.method == 'POST':
+            # Save credentials
+            data = request.get_json()
+            if not data or 'api_key' not in data:
+                return jsonify({'error': 'API key is required'}), 400
+            
+            api_key = data['api_key'].strip()
+            if not api_key:
+                return jsonify({'error': 'API key cannot be empty'}), 400
+            
+            from steam_service import SteamService
+            service = SteamService()
+            
+            if service.save_api_key(api_key):
+                return jsonify({'success': True, 'message': 'Steam credentials saved successfully'})
+            else:
+                return jsonify({'error': 'Failed to save Steam credentials'}), 500
+    
+    except Exception as e:
+        return jsonify({'error': f'Failed to manage Steam credentials: {str(e)}'}), 500
+
+@app.route('/api/test-steam-connection', methods=['POST'])
+@login_required
+def test_steam_connection():
+    """Test Steam API connection with the provided API key"""
+    try:
+        data = request.get_json()
+        api_key = data.get('api_key', '').strip() if data else ''
+        
+        if not api_key:
+            return jsonify({'error': 'API key is required'}), 400
+        
+        # Test the API key by making a simple request
+        import requests
+        test_url = "https://api.steampowered.com/IStoreService/GetAppList/v1/"
+        params = {
+            'key': api_key,
+            'max_results': 1,
+            'include_games': 'true'
+        }
+        
+        response = requests.get(test_url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if 'response' in data:
+                return jsonify({
+                    'success': True,
+                    'message': 'Steam API connection successful!'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid response from Steam API'
+                }), 400
+        elif response.status_code == 403:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid or unauthorized API key'
+            }), 403
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Steam API returned status {response.status_code}'
+            }), response.status_code
+            
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Connection to Steam API timed out'}), 504
+    except Exception as e:
+        return jsonify({'error': f'Failed to test Steam connection: {str(e)}'}), 500
+
 @app.route('/api/steamgriddb-credentials', methods=['GET', 'POST'])
 @login_required
 def manage_steamgriddb_credentials():
