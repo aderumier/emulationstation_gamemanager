@@ -1087,6 +1087,18 @@ def configure_logging(config):
     log_level = getattr(logging, level_name, logging.INFO)
     log_file = logging_config.get('file')
 
+    # Set Windows console to UTF-8 if on Windows
+    if sys.platform == 'win32':
+        try:
+            # Set console code page to UTF-8 (65001)
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            kernel32.SetConsoleOutputCP(65001)
+            kernel32.SetConsoleCP(65001)
+        except Exception:
+            # If setting console code page fails, continue anyway
+            pass
+
     # Remove existing handlers so we can reconfigure cleanly
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
@@ -1097,13 +1109,41 @@ def configure_logging(config):
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    stream_handler = logging.StreamHandler()
+    # Create StreamHandler with UTF-8 encoding support
+    # Custom handler that safely handles Unicode on Windows
+    class UTF8StreamHandler(logging.StreamHandler):
+        """StreamHandler that safely handles UTF-8 encoding on Windows"""
+        def emit(self, record):
+            try:
+                msg = self.format(record)
+                stream = self.stream
+                # Try to write with UTF-8 encoding
+                try:
+                    if hasattr(stream, 'buffer'):
+                        # Binary stream available, write UTF-8 bytes
+                        stream.buffer.write(msg.encode('utf-8', errors='replace'))
+                        stream.buffer.write(b'\n')
+                        stream.buffer.flush()
+                    else:
+                        # Text stream, try direct write
+                        stream.write(msg + '\n')
+                        stream.flush()
+                except (UnicodeEncodeError, AttributeError):
+                    # Fallback: replace problematic characters
+                    safe_msg = msg.encode('ascii', errors='replace').decode('ascii')
+                    stream.write(safe_msg + '\n')
+                    stream.flush()
+            except Exception:
+                self.handleError(record)
+    
+    stream_handler = UTF8StreamHandler(sys.stderr)
     stream_handler.setFormatter(formatter)
     handlers.append(stream_handler)
 
     if log_file:
         os.makedirs(os.path.dirname(log_file), exist_ok=True) if os.path.dirname(log_file) else None
-        file_handler = logging.FileHandler(log_file)
+        # Use UTF-8 encoding for file handler
+        file_handler = logging.FileHandler(log_file, encoding='utf-8', errors='replace')
         file_handler.setFormatter(formatter)
         handlers.append(file_handler)
 
@@ -6877,16 +6917,45 @@ def index():
 def serve_rom_file(filename):
     """Serve ROM files and media"""
     from flask import Response
+    from urllib.parse import unquote
     
-    # Check if it's a PDF and set proper content type with CORS headers
-    if filename.lower().endswith('.pdf'):
-        response = send_from_directory(ROMS_FOLDER, filename, mimetype='application/pdf')
-        # Add CORS headers for PDF files to allow EmbedPDF to load them
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        return response
-    return send_from_directory(ROMS_FOLDER, filename)
+    try:
+        # URL decode the filename to handle %20 and other encoded characters
+        decoded_filename = unquote(filename)
+        
+        # Normalize path separators for Windows
+        normalized_filename = decoded_filename.replace('\\', '/')
+        
+        # Construct full file path for verification (Windows-compatible)
+        full_path = os.path.normpath(os.path.join(ROMS_FOLDER, normalized_filename))
+        
+        # Verify file exists (helps with debugging on Windows)
+        if not os.path.exists(full_path):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"File not found: {full_path} (decoded from '{filename}')")
+            if not os.path.exists(ROMS_FOLDER):
+                logger.error(f"ROMS_FOLDER does not exist: {ROMS_FOLDER}")
+            from flask import abort
+            abort(404)
+        
+        # Check if it's a PDF and set proper content type with CORS headers
+        if normalized_filename.lower().endswith('.pdf'):
+            response = send_from_directory(ROMS_FOLDER, normalized_filename, mimetype='application/pdf')
+            # Add CORS headers for PDF files to allow EmbedPDF to load them
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+            return response
+        
+        return send_from_directory(ROMS_FOLDER, normalized_filename)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error serving ROM file '{filename}': {e}", exc_info=True)
+        # Return 404 on any error to avoid exposing internal details
+        from flask import abort
+        abort(404)
 
 @app.route('/var/temp/<path:filename>')
 @login_required
