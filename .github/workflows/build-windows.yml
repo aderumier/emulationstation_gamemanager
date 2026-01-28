@@ -83,6 +83,14 @@ jobs:
         Invoke-WebRequest -Uri $ytdlpUrl -OutFile "tools\windows\yt-dlp.exe"
         Write-Host "yt-dlp downloaded"
     
+    - name: Download Deno (required by yt-dlp)
+      run: |
+        $denoUrl = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
+        $denoZip = "$env:TEMP\deno.zip"
+        Invoke-WebRequest -Uri $denoUrl -OutFile $denoZip
+        Expand-Archive -Path $denoZip -DestinationPath "tools\windows" -Force
+        Write-Host "Deno downloaded and extracted"
+    
     - name: Decompress IGDB database (igdb_db.pkl.gz -> igdb_db.pkl)
       run: |
         if (Test-Path "var\db\igdb\igdb_db.pkl.gz") {
