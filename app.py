@@ -111,6 +111,9 @@ def find_tool(tool_name, windows_exe=None):
             os.path.join(_base_dir, 'tools', 'windows', exe_name),
             os.path.join(_base_dir, 'tools', tool_name, exe_name),
         ]
+        # ImageMagick on Windows deploy is in tools/windows/imagemagick/
+        if tool_name in ('convert', 'identify', 'composite'):
+            bundled_paths.insert(0, os.path.join(_base_dir, 'tools', 'windows', 'imagemagick', exe_name))
         
         for path in bundled_paths:
             if os.path.exists(path):
@@ -27001,11 +27004,11 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     continue
                 
                 if source_2dbox.startswith('./'):
-                    source_2dbox_path = os.path.join(system_path, source_2dbox[2:])
+                    source_2dbox_path = os.path.normpath(os.path.join(system_path, source_2dbox[2:]))
                 elif source_2dbox.startswith('/'):
-                    source_2dbox_path = source_2dbox
+                    source_2dbox_path = os.path.normpath(source_2dbox)
                 else:
-                    source_2dbox_path = os.path.join(system_path, source_2dbox)
+                    source_2dbox_path = os.path.normpath(os.path.join(system_path, source_2dbox))
                 
                 if not os.path.exists(source_2dbox_path):
                     print(f"⚠️  Source 2D box not found: {source_2dbox_path}")
@@ -29675,11 +29678,11 @@ def preview_3dbox():
             return jsonify({'error': f'Game has no {source_field} image'}), 400
         
         if source_2dbox.startswith('./'):
-            source_2dbox_path = os.path.join(system_path, source_2dbox[2:])
+            source_2dbox_path = os.path.normpath(os.path.join(system_path, source_2dbox[2:]))
         elif source_2dbox.startswith('/'):
-            source_2dbox_path = source_2dbox
+            source_2dbox_path = os.path.normpath(source_2dbox)
         else:
-            source_2dbox_path = os.path.join(system_path, source_2dbox)
+            source_2dbox_path = os.path.normpath(os.path.join(system_path, source_2dbox))
         
         if not os.path.exists(source_2dbox_path):
             return jsonify({'error': f'Source 2D box image not found: {source_2dbox_path}'}), 404

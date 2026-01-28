@@ -42,6 +42,9 @@ def find_tool(tool_name, windows_exe=None):
             os.path.join(base_dir, 'tools', 'windows', exe_name),
             os.path.join(base_dir, 'tools', tool_name, exe_name),
         ]
+        # ImageMagick on Windows deploy is in tools/windows/imagemagick/
+        if tool_name in ('convert', 'identify', 'composite'):
+            bundled_paths.insert(0, os.path.join(base_dir, 'tools', 'windows', 'imagemagick', exe_name))
         
         for path in bundled_paths:
             if os.path.exists(path):
