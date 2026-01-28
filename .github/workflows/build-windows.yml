@@ -109,51 +109,13 @@ jobs:
         
     - name: Create README for Windows
       run: |
-        $readmeContent = @'
-# GameManager for Windows
-
-This is a standalone Windows executable of GameManager.
-
-## Requirements
-
-- Windows 10 or later
-- No additional software installation required (all dependencies are bundled)
-
-## Installation
-
-1. Extract the zip file to a location of your choice
-2. Run `gamemanager.exe`
-3. Open your browser and navigate to http://localhost:5000
-
-## External Tools
-
-The following tools are bundled in the `tools/windows/` directory:
-
-- **ffmpeg**: Video processing (ffmpeg.exe, ffprobe.exe)
-- **ImageMagick**: Image processing (convert.exe, identify.exe)
-- **yt-dlp**: YouTube video downloads (yt-dlp.exe)
-
-These tools are automatically detected and used by the application.
-
-## Configuration
-
-Configuration files are stored in the `var/` directory:
-- `var/config/` - Application configuration
-- `var/db/` - Database files
-- `var/task_logs/` - Task logs
-
-## Troubleshooting
-
-If the application doesn't start:
-1. Check Windows Defender or antivirus software (PyInstaller executables sometimes trigger false positives)
-2. Ensure all files were extracted correctly
-3. Check the console window for error messages
-
-## Support
-
-For issues and support, please visit the GitHub repository.
-'@
-        $readmeContent | Out-File -FilePath "dist\gamemanager_windows\README_WINDOWS.txt" -Encoding UTF8
+        if (Test-Path "README_WINDOWS.md") {
+          Copy-Item "README_WINDOWS.md" "dist\gamemanager_windows\README_WINDOWS.txt"
+        } else {
+          # Fallback: create minimal README if file doesn't exist
+          $content = "# GameManager for Windows`n`nThis is a standalone Windows executable of GameManager.`n`n## Installation`n`n1. Extract the zip file to a location of your choice`n2. Run gamemanager.exe`n3. Open your browser and navigate to http://localhost:5000`n"
+          $content | Out-File -FilePath "dist\gamemanager_windows\README_WINDOWS.txt" -Encoding UTF8
+        }
         
     - name: Create zip archive
       run: |
