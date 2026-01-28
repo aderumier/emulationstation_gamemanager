@@ -1480,6 +1480,14 @@ def parse_customid(customid, scraper_type='custom'):
     # Backward compatibility: if no slash, assume it's just the ID
     return (None, customid)
 
+def normalize_gamelist_path(value):
+    """Normalize path-like gamelist values to forward slashes (EmulationStation expects /)."""
+    if not isinstance(value, str) or not value:
+        return value
+    if value.startswith('./') or value.startswith('.\\'):
+        return value.replace('\\', '/')
+    return value
+
 def get_gamelist_path(system_name):
     """Get the gamelist path for a system, ensuring the directory exists"""
     gamelist_dir = os.path.join(GAMELISTS_FOLDER, system_name)
@@ -4323,7 +4331,7 @@ def process_import_match(game, matched_file, source_dir, target_dir, target_fiel
         
         # Update gamelist with the final processed filename
         final_filename = os.path.basename(processed_path) if processed_path else target_filename
-        new_media_path = f"./media/{media_fields[target_field]['directory']}/{final_filename}"
+        new_media_path = f"./media/{media_fields[target_field]['directory']}/{final_filename}".replace('\\', '/')
         game[target_field] = new_media_path
         task.update_progress(f"     ✅ Gamelist updated: {target_field} = '{new_media_path}'")
         
@@ -6868,6 +6876,12 @@ def parse_gamelist_xml(file_path):
             # Initialize custom2id to empty string if not present (for grid display)
             if 'custom2id' not in game_data:
                 game_data['custom2id'] = ''
+            
+            # Normalize path-like values (path, media paths) to forward slashes for EmulationStation
+            for k in list(game_data.keys()):
+                v = game_data[k]
+                if isinstance(v, str) and v and (v.startswith('./') or v.startswith('.\\')):
+                    game_data[k] = normalize_gamelist_path(v)
             
             games.append(game_data)
         
@@ -10939,6 +10953,10 @@ def write_gamelist_xml(games, file_path):
                             # Keep empty string as empty (don't convert to 'false')
                             value = ''
                     
+                    # Normalize path-like values to forward slashes (EmulationStation)
+                    if isinstance(value, str) and value and (value.startswith('./') or value.startswith('.\\')):
+                        value = normalize_gamelist_path(value)
+                    
                     # Add all fields from the game data
                     field_elem = ET.SubElement(game_elem, field)
                     field_elem.text = str(value) if value else ''
@@ -11680,7 +11698,7 @@ def validate_move_medias():
                             shutil.move(full_source_path, target_path)
                             
                             # Update gamelist with new path (forward slashes for gamelist.xml)
-                            new_relative_path = f"./{target_dir}/{filename}".replace('//', '/')
+                            new_relative_path = f"./{target_dir}/{filename}".replace('//', '/').replace('\\', '/')
                             game[media_field] = new_relative_path
                             
                             moved_files.append({
@@ -11872,7 +11890,7 @@ def move_image():
             return jsonify({'error': f'Failed to move file: {str(e)}'}), 500
         
         # Update gamelist with new path (forward slashes for gamelist.xml)
-        new_relative_path = f"./{target_dir}/{filename}".replace('//', '/')
+        new_relative_path = f"./{target_dir}/{filename}".replace('//', '/').replace('\\', '/')
         game[target_field] = new_relative_path
         
         # Clear source field
@@ -12914,7 +12932,7 @@ def download_multiscraper_media_endpoint():
                         media_filename = os.path.basename(processed_path)
 
             # Construct path with forward slashes (gamelist.xml format requires forward slashes)
-            relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/')
+            relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/').replace('\\', '/')
             game[media_type] = relative_path
             success = True
 
@@ -13050,7 +13068,7 @@ def download_multiscraper_media_endpoint():
                     
                     # Update gamelist
                     # Construct path with forward slashes (gamelist.xml format requires forward slashes)
-                    relative_path = f'./media/{media_subdirectory}/{os.path.basename(final_path)}'
+                    relative_path = f'./media/{media_subdirectory}/{os.path.basename(final_path)}'.replace('\\', '/')
                     game[media_type] = relative_path
                     success = True
                     print(f"✅ EmuMovies media saved to: {final_path}")
@@ -13117,7 +13135,7 @@ def download_multiscraper_media_endpoint():
                 
                 # Update gamelist with the media path (must start with ./ like other media downloads)
                 # Construct path with forward slashes (gamelist.xml format requires forward slashes)
-                relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/')
+                relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/').replace('\\', '/')
                 game[media_type] = relative_path
                 
                 success = True
@@ -13195,7 +13213,7 @@ def download_multiscraper_media_endpoint():
                 
                 # Update gamelist with the media path (must start with ./ like other media downloads)
                 # Construct path with forward slashes (gamelist.xml format requires forward slashes)
-                relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/')
+                relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/').replace('\\', '/')
                 game[media_type] = relative_path
                 
                 success = True
@@ -13270,7 +13288,7 @@ def download_multiscraper_media_endpoint():
                     
                     if success:
                         # Construct path with forward slashes (gamelist.xml format requires forward slashes)
-                        relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/')
+                        relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/').replace('\\', '/')
                         game[media_type] = relative_path
                         print(f'✅ Converted CBZ to PDF for {media_type}')
                     else:
@@ -13327,7 +13345,7 @@ def download_multiscraper_media_endpoint():
                     
                     if success:
                         # Construct path with forward slashes (gamelist.xml format requires forward slashes)
-                        relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/')
+                        relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/').replace('\\', '/')
                         game[media_type] = relative_path
                         print(f'✅ Converted PDF to CBZ for {media_type}')
                     else:
@@ -13358,7 +13376,7 @@ def download_multiscraper_media_endpoint():
                 
                 if success:
                     # Construct path with forward slashes (gamelist.xml format requires forward slashes)
-                    relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/')
+                    relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/').replace('\\', '/')
                     game[media_type] = relative_path
                     print(f'✅ Created {target_ext} from {len(urls_array)} images for {media_type}')
                 else:
@@ -13382,7 +13400,7 @@ def download_multiscraper_media_endpoint():
                 
                 if success:
                     # Construct path with forward slashes (gamelist.xml format requires forward slashes)
-                    relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/')
+                    relative_path = f'./{target_dir}/{target_filename}'.replace('//', '/').replace('\\', '/')
                     game[media_type] = relative_path
                     print(f'✅ Created {target_ext} from single image for {media_type}')
                 else:
@@ -14608,7 +14626,7 @@ def download_and_save_media(media_url, game, media_type, system_name):
         
         # Update game data
         # Construct path with forward slashes (gamelist.xml format requires forward slashes)
-        relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/')
+        relative_path = f'./{target_dir}/{media_filename}'.replace('//', '/').replace('\\', '/')
         game[media_type] = relative_path
         print(f"🔧 DEBUG: Updated game[{media_type}] = {relative_path}")
         
@@ -16158,7 +16176,7 @@ def scan_media_files(system_name):
                             media_filename = create_media_filename(rom_path, ext)
                             media_file = os.path.join(media_dir, media_filename)
                             if os.path.exists(media_file):
-                                found_media = f'./media/{media_type}/{media_filename}'
+                                found_media = f'./media/{media_type}/{media_filename}'.replace('\\', '/')
                                 break
                     
                     # Only add new media if field is empty and we found media
@@ -17395,7 +17413,7 @@ def upload_game_media(system_name):
             print(f"✅ No processing needed for uploaded field: {media_field}")
         
         # Update the game object in memory with relative path
-        relative_path = f"./media/{media_directory}/{new_filename}"
+        relative_path = f"./media/{media_directory}/{new_filename}".replace('\\', '/')
         game[media_field] = relative_path
         
         # Update the gamelist.xml file
@@ -17660,7 +17678,7 @@ def save_screenshot_to_field(system_name):
                 print(f"⚠️ Warning: Failed to process screenshot, keeping original: {os.path.basename(file_path)}")
         
         # Update the game object in memory with relative path
-        relative_path = f"./media/{media_directory}/{new_filename}"
+        relative_path = f"./media/{media_directory}/{new_filename}".replace('\\', '/')
         game[media_field] = relative_path
         
         # Update the gamelist.xml file
@@ -19496,7 +19514,7 @@ def apply_manual_scrap(system_name):
                         success = convert_cbz_to_pdf_file(temp_cbz_path, target_path)
                         
                         if success:
-                            rel_path = f'./media/{directory}/{target_filename}'
+                            rel_path = f'./media/{directory}/{target_filename}'.replace('\\', '/')
                             game[media_field] = rel_path
                             media_updates[media_field] = rel_path
                             download_stats['success'] += 1
@@ -19547,7 +19565,7 @@ def apply_manual_scrap(system_name):
                         success = convert_pdf_to_cbz_file(temp_pdf_path, target_path)
                         
                         if success:
-                            rel_path = f'./media/{directory}/{target_filename}'
+                            rel_path = f'./media/{directory}/{target_filename}'.replace('\\', '/')
                             game[media_field] = rel_path
                             media_updates[media_field] = rel_path
                             download_stats['success'] += 1
@@ -19575,7 +19593,7 @@ def apply_manual_scrap(system_name):
                     
                     if success:
                         # Update game field with relative path
-                        rel_path = f'./media/{directory}/{target_filename}'
+                        rel_path = f'./media/{directory}/{target_filename}'.replace('\\', '/')
                         game[media_field] = rel_path
                         media_updates[media_field] = rel_path
                         download_stats['success'] += 1
@@ -19596,7 +19614,7 @@ def apply_manual_scrap(system_name):
                     
                     if success:
                         # Update game field with relative path
-                        rel_path = f'./media/{directory}/{target_filename}'
+                        rel_path = f'./media/{directory}/{target_filename}'.replace('\\', '/')
                         game[media_field] = rel_path
                         media_updates[media_field] = rel_path
                         download_stats['success'] += 1
@@ -19677,7 +19695,7 @@ def apply_manual_scrap(system_name):
                                 target_filename = os.path.basename(target_path)
                         
                         # Update game field with relative path
-                        rel_path = f'./media/{directory}/{target_filename}'
+                        rel_path = f'./media/{directory}/{target_filename}'.replace('\\', '/')
                         game[media_field] = rel_path
                         media_updates[media_field] = rel_path
                         download_stats['success'] += 1
@@ -19696,7 +19714,7 @@ def apply_manual_scrap(system_name):
                     success = download_mobygames_media_from_url(selected_url, target_path)
                     if success:
                         # Update game field with relative path
-                        rel_path = f'./media/{directory}/{target_filename}'
+                        rel_path = f'./media/{directory}/{target_filename}'.replace('\\', '/')
                         game[media_field] = rel_path
                         media_updates[media_field] = rel_path
                         download_stats['success'] += 1
@@ -19750,7 +19768,7 @@ def apply_manual_scrap(system_name):
                             print(f"🔧 DEBUG: No processing needed for manual scrap field: {media_field}")
                         
                         # Update game field with relative path
-                        rel_path = f'./media/{directory}/{target_filename}'
+                        rel_path = f'./media/{directory}/{target_filename}'.replace('\\', '/')
                         game[media_field] = rel_path
                         media_updates[media_field] = rel_path
                         download_stats['success'] += 1
@@ -22206,7 +22224,7 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
                 print(f"🔧 DEBUG: Found game: {game.get('name')}")
                 # Update game object in memory (same pattern as other scrapers)
                 media_subdirectory = media_fields[media_type].get('directory', media_type) if media_type in media_fields else media_type
-                relative_path = f"./media/{media_subdirectory}/{os.path.basename(file_path)}"
+                relative_path = f"./media/{media_subdirectory}/{os.path.basename(file_path)}".replace('\\', '/')
                 game[media_type] = relative_path
                 print(f"🔧 DEBUG: Updated game[{media_type}] = {relative_path}")
                 
@@ -24832,7 +24850,7 @@ def update_gamelist_and_complete(task, system_path, output_filename, output_path
                         # Check if the game path exactly matches the ROM file
                         if game_path == rom_file:
                             # Update or add video field
-                            game['video'] = f'./media/videos/{output_filename}'
+                            game['video'] = f'./media/videos/{output_filename}'.replace('\\', '/')
                             
                             # Update YouTube URL field if we have the video URL
                             # Extract video URL from the task data if available
@@ -26164,7 +26182,7 @@ def update_gamelist_video_field(gamelist_path, rom_path, video_filename):
                 video_elem = game.find('video')
                 if video_elem is None:
                     video_elem = ET.SubElement(game, 'video')
-                video_elem.text = f"./media/videos/{video_filename}"
+                video_elem.text = f"./media/videos/{video_filename}".replace('\\', '/')
                 game_updated = True
                 break
         
@@ -26313,10 +26331,10 @@ def run_manual_crop_task(task_id, data):
                     # Update or add video field
                     video_element = game_element.find('video')
                     if video_element is not None:
-                        video_element.text = f"./media/videos/{original_filename}"
+                        video_element.text = f"./media/videos/{original_filename}".replace('\\', '/')
                     else:
                         video_element = ET.SubElement(game_element, 'video')
-                        video_element.text = f"./media/videos/{original_filename}"
+                        video_element.text = f"./media/videos/{original_filename}".replace('\\', '/')
                     
                     # Save the updated gamelist.xml
                     save_formatted_gamelist_xml(tree, gamelist_path)
@@ -26947,7 +26965,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                 
                 if game_element is not None:
                     target_element = game_element.find(target_field)
-                    media_path = f"./media/{box2d_directory}/{output_filename}"
+                    media_path = f"./media/{box2d_directory}/{output_filename}".replace('\\', '/')
                     if target_element is not None:
                         target_element.text = media_path
                     else:
@@ -27281,7 +27299,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 
                 if game_element is not None:
                     target_element = game_element.find(target_field)
-                    media_path = f"./media/{box3d_directory}/{output_filename}"
+                    media_path = f"./media/{box3d_directory}/{output_filename}".replace('\\', '/')
                     if target_element is not None:
                         target_element.text = media_path
                     else:
@@ -27576,7 +27594,7 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                     print(f"🔧 DEBUG: Found game element in gamelist for {game_name}")
                     # Update or add the marquee field
                     marquee_element = game_element.find('marquee')
-                    marquee_path = f"./media/{marquee_directory}/{output_filename}"
+                    marquee_path = f"./media/{marquee_directory}/{output_filename}".replace('\\', '/')
                     if marquee_element is not None:
                         marquee_element.text = marquee_path
                         print(f"🔧 DEBUG: Updated marquee field: {marquee_path}")
@@ -31742,17 +31760,17 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                     break
             if not gamelist_field:
                 print(f"{emoji} DEBUG: No mapping found for IGDB image type: {image_type}")
-                relative_path = f"./media/images/{final_filename}"
+                relative_path = f"./media/images/{final_filename}".replace('\\', '/')
             else:
                 # Find the media directory for this gamelist field using new structure
                 directory_name = get_media_directory(gamelist_field)
                 
                 if directory_name:
-                    relative_path = f"./media/{directory_name}/{final_filename}"
+                    relative_path = f"./media/{directory_name}/{final_filename}".replace('\\', '/')
                     print(f"{emoji} DEBUG: Mapped {image_type} -> {gamelist_field} -> {directory_name}")
                 else:
                     print(f"{emoji} DEBUG: No directory mapping found for gamelist field: {gamelist_field}")
-                    relative_path = f"./media/images/{final_filename}"
+                    relative_path = f"./media/images/{final_filename}".replace('\\', '/')
             
             print(f"{emoji} DEBUG: Returning relative path: {relative_path}")
             return relative_path
@@ -34922,7 +34940,7 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                                                     
                                                     if success:
                                                         # Update gamelist with relative path
-                                                        relative_path = f"./media/{media_directory}/{media_filename}"
+                                                        relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
                                                         game[gamelist_field] = relative_path
                                                         game_updated = True
                                                         logger.info(f"✅ Downloaded {gamelist_field} for '{game_name}': {relative_path}")
@@ -36588,7 +36606,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                 os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                                 
                                                 if create_pdf_from_text(cheats_text, media_path):
-                                                    relative_path = f"./media/{media_directory}/{media_filename}"
+                                                    relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
                                                     game[field] = relative_path
                                                     updated_count += 1
                                                     logger.info(f"✅ Created cheats PDF for '{display_name}': {relative_path}")
@@ -36681,7 +36699,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                         success = create_pdf_from_images(urls, media_path)
                                                 
                                                 if success:
-                                                    relative_path = f"./media/{media_directory}/{media_filename}"
+                                                    relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
                                                     game[field] = relative_path
                                                     updated_count += 1
                                                     logger.info(f"✅ Created map {map_target_ext} for '{display_name}': {relative_path}")
@@ -36837,7 +36855,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                             logger.error(f"Failed to download manual for '{display_name}': HTTP {response.status_code}")
                                                 
                                                 if success:
-                                                    relative_path = f"./media/{media_directory}/{media_filename}"
+                                                    relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
                                                     game[field] = relative_path
                                                     updated_count += 1
                                                     logger.info(f"✅ Downloaded/created manual {manual_target_ext} for '{display_name}': {relative_path}")
@@ -36874,7 +36892,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                                 os.rename(media_path, new_media_path)
                                                             media_path = new_media_path
                                                             media_filename = f"{rom_filename}{ext}"
-                                                        relative_path = f"./media/{media_directory}/{media_filename}"
+                                                        relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
                                                         game[field] = relative_path
                                                         updated_count += 1
                                                         logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")
@@ -36902,7 +36920,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                             f.write(response.content)
                                                         
                                                         # Update gamelist with relative path
-                                                        relative_path = f"./media/{media_directory}/{media_filename}"
+                                                        relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
                                                         game[field] = relative_path
                                                         updated_count += 1
                                                         logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")
@@ -36927,7 +36945,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                         os.rename(media_path, new_media_path)
                                                     media_path = new_media_path
                                                     media_filename = f"{rom_filename}{ext}"
-                                                relative_path = f"./media/{media_directory}/{media_filename}"
+                                                relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
                                                 game[field] = relative_path
                                                 updated_count += 1
                                                 logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")
@@ -36955,7 +36973,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                     f.write(response.content)
                                                 
                                                 # Update gamelist with relative path
-                                                relative_path = f"./media/{media_directory}/{media_filename}"
+                                                relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
                                                 game[field] = relative_path
                                                 updated_count += 1
                                                 logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")

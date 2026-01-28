@@ -803,7 +803,7 @@ class SteamService:
                     print(f"✅ No processing needed for Steam {media_type} field: {target_field}")
                 
                 # Store relative path (forward slashes for gamelist.xml / EmulationStation)
-                relative_path = f"./media/{media_dir}/{os.path.basename(file_path)}".replace('//', '/')
+                relative_path = f"./media/{media_dir}/{os.path.basename(file_path)}".replace('//', '/').replace('\\', '/')
                 
                 logger.info(f"Downloaded Steam {media_type} for {game_name}: {relative_path}")
                 

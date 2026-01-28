@@ -1948,7 +1948,7 @@ class ScreenScraperService:
                         actual_filename = os.path.basename(actual_file_path)
                         # Convert to relative path for gamelist.xml (forward slashes for EmulationStation)
                         # media_dir is like "roms/vectrex/media/screenshot", so we need to get the relative path from the system root
-                        relative_path = f"./media/{os.path.basename(media_dir)}/{actual_filename}".replace('//', '/')
+                        relative_path = f"./media/{os.path.basename(media_dir)}/{actual_filename}".replace('//', '/').replace('\\', '/')
                         downloaded_media[local_field] = relative_path
                         print(f"✅ Downloaded {media_type} -> {local_field}: {relative_path}")
                         if detailed_progress_callback:

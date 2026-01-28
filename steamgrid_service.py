@@ -515,7 +515,7 @@ class SteamGridService:
                 
                 if downloaded_path:
                     # Forward slashes for gamelist.xml / EmulationStation
-                    relative_path = f"./media/{media_dir}/{os.path.basename(downloaded_path)}".replace('//', '/')
+                    relative_path = f"./media/{media_dir}/{os.path.basename(downloaded_path)}".replace('//', '/').replace('\\', '/')
                     results[target_field] = relative_path
                     logger.debug(f"Downloaded {media_type} for {game_name}: {relative_path}")
                 
