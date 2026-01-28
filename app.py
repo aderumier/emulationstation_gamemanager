@@ -3899,7 +3899,7 @@ def run_resize_medias_task(system_name, media_field, task_id):
                     
                     # Update gamelist if file was converted (extension changed)
                     if processed_path != full_media_path:
-                        new_relative_path = f"./{os.path.relpath(processed_path, system_path)}"
+                        new_relative_path = f"./{os.path.relpath(processed_path, system_path)}".replace('\\', '/')
                         old_relative_path = game[field]
                         game[field] = new_relative_path
                         task.log_message(f"📝 Updated gamelist: {old_relative_path} → {new_relative_path}")
@@ -4116,7 +4116,7 @@ def reencode_image(task, image_path, game_name, width, height, extension, system
         if process_status in ["converted", "resized", "converted_and_resized"]:
             # Update gamelist if file path changed (extension change)
             if processed_path != image_path:
-                new_relative_path = f"./{os.path.relpath(processed_path, system_path)}"
+                new_relative_path = f"./{os.path.relpath(processed_path, system_path)}".replace('\\', '/')
                 old_relative_path = game[field]
                 game[field] = new_relative_path
                 task.log_message(f"📝 Updated gamelist: {old_relative_path} → {new_relative_path}")
@@ -11676,8 +11676,8 @@ def validate_move_medias():
                         try:
                             shutil.move(full_source_path, target_path)
                             
-                            # Update gamelist with new path
-                            new_relative_path = os.path.join(target_dir, filename)
+                            # Update gamelist with new path (forward slashes for gamelist.xml)
+                            new_relative_path = f"./{target_dir}/{filename}".replace('//', '/')
                             game[media_field] = new_relative_path
                             
                             moved_files.append({
@@ -11868,8 +11868,8 @@ def move_image():
         except Exception as e:
             return jsonify({'error': f'Failed to move file: {str(e)}'}), 500
         
-        # Update gamelist with new path
-        new_relative_path = os.path.join(target_dir, filename)
+        # Update gamelist with new path (forward slashes for gamelist.xml)
+        new_relative_path = f"./{target_dir}/{filename}".replace('//', '/')
         game[target_field] = new_relative_path
         
         # Clear source field
