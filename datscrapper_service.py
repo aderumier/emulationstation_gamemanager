@@ -120,6 +120,8 @@ class DATScrapperService:
                 rom_name = entry.get('name', '').strip()
                 if not rom_name:
                     continue
+                # Index by machine name without extension (e.g. "cnonball.zip" -> "cnonball")
+                rom_key = os.path.splitext(os.path.basename(rom_name))[0]
                 
                 # Extract metadata (find by local name so namespaced XML works)
                 description = find_child(entry, 'description')
@@ -143,8 +145,7 @@ class DATScrapperService:
                 # Create normalized name for matching
                 normalized_name = normalize_game_name(description_text)
                 
-                # Store entry
-                dat_entries[rom_name] = DATEntry(
+                date_entry = DATEntry(
                     name=description_text,
                     normalized=normalized_name,
                     description=description_text,
@@ -154,6 +155,9 @@ class DATScrapperService:
                     manufacturer=manufacturer_text,
                     genre=genre_text
                 )
+                
+                # Store by machine name without extension so ROM "cnonball.zip" matches machine name "cnonball.zip"
+                dat_entries[rom_key] = date_entry
             
             # Cache the results
             self.dat_cache[system_name] = dat_entries
