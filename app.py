@@ -1248,22 +1248,19 @@ def get_yt_dlp_path():
 
 
 def _env_with_yt_dlp_path(yt_dlp_path):
-    """Build env dict with PATH including yt-dlp and ffmpeg dirs so yt-dlp can find ffmpeg for merging bestvideo+bestaudio."""
+    """Build env dict with PATH including yt-dlp dir so yt-dlp finds ffmpeg/ffprobe (same dir as yt-dlp.exe on Windows)."""
     env = os.environ.copy()
     current_path = env.get('PATH', '')
     path_additions = []
     yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
     if yt_dlp_dir and yt_dlp_dir not in current_path:
         path_additions.append(yt_dlp_dir)
+    # If ffmpeg is in a different dir (e.g. system install), add it too
     ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
     if os.path.sep in str(ffmpeg_cmd) and os.path.exists(ffmpeg_cmd):
         ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
         if ffmpeg_dir not in current_path and ffmpeg_dir not in path_additions:
             path_additions.append(ffmpeg_dir)
-    if sys.platform == 'win32':
-        bundled_ffmpeg = os.path.join(_base_dir, 'tools', 'windows', 'ffmpeg')
-        if os.path.isdir(bundled_ffmpeg) and bundled_ffmpeg not in current_path and bundled_ffmpeg not in path_additions:
-            path_additions.append(bundled_ffmpeg)
     for d in path_additions:
         current_path = os.pathsep.join([d, current_path])
     env['PATH'] = current_path
@@ -17830,7 +17827,7 @@ def extract_first_frame():
         return jsonify({'error': 'Frame extraction timed out'}), 500
     except FileNotFoundError as e:
         print(f"Error extracting first frame: {e}")
-        return jsonify({'error': 'ffmpeg/ffprobe not found. On Windows, ensure tools/windows/ffmpeg/ (ffmpeg.exe, ffprobe.exe) is next to the executable.'}), 500
+        return jsonify({'error': 'ffmpeg/ffprobe not found. On Windows, put ffmpeg.exe and ffprobe.exe in tools/windows/ (same folder as yt-dlp.exe).'}), 500
     except Exception as e:
         print(f"Error extracting first frame: {e}")
         import traceback

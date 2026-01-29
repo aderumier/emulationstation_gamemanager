@@ -6,12 +6,11 @@ This directory contains Windows executables for external tools required by GameM
 
 ```
 tools/windows/
-├── ffmpeg/
-│   ├── ffmpeg.exe      # Video processing
-│   └── ffprobe.exe     # Video metadata
+├── ffmpeg.exe          # Video processing (same dir as yt-dlp so yt-dlp finds it)
+├── ffprobe.exe         # Video metadata
 ├── imagemagick/
 │   └── magick.exe      # ImageMagick 7 (convert, identify, composite – same params)
-└── yt-dlp.exe         # YouTube downloader
+└── yt-dlp.exe          # YouTube downloader
 ```
 
 ## Download Instructions
@@ -21,7 +20,7 @@ tools/windows/
 1. Visit: https://www.gyan.dev/ffmpeg/builds/
 2. Download: `ffmpeg-release-essentials.zip`
 3. Extract the zip file
-4. Copy `ffmpeg.exe` and `ffprobe.exe` from `ffmpeg-*/bin/` to `tools/windows/ffmpeg/`
+4. Copy `ffmpeg.exe` and `ffprobe.exe` from `ffmpeg-*/bin/` to `tools/windows/` (same folder as yt-dlp.exe)
 
 ### ImageMagick
 

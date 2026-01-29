@@ -40,10 +40,10 @@ The Windows executable is a standalone version of GameManager that includes all 
 
 The following tools are bundled in the `tools/windows/` directory:
 
-- **ffmpeg** (`tools/windows/ffmpeg/`)
+- **ffmpeg** (`tools/windows/` – same folder as yt-dlp.exe)
   - `ffmpeg.exe` - Video processing, cropping, encoding
   - `ffprobe.exe` - Video metadata extraction
-  - Used for: Video downloads, cropping, re-encoding, duration detection
+  - Used for: Video downloads (yt-dlp merging), cropping, re-encoding, duration detection
 
 - **ImageMagick** (`tools/windows/imagemagick/`)
   - `magick.exe` - ImageMagick 7 (replaces convert/identify/composite; same params)
@@ -63,7 +63,8 @@ gamemanager_windows/
 ├── _internal/               # PyInstaller runtime files (do not modify)
 ├── tools/                   # External tools
 │   └── windows/            # Windows tool binaries
-│       ├── ffmpeg/
+│       ├── ffmpeg.exe       # Video (same dir as yt-dlp so yt-dlp finds it)
+│       ├── ffprobe.exe
 │       ├── imagemagick/
 │       └── yt-dlp.exe
 ├── var/                     # Application data
@@ -112,8 +113,8 @@ If you see errors about missing tools (ffmpeg, ImageMagick, yt-dlp):
 
 1. Verify the `tools/windows/` directory exists
 2. Check that the tool executables are present:
-   - `tools/windows/ffmpeg/ffmpeg.exe`
-   - `tools/windows/ffmpeg/ffprobe.exe`
+   - `tools/windows/ffmpeg.exe`
+   - `tools/windows/ffprobe.exe`
    - `tools/windows/imagemagick/magick.exe`
    - `tools/windows/yt-dlp.exe`
 

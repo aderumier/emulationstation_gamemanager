@@ -37,17 +37,17 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
-    - name: Download FFmpeg
+    - name: Download FFmpeg (same dir as yt-dlp so yt-dlp finds ffmpeg for merging)
       run: |
         $ffmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
         $ffmpegZip = "$env:TEMP\ffmpeg.zip"
         Invoke-WebRequest -Uri $ffmpegUrl -OutFile $ffmpegZip
         Expand-Archive -Path $ffmpegZip -DestinationPath "$env:TEMP\ffmpeg" -Force
         $ffmpegDir = Get-ChildItem "$env:TEMP\ffmpeg" -Directory | Select-Object -First 1
-        New-Item -ItemType Directory -Path "tools\windows\ffmpeg" -Force | Out-Null
-        Copy-Item "$ffmpegDir\bin\ffmpeg.exe" "tools\windows\ffmpeg\ffmpeg.exe"
-        Copy-Item "$ffmpegDir\bin\ffprobe.exe" "tools\windows\ffmpeg\ffprobe.exe"
-        Write-Host "FFmpeg downloaded and extracted"
+        New-Item -ItemType Directory -Path "tools\windows" -Force | Out-Null
+        Copy-Item "$ffmpegDir\bin\ffmpeg.exe" "tools\windows\ffmpeg.exe"
+        Copy-Item "$ffmpegDir\bin\ffprobe.exe" "tools\windows\ffprobe.exe"
+        Write-Host "FFmpeg downloaded (ffmpeg.exe, ffprobe.exe next to yt-dlp.exe)"
         
     - name: Setup 7-Zip (for ImageMagick portable .7z)
       uses: milliewalky/setup-7-zip@v2

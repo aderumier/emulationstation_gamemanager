@@ -40,8 +40,8 @@ def main():
     print("\n[2/6] Checking external tools...")
     tools_dir = Path('tools/windows')
     tools_required = {
-        'ffmpeg/ffmpeg.exe': 'FFmpeg',
-        'ffmpeg/ffprobe.exe': 'FFprobe',
+        'ffmpeg.exe': 'FFmpeg',
+        'ffprobe.exe': 'FFprobe',
         'imagemagick/magick.exe': 'ImageMagick (magick – IM 7)',
         'yt-dlp.exe': 'yt-dlp',
     }
@@ -62,7 +62,7 @@ def main():
         for tool_name, tool_path in missing_tools:
             print(f"  - {tool_name}: {tools_dir / tool_path}")
         print("\nDownload instructions:")
-        print("  - FFmpeg: https://www.gyan.dev/ffmpeg/builds/")
+        print("  - FFmpeg: https://www.gyan.dev/ffmpeg/builds/ (put ffmpeg.exe, ffprobe.exe in tools/windows/)")
         print("  - ImageMagick: https://imagemagick.org/script/download.php")
         print("  - yt-dlp: https://github.com/yt-dlp/yt-dlp/releases/latest")
         response = input("\nContinue anyway? (y/N): ")
