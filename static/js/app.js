@@ -6792,6 +6792,13 @@ class GameCollectionManager {
             });
         }
 
+        // Set up modal close listener to cancel search
+        const modalCloseHandler = () => {
+            this.cancelManualSearch();
+            modalElement.removeEventListener('hidden.bs.modal', modalCloseHandler);
+        };
+        modalElement.addEventListener('hidden.bs.modal', modalCloseHandler);
+
         // Perform initial search
         await this.performMultiscraperSearch();
     }
@@ -6799,6 +6806,11 @@ class GameCollectionManager {
     async performMultiscraperSearch() {
         if (!this.multiscraperCurrentGame || !this.multiscraperCurrentMediaType) {
             return;
+        }
+
+        // Cancel previous search if one is running
+        if (this.currentManualSearchId) {
+            await this.cancelManualSearch();
         }
 
         const game = this.multiscraperCurrentGame;
@@ -6837,6 +6849,11 @@ class GameCollectionManager {
 
             const data = await response.json();
 
+            // Store search_id for potential cancellation
+            if (data.search_id) {
+                this.currentManualSearchId = data.search_id;
+            }
+
             if (data.success && data.results && data.results.length > 0) {
                 // Display available media options from multiple sources
                 this.displayMultiscraperMediaOptions(data.results, game, mediaType);
@@ -6848,6 +6865,29 @@ class GameCollectionManager {
         } catch (error) {
             contentDiv.innerHTML = '<div class="col-12"><div class="alert alert-danger">Error searching for media: ' + error.message + '</div></div>';
             progressDiv.style.display = 'none';
+        }
+    }
+
+    async cancelManualSearch() {
+        if (!this.currentManualSearchId) {
+            return;
+        }
+
+        const searchId = this.currentManualSearchId;
+        this.currentManualSearchId = null; // Clear immediately
+
+        try {
+            const response = await fetch(`/api/cancel-manual-search/${searchId}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Manual search cancelled:', data.message);
+            }
+        } catch (error) {
+            console.error('Error cancelling manual search:', error);
         }
     }
 

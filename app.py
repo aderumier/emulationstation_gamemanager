@@ -12733,12 +12733,34 @@ def multiscraper_search_endpoint():
         
         return jsonify({
             'success': True,
+            'search_id': search_id,
             'results': results
         })
         
     except Exception as e:
         print(f"Error in multiscraper search: {e}")
+        # Clean up cancellation event on error
+        try:
+            if 'search_id' in locals():
+                _manual_search_cancel_events.pop(search_id, None)
+        except:
+            pass
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/cancel-manual-search/<search_id>', methods=['POST'])
+@login_required
+def cancel_manual_search(search_id):
+    """Cancel an ongoing manual multiscraper search"""
+    global _manual_search_cancel_events
+    
+    if search_id in _manual_search_cancel_events:
+        # Set the cancellation event
+        _manual_search_cancel_events[search_id].set()
+        print(f"🛑 Manual search {search_id} cancellation requested")
+        return jsonify({'success': True, 'message': 'Search cancelled'})
+    else:
+        # Search either completed or never existed
+        return jsonify({'success': False, 'message': 'Search not found or already completed'})
 
 def search_local_media_files(system_name, media_type, game_name, direct_match):
     """Search local media files by parsing gamelist.xml files and indexing by normalized game name.
