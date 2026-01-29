@@ -168,6 +168,13 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
         echo "Removed old pyrate_limiter/pyrate_limiter directory"
     fi
     
+    # Clean up old double-nested yt-dlp-plugins structure if it exists
+    if [ -d "/opt/gamemanager/tools/yt-dlp-plugins/yt-dlp-plugins" ]; then
+        echo "Cleaning up old double-nested yt-dlp-plugins structure..."
+        rm -rf /opt/gamemanager/tools/yt-dlp-plugins/yt-dlp-plugins
+        echo "Removed old tools/yt-dlp-plugins/yt-dlp-plugins directory"
+    fi
+    
     # Custom conffiles mechanism - check and prompt for configuration file changes
     echo "Checking configuration files for changes..."
     

@@ -149,6 +149,7 @@ if [ -f "tools/deno" ]; then
     cp tools/deno debian/opt/gamemanager/tools/deno
     chmod +x debian/opt/gamemanager/tools/deno
 fi
+rm -rf debian/opt/gamemanager/tools/yt-dlp-plugins
 cp -r tools/yt-dlp-plugins debian/opt/gamemanager/tools/yt-dlp-plugins
 
 # Fix paths in config.json for production environment

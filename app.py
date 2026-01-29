@@ -1246,7 +1246,7 @@ def ensure_yt_dlp_binary():
         def update_yt_dlp():
             try:
                 print("Updating yt-dlp in background...")
-                result = subprocess.run([yt_dlp_path, '-U'], capture_output=True, text=True, timeout=60)
+                result = subprocess.run([yt_dlp_path] + get_yt_dlp_js_runtime_args() + ['-U'], capture_output=True, text=True, timeout=60)
                 if result.returncode == 0:
                     print("✅ yt-dlp updated successfully")
                 else:
@@ -1284,6 +1284,25 @@ def get_yt_dlp_path():
         return 'yt-dlp.exe'
     else:
         return 'yt-dlp'
+
+def get_yt_dlp_js_runtime_args():
+    """Get the --js-runtime arguments for yt-dlp calls"""
+    if sys.platform == 'win32':
+        # Find deno.exe
+        deno_exe = 'deno.exe'
+        # Windows: check for deno.exe in tools/windows/ or tools/
+        bundled = os.path.join(_base_dir, 'tools', 'windows', deno_exe)
+        if not os.path.exists(bundled):
+             bundled = os.path.join(_base_dir, 'tools', deno_exe)
+        
+        path = bundled if os.path.exists(bundled) else deno_exe
+        return ['--js-runtime', f'deno:{path}']
+    else:
+        # Linux: check for deno in tools/
+        deno_bin = os.path.join(_base_dir, 'tools', 'deno')
+        path = deno_bin if os.path.exists(deno_bin) else 'deno'
+        return ['--js-runtime', f'deno:{path}']
+
 
 
 def _env_with_yt_dlp_path(yt_dlp_path):
@@ -23615,7 +23634,7 @@ def youtube_download():
         try:
             import subprocess
             yt_dlp_path = get_yt_dlp_path()
-            result = subprocess.run([yt_dlp_path, '--version'], capture_output=True, text=True, timeout=10)
+            result = subprocess.run([yt_dlp_path] + get_yt_dlp_js_runtime_args() + ['--version'], capture_output=True, text=True, timeout=10)
             if result.returncode != 0:
                 return jsonify({'error': 'yt-dlp is not installed or not available'}), 500
         except FileNotFoundError:
@@ -23683,7 +23702,7 @@ def youtube_download_batch(system_name):
         try:
             import subprocess
             yt_dlp_path = get_yt_dlp_path()
-            result = subprocess.run([yt_dlp_path, '--version'], capture_output=True, text=True, timeout=10)
+            result = subprocess.run([yt_dlp_path] + get_yt_dlp_js_runtime_args() + ['--version'], capture_output=True, text=True, timeout=10)
             if result.returncode != 0:
                 return jsonify({'error': 'yt-dlp is not installed or not available'}), 500
         except FileNotFoundError:
@@ -25415,8 +25434,7 @@ def get_youtube_video_duration(video_url):
         yt_dlp_path = get_yt_dlp_path()
         
         # Use yt-dlp to get video info as JSON
-        cmd = [
-            yt_dlp_path,
+        cmd = [yt_dlp_path] + get_yt_dlp_js_runtime_args() + [
             '--dump-json',
             '--no-download',
             video_url
@@ -25516,8 +25534,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
             force_resolution = video_config.get('force_video_resolution', '1080')
             enable_youtube_po_token = video_config.get('enable_youtube_po_token', False)
             
-            cmd = [
-                yt_dlp_path,
+            cmd = [yt_dlp_path] + get_yt_dlp_js_runtime_args() + [
                 '-f', f'bestvideo[height<={force_resolution}]+bestaudio/best[height<={force_resolution}]/bestvideo+bestaudio/best',
                 '-o', output_template,
                 '--progress',
