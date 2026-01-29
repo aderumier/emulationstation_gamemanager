@@ -432,6 +432,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             
             
             <!-- Configuration Menu -->
+            {% if current_user.is_authenticated and current_user.role == 'admin' %}
             <div class="navbar-nav me-3">
                 <div class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="configurationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -450,7 +451,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openVideoConfigModal">
                             <i class="bi bi-camera-video me-2"></i>Video Configuration
                         </a></li>
-                        {% if current_user.is_authenticated and current_user.role == 'admin' %}
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
                             <i class="bi bi-people me-2"></i>User Management
@@ -459,10 +459,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openAppConfigModal">
                             <i class="bi bi-gear me-2"></i>Application Configuration
                         </a></li>
-                        {% endif %}
                     </ul>
                 </div>
             </div>
+            {% endif %}
             
             <!-- Current System Menu -->
             <div class="navbar-nav me-3">
@@ -493,9 +493,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <i class="bi bi-x-circle me-2"></i>Clear Field
                         </a></li>
                         <li><hr class="dropdown-divider"></li>
+                        {% if current_user.is_authenticated and current_user.role == 'admin' %}
                         <li><a class="dropdown-item" href="#" id="openScraperConfigFromMenu">
                             <i class="bi bi-gear me-2"></i>Configure Scraper Mappings
                         </a></li>
+                        {% endif %}
                         <li><a class="dropdown-item" href="#" id="forceImportGamelistBtn">
                             Force Import Gamelist.xml
                         </a></li>

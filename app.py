@@ -7057,6 +7057,8 @@ def list_rom_systems():
 @login_required
 def get_genres():
     """Get list of genres from genres.json"""
+    if not is_admin_user(current_user):
+        return jsonify({'error': 'Unauthorized'}), 403
     try:
         genres_path = os.path.join('var', 'config', 'genres.json')
         if os.path.exists(genres_path):
@@ -7072,9 +7074,10 @@ def get_genres():
 @app.route('/api/config', methods=['GET', 'PUT'])
 @login_required
 def get_config():
-    """Get or update application configuration. PUT requires admin role."""
+    """Get or update application configuration. Admin role required for updates."""
     if request.method == 'PUT' and not is_admin_user(current_user):
-        return jsonify({'error': 'Admin role required'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
+        
     if request.method == 'GET':
         # Reload scrappers_config on each GET to ensure we have the latest mappings
         # This makes the DAT Scrapper checkboxes truly dynamic based on scrappers.json
@@ -7083,6 +7086,19 @@ def get_config():
         full_config = config.copy()
         full_config.update(current_scrappers_config)
         full_config['systems'] = load_systems_config()
+        
+        # Scrub sensitive data for non-admin users
+        if not is_admin_user(current_user):
+            sensitive_keys = ['youtube_api_key', 'discord_bot_token', 'secret_key', 'admin_password']
+            for key in sensitive_keys:
+                if key in full_config:
+                    full_config.pop(key)
+            
+            # Also scrub from nested configs if they exist
+            if 'discord' in full_config:
+                if 'bot_token' in full_config['discord']:
+                    full_config['discord']['bot_token'] = '******'
+            
         return jsonify(full_config)
     elif request.method == 'PUT':
         try:
@@ -7336,6 +7352,8 @@ def proxy_screenscraper_video(screenscraper_id, system_id):
 @login_required
 def manage_video_config():
     """Get or update video configuration"""
+    if not is_admin_user(current_user):
+        return jsonify({'error': 'Unauthorized'}), 403
     try:
         if request.method == 'GET':
             # Load current video configuration
@@ -7939,6 +7957,10 @@ def get_missing_systems():
 @login_required
 def manage_systems():
     """Manage systems configuration"""
+    # Allow GET for all authenticated users (filtered by permissions)
+    # Restrict modification methods to admin only
+    if request.method != 'GET' and not is_admin_user(current_user):
+        return jsonify({'error': 'Unauthorized'}), 403
     try:
         # Load current systems configuration
         current_systems_config = load_systems_config()
@@ -8176,6 +8198,8 @@ def manage_systems():
 @login_required
 def manage_media_fields():
     """Manage media fields configuration"""
+    if request.method != 'GET' and not is_admin_user(current_user):
+        return jsonify({'error': 'Unauthorized'}), 403
     try:
         if request.method == 'GET':
             # Return all media fields - reload config to ensure we have latest version
@@ -29157,6 +29181,8 @@ def get_launchbox_media(launchbox_id, media_type):
 @login_required
 def save_box_template():
     """Save a box template configuration"""
+    if not is_admin_user(current_user):
+        return jsonify({'error': 'Unauthorized'}), 403
     try:
         template_name = request.form.get('template_name')
         if not template_name:
@@ -29487,6 +29513,8 @@ def load_box_template():
 @login_required
 def delete_box_template():
     """Delete a box template by name"""
+    if not is_admin_user(current_user):
+        return jsonify({'error': 'Unauthorized'}), 403
     try:
         data = request.get_json()
         template_name = data.get('template_name')
@@ -29558,6 +29586,8 @@ def get_template_image():
 @login_required
 def save_3dbox_template():
     """Save a 3D box template configuration"""
+    if not is_admin_user(current_user):
+        return jsonify({'error': 'Unauthorized'}), 403
     try:
         template_name = request.form.get('template_name')
         if not template_name:
