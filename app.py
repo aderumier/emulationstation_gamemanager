@@ -2306,7 +2306,7 @@ import html
 
 def fix_over_escaped_xml_entities(text):
     """Fix over-escaped XML entities like &amp;amp;amp; -> &"""
-    if not isinstance(text, str):
+    if not isinstance(text, str) or '&' not in text:
         return text
     
     # Keep applying html.unescape until no more changes
@@ -2324,6 +2324,7 @@ task_queue = []
 current_task_id = 0  # Deprecated: kept for backward compatibility, use running_tasks_by_system instead
 running_tasks_by_system = {}  # Maps system_name -> task_id for per-system concurrency control
 task_queue_lock = threading.Lock()  # Thread safety for task queue operations
+_manual_search_cancel_events = {}  # Maps search_id -> threading.Event() for manual search cancellation
 
 def load_existing_tasks_from_logs():
     """Load existing tasks from log files on server startup"""
@@ -2627,6 +2628,7 @@ class Task:
         # Prune old tasks (keep last 30)
         try:
             cleanup_old_tasks(max_tasks=30)
+            cleanup_manual_search_events()
         except Exception as e:
             print(f"Task cleanup error: {e}")
         self.update_progress("Task started")
@@ -2799,6 +2801,15 @@ def cleanup_old_tasks(max_tasks=100):
             
             # Remove from tasks dict
             del tasks[task_id]
+
+def cleanup_manual_search_events():
+    """Clean up manual search cancellation events that are no longer needed"""
+    global _manual_search_cancel_events
+    # Simply clear all events - they're only needed during active searches
+    # Active searches will recreate their events as needed
+    if _manual_search_cancel_events:
+        print(f"🧹 Cleaning up {len(_manual_search_cancel_events)} manual search cancel events")
+        _manual_search_cancel_events.clear()
 
 def cleanup_temp_files():
     """Clean up any remaining .temp files from failed downloads"""
@@ -6816,37 +6827,43 @@ def count_all_games_batch(systems_list):
     
     return system_counts
 
+# Global cache for gamelist parsing to improve performance
+_gamelist_cache = {}
+
 def parse_gamelist_xml(file_path):
-    """Parse gamelist.xml file and return list of games"""
+    """Parse gamelist.xml file and return list of games with caching support"""
+    global _gamelist_cache
+    
     try:
         # Check if file exists and is readable
         if not os.path.exists(file_path):
             print(f"Gamelist file does not exist: {file_path}")
             return []
         
-        # Check file size
-        file_size = os.path.getsize(file_path)
+        # Check file meta for caching
+        try:
+            mtime = os.path.getmtime(file_path)
+            file_size = os.path.getsize(file_path)
+            
+            if file_path in _gamelist_cache:
+                cached_mtime, cached_size, cached_data = _gamelist_cache[file_path]
+                if cached_mtime == mtime and cached_size == file_size:
+                    return [g.copy() for g in cached_data] # Return copies to prevent shared mutations
+        except Exception:
+            mtime = 0
+            file_size = 0
+
         if file_size == 0:
             print(f"Gamelist file is empty: {file_path}")
             return []
         
-        # Try to read the file content first to check for corruption
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                if not content.strip():
-                    print(f"Gamelist file contains only whitespace: {file_path}")
-                    return []
-        except UnicodeDecodeError as e:
-            print(f"Gamelist file has encoding issues: {file_path} - {e}")
-            return []
-        except Exception as e:
-            print(f"Error reading gamelist file: {file_path} - {e}")
-            return []
-        
         # Parse XML
-        tree = ET.parse(file_path)
-        root = tree.getroot()
+        try:
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+        except ET.ParseError as e:
+            print(f"XML parse error in {file_path}: {e}")
+            return []
         
         # Check if root element is correct
         if root.tag != 'gameList':
@@ -6862,8 +6879,8 @@ def parse_gamelist_xml(file_path):
             for field in game:
                 tag = field.tag
                 raw_text = field.text.strip() if field.text else ''
-                # Fix over-escaped entities and decode to get original text for storage
-                text = fix_over_escaped_xml_entities(raw_text) if raw_text else ''
+                # Fix over-escaped entities only if potentially needed
+                text = fix_over_escaped_xml_entities(raw_text) if ('&' in raw_text) else raw_text
                 
                 if tag == 'id':
                     game_data['id'] = int(text) if text.isdigit() else None
@@ -12363,276 +12380,95 @@ def multiscraper_search_endpoint():
         # Create a copy of the game for manual scrap
         current_game = game.copy()
         
-        # Run manual scrap for all available scrapers
+        # Run manual scrap for all available scrapers in parallel
         scrap_results = {}
         
-        print(f"🔧 DEBUG: Running scrapers for multiscraper search")
+        # Create a list of scraper-call pairs to execute
+        scrapers_to_run = []
         
-        # Execute IGDB scraper if game has igdbid and supports the media type
         if should_run_igdb and current_game.get('igdbid'):
-            # Check if IGDB supports this media type (video is supported via API, not image_type_mappings)
             igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
-            supports_media_type = media_type in igdb_image_mapping or media_type == 'video'
-            if supports_media_type:
-                try:
-                    print(f"🔧 DEBUG: Running igdb scraper...")
-                    igdb_start_time = time.time()
-                    result = run_async_safely(scrape_igdb_manual(current_game, system_name, sys_config, target_media_type=media_type))
-                    igdb_end_time = time.time()
-                    print(f"⏱️ IGDB scraper took {igdb_end_time - igdb_start_time:.3f} seconds")
-                    if result:
-                        print(f"🔧 DEBUG: igdb scraper returned data with keys: {list(result.keys())}")
-                        scrap_results['igdb'] = result
-                    else:
-                        print(f"🔧 DEBUG: igdb scraper returned None")
-                except Exception as e:
-                    print(f"🔧 DEBUG: igdb scraper failed: {e}")
-                    import traceback
-                    print(f"🔧 DEBUG: igdb traceback: {traceback.format_exc()}")
-            else:
-                print(f"🔧 DEBUG: Skipping IGDB scraper - no mapping for media type '{media_type}'")
+            if media_type in igdb_image_mapping or media_type == 'video':
+                scrapers_to_run.append(('igdb', lambda: run_async_safely(scrape_igdb_manual(current_game, system_name, sys_config, target_media_type=media_type))))
         
-        # Execute Steam scraper if game has steamid and supports the media type
         if should_run_steam and current_game.get('steamid'):
-            # Check if Steam supports this media type (video is supported via store page, not image_type_mappings)
             steam_image_mapping = scrappers_config.get('steam', {}).get('image_type_mappings', {})
-            supports_media_type = media_type in steam_image_mapping or media_type == 'video'
-            if supports_media_type:
-                try:
-                    print(f"🔧 DEBUG: Running steam scraper...")
-                    steam_start_time = time.time()
-                    result = run_async_safely(scrape_steam_manual(current_game, system_name, target_media_type=media_type))
-                    steam_end_time = time.time()
-                    print(f"⏱️ Steam scraper took {steam_end_time - steam_start_time:.3f} seconds")
-                    if result:
-                        print(f"🔧 DEBUG: steam scraper returned data with keys: {list(result.keys())}")
-                        scrap_results['steam'] = result
-                    else:
-                        print(f"🔧 DEBUG: steam scraper returned None")
-                except Exception as e:
-                    print(f"🔧 DEBUG: steam scraper failed: {e}")
-                    import traceback
-                    print(f"🔧 DEBUG: steam traceback: {traceback.format_exc()}")
-            else:
-                print(f"🔧 DEBUG: Skipping Steam scraper - no mapping for media type '{media_type}'")
-        
-        # Execute ScreenScraper if game has screenscraperid and supports the media type
+            if media_type in steam_image_mapping or media_type == 'video':
+                scrapers_to_run.append(('steam', lambda: run_async_safely(scrape_steam_manual(current_game, system_name, target_media_type=media_type))))
+                
         if should_run_screenscraper and current_game.get('screenscraperid'):
-            # Check if ScreenScraper supports this media type
             screenscraper_image_mapping = scrappers_config.get('screenscraper', {}).get('image_type_mappings', {})
             if media_type in screenscraper_image_mapping:
-                # For video type, don't call the API - just check if direct video URL exists
                 if media_type == 'video':
-                    screenscraper_start_time = time.time()
-                    screenscraper_id = current_game.get('screenscraperid')
-                    screenscraper_system_id = sys_config.get('screenscraper')
-                    
-                    if screenscraper_id and screenscraper_system_id:
-                        # Construct direct video URL
-                        direct_video_url = f"https://www.screenscraper.fr/medias/{screenscraper_system_id}/{screenscraper_id}/video.mp4"
-                        print(f"🔍 Testing ScreenScraper video URL: {direct_video_url}")
-                        
-                        # Construct Referer header URL
-                        referer_url = f"https://www.screenscraper.fr/gameinfos.php?gameid={screenscraper_id}&action=onglet&zone=gameinfosmedias"
-                        
-                        # Set headers with Referer and browser User-Agent
-                        headers = {
-                            'Referer': referer_url,
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                        }
-                        
-                        # Test if video URL exists using HEAD request (no API call, just check if file exists)
-                        import requests
+                    # Special handling for video is moved to a function for parallel execution
+                    def check_ss_video():
                         try:
-                            print(f"🌐 Making HEAD request to: {direct_video_url}")
-                            print(f"🔗 Using Referer: {referer_url}")
+                            screenscraper_id = current_game.get('screenscraperid')
+                            screenscraper_system_id = sys_config.get('screenscraper')
+                            if not (screenscraper_id and screenscraper_system_id): return None
+                            direct_video_url = f"https://www.screenscraper.fr/medias/{screenscraper_system_id}/{screenscraper_id}/video.mp4"
+                            referer_url = f"https://www.screenscraper.fr/gameinfos.php?gameid={screenscraper_id}&action=onglet&zone=gameinfosmedias"
+                            headers = {'Referer': referer_url, 'User-Agent': 'Mozilla/5.0'}
+                            import requests
                             response = requests.head(direct_video_url, headers=headers, timeout=5, allow_redirects=True)
-                            print(f"📡 Response status code: {response.status_code} for URL: {direct_video_url}")
                             if response.status_code == 200:
-                                # Video exists - return it without API call
-                                # Use proxy endpoint URL instead of direct URL to include Referer header
-                                proxy_video_url = f"/api/proxy-screenscraper-video/{screenscraper_id}/{screenscraper_system_id}"
-                                result = {
-                                    'media_fields': {
-                                        'video': [{
-                                            'url': proxy_video_url,
-                                            'type': 'video',
-                                            'screenscraperid': screenscraper_id,
-                                            'screenscraper_system_id': screenscraper_system_id
-                                        }]
-                                    }
-                                }
-                                scrap_results['screenscraper'] = result
-                                print(f"✅ ScreenScraper video URL exists: {direct_video_url}")
-                            else:
-                                print(f"⚠️ ScreenScraper video URL not found (status {response.status_code}): {direct_video_url}")
+                                return {'media_fields': {'video': [{'url': f"/api/proxy-screenscraper-video/{screenscraper_id}/{screenscraper_system_id}", 'type': 'video'}]}}
                         except Exception as e:
-                            print(f"⚠️ ScreenScraper video URL check failed: {e}")
-                    screenscraper_end_time = time.time()
-                    print(f"⏱️ ScreenScraper video check took {screenscraper_end_time - screenscraper_start_time:.3f} seconds")
+                            print(f"⚠️ ScreenScraper video URL check failed in parallel: {e}")
+                        return None
+                    scrapers_to_run.append(('screenscraper', check_ss_video))
                 else:
-                    # For non-video types, use normal API call
-                    try:
-                        print(f"🔧 DEBUG: Running screenscraper scraper...")
-                        screenscraper_start_time = time.time()
-                        result = run_async_safely(scrape_screenscraper_manual(current_game, system_name, sys_config, target_media_type=media_type))
-                        screenscraper_end_time = time.time()
-                        print(f"⏱️ ScreenScraper took {screenscraper_end_time - screenscraper_start_time:.3f} seconds")
-                        if result:
-                            print(f"🔧 DEBUG: screenscraper scraper returned data with keys: {list(result.keys())}")
-                            scrap_results['screenscraper'] = result
-                        else:
-                            print(f"🔧 DEBUG: screenscraper scraper returned None")
-                    except Exception as e:
-                        print(f"🔧 DEBUG: screenscraper scraper failed: {e}")
-                        import traceback
-                        print(f"🔧 DEBUG: screenscraper traceback: {traceback.format_exc()}")
-            else:
-                print(f"🔧 DEBUG: Skipping ScreenScraper - no mapping for media type '{media_type}'")
-        
-        # Execute SteamGridDB scraper if game has steamgridid and supports the media type
+                    scrapers_to_run.append(('screenscraper', lambda: run_async_safely(scrape_screenscraper_manual(current_game, system_name, sys_config, target_media_type=media_type))))
+
         if should_run_steamgriddb and current_game.get('steamgridid'):
-            # Check if SteamGridDB supports this media type
             steamgrid_image_mapping = scrappers_config.get('steamgriddb', {}).get('image_type_mappings', {})
             if media_type in steamgrid_image_mapping:
-                try:
-                    print(f"🔧 DEBUG: Running steamgriddb scraper...")
-                    steamgrid_start_time = time.time()
-                    result = run_async_safely(scrape_steamgriddb_manual(current_game, system_name, target_media_type=media_type))
-                    steamgrid_end_time = time.time()
-                    print(f"⏱️ SteamGridDB took {steamgrid_end_time - steamgrid_start_time:.3f} seconds")
-                    if result:
-                        print(f"🔧 DEBUG: steamgriddb scraper returned data with keys: {list(result.keys())}")
-                        scrap_results['steamgriddb'] = result
-                    else:
-                        print(f"🔧 DEBUG: steamgriddb scraper returned None")
-                except Exception as e:
-                    print(f"🔧 DEBUG: steamgriddb scraper failed: {e}")
-                    import traceback
-                    print(f"🔧 DEBUG: steamgriddb traceback: {traceback.format_exc()}")
-            else:
-                print(f"🔧 DEBUG: Skipping SteamGridDB - no mapping for media type '{media_type}'")
-        
-        # Execute LaunchBox scraper if game has launchboxid and supports the media type
+                scrapers_to_run.append(('steamgriddb', lambda: run_async_safely(scrape_steamgriddb_manual(current_game, system_name, target_media_type=media_type))))
+
         if should_run_launchbox and current_game.get('launchboxid'):
-            # Check if LaunchBox supports this media type
             launchbox_image_mapping = scrappers_config.get('launchbox', {}).get('image_type_mappings', {})
-            # For video type, LaunchBox uses VideoURL directly (not in image_type_mappings)
-            supports_media_type = media_type in launchbox_image_mapping or media_type == 'video'
-            if supports_media_type:
-                try:
-                    print(f"🔧 DEBUG: Running launchbox scraper...")
-                    launchbox_start_time = time.time()
-                    result = run_async_safely(scrape_launchbox_manual(current_game, system_name, target_media_type=media_type))
-                    launchbox_end_time = time.time()
-                    print(f"⏱️ LaunchBox took {launchbox_end_time - launchbox_start_time:.3f} seconds")
-                    if result:
-                        print(f"🔧 DEBUG: launchbox scraper returned data with keys: {list(result.keys())}")
-                        scrap_results['launchbox'] = result
-                    else:
-                        print(f"🔧 DEBUG: launchbox scraper returned None")
-                except Exception as e:
-                    print(f"🔧 DEBUG: launchbox scraper failed: {e}")
-                    import traceback
-                    print(f"🔧 DEBUG: launchbox traceback: {traceback.format_exc()}")
-            else:
-                print(f"🔧 DEBUG: Skipping LaunchBox - no mapping for media type '{media_type}'")
-        
-        # Execute MobyGames scraper if game has mobygamesid and supports the media type
+            if media_type in launchbox_image_mapping or media_type == 'video':
+                scrapers_to_run.append(('launchbox', lambda: run_async_safely(scrape_launchbox_manual(current_game, system_name, target_media_type=media_type))))
+
         if should_run_mobygames and current_game.get('mobygamesid'):
-            # Check if MobyGames supports this media type
             mobygames_image_mapping = scrappers_config.get('mobygames', {}).get('image_type_mappings', {})
             if media_type in mobygames_image_mapping:
-                try:
-                    print(f"🔧 DEBUG: Running mobygames scraper...")
-                    mobygames_start_time = time.time()
-                    result = run_async_safely(scrape_mobygames_manual(current_game, system_name, sys_config, target_media_type=media_type))
-                    mobygames_end_time = time.time()
-                    print(f"⏱️ MobyGames took {mobygames_end_time - mobygames_start_time:.3f} seconds")
-                    if result:
-                        print(f"🔧 DEBUG: mobygames scraper returned data with keys: {list(result.keys())}")
-                        scrap_results['mobygames'] = result
-                    else:
-                        print(f"🔧 DEBUG: mobygames scraper returned None")
-                except Exception as e:
-                    print(f"🔧 DEBUG: mobygames scraper failed: {e}")
-                    import traceback
-                    print(f"🔧 DEBUG: mobygames traceback: {traceback.format_exc()}")
-            else:
-                print(f"🔧 DEBUG: Skipping MobyGames - no mapping for media type '{media_type}'")
-        
-        # Execute Custom scraper if game has customid and supports the media type
+                scrapers_to_run.append(('mobygames', lambda: run_async_safely(scrape_mobygames_manual(current_game, system_name, sys_config, target_media_type=media_type))))
+
+        if should_run_emumovies:
+            emumovies_image_mapping = scrappers_config.get('emumovies', {}).get('image_type_mappings', {})
+            if media_type in emumovies_image_mapping:
+                # The scrape_emumovies_manual function should handle the index loading internally
+                scrapers_to_run.append(('emumovies', lambda: run_async_safely(scrape_emumovies_manual(current_game, system_name, sys_config, target_media_type=media_type))))
+
         if should_run_custom and current_game.get('customid'):
-            # Check if Custom supports this media type
-            # Mapping structure: {custom_field: gamelist_field}
-            # Example: {'boxfront': 'boxart', 'screenshot': 'image'}
-            # We need to check if media_type (gamelist field) is in the VALUES of the mapping
             custom_image_mapping = scrappers_config.get('custom', {}).get('image_type_mappings', {})
             if media_type in custom_image_mapping.values():
-                try:
-                    print(f"🔧 DEBUG: Running custom scraper...")
-                    custom_start_time = time.time()
-                    result = run_async_safely(scrape_custom_manual(current_game, system_name, sys_config, scraper_type='custom', target_media_type=media_type))
-                    custom_end_time = time.time()
-                    print(f"⏱️ Custom scraper took {custom_end_time - custom_start_time:.3f} seconds")
-                    if result:
-                        print(f"🔧 DEBUG: custom scraper returned data with keys: {list(result.keys())}")
-                        scrap_results['custom'] = result
-                    else:
-                        print(f"🔧 DEBUG: custom scraper returned None")
-                except Exception as e:
-                    print(f"🔧 DEBUG: custom scraper failed: {e}")
-                    import traceback
-                    print(f"🔧 DEBUG: custom traceback: {traceback.format_exc()}")
-            else:
-                print(f"🔧 DEBUG: Skipping Custom - no mapping for media type '{media_type}'")
-        
-        # Execute Custom2 scraper if game has custom2id and supports the media type
-        should_run_custom2 = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'custom2'
+                scrapers_to_run.append(('custom', lambda: run_async_safely(scrape_custom_manual(current_game, system_name, sys_config, scraper_type='custom', target_media_type=media_type))))
         if should_run_custom2 and current_game.get('custom2id'):
-            # Check if Custom2 supports this media type
-            # Mapping structure: {custom_field: gamelist_field}
-            # Example: {'boxfront': 'boxart', 'screenshot': 'image'}
             # We need to check if media_type (gamelist field) is in the VALUES of the mapping
             custom_image_mapping = scrappers_config.get('custom', {}).get('image_type_mappings', {})
             if media_type in custom_image_mapping.values():
-                try:
-                    print(f"🔧 DEBUG: Running custom2 scraper...")
-                    custom2_start_time = time.time()
-                    result = run_async_safely(scrape_custom_manual(current_game, system_name, sys_config, scraper_type='custom2', target_media_type=media_type))
-                    custom2_end_time = time.time()
-                    print(f"⏱️ Custom2 scraper took {custom2_end_time - custom2_start_time:.3f} seconds")
-                    if result:
-                        print(f"🔧 DEBUG: custom2 scraper returned data with keys: {list(result.keys())}")
-                        scrap_results['custom2'] = result
-                    else:
-                        print(f"🔧 DEBUG: custom2 scraper returned None")
-                except Exception as e:
-                    print(f"🔧 DEBUG: custom2 scraper failed: {e}")
-                    import traceback
-                    print(f"🔧 DEBUG: custom2 traceback: {traceback.format_exc()}")
-            else:
-                print(f"🔧 DEBUG: Skipping Custom2 - no mapping for media type '{media_type}'")
+                scrapers_to_run.append(('custom2', lambda: run_async_safely(scrape_custom_manual(current_game, system_name, sys_config, scraper_type='custom2', target_media_type=media_type))))
         
-        # Execute EmuMovies scraper if system has EmuMovies mapping and supports the media type
+        # Add EmuMovies to scrapers_to_run if applicable (inline logic moved to function for parallelization)
         if should_run_emumovies:
             emumovies_system = sys_config.get('emumovies', '')
             if emumovies_system:
-                # Check if EmuMovies supports this media type
                 emumovies_image_mapping = scrappers_config.get('emumovies', {}).get('image_type_mappings', {})
                 if media_type in emumovies_image_mapping:
-                    try:
-                        print(f"🔧 DEBUG: Running emumovies scraper...")
-                        emumovies_start_time = time.time()
-                        
-                        # Load EmuMovies index if not loaded
-                        global emumovies_index
-                        if not emumovies_index:
-                            load_emumovies_index()
-                        
-                        if not emumovies_index or emumovies_system not in emumovies_index:
-                            print(f"🔧 DEBUG: EmuMovies index not available for system '{emumovies_system}'")
-                        else:
+                    # Create a function to execute EmuMovies search inline
+                    def search_emumovies_inline():
+                        try:
+                            # Load EmuMovies index if not loaded
+                            global emumovies_index
+                            if not emumovies_index:
+                                load_emumovies_index()
+                            
+                            if not emumovies_index or emumovies_system not in emumovies_index:
+                                print(f"🔧 DEBUG: EmuMovies index not available for system '{emumovies_system}'")
+                                return None
+                            
                             # Get EmuMovies media types for this gamelist media type
                             emumovies_types = emumovies_image_mapping[media_type]
                             if not isinstance(emumovies_types, list):
@@ -12645,19 +12481,17 @@ def multiscraper_search_endpoint():
                                 rom_filename = os.path.basename(rom_path)
                                 rom_filename_no_ext = os.path.splitext(rom_filename)[0]
                             
-                            game_name = current_game.get('name', '')
+                            game_name_local = current_game.get('name', '')
                             
                             # Normalize names (without parentheses)
                             from game_utils import normalize_game_name
                             normalized_romname = normalize_game_name(rom_filename_no_ext, remove_paranthesis=True) if rom_filename_no_ext else None
-                            normalized_gamename = normalize_game_name(game_name, remove_paranthesis=True)
-                            
-                            print(f"🔧 DEBUG: Searching EmuMovies - romname: '{normalized_romname}', gamename: '{normalized_gamename}'")
+                            normalized_gamename = normalize_game_name(game_name_local, remove_paranthesis=True)
                             
                             # Search in EmuMovies index
                             system_index = emumovies_index[emumovies_system]
                             found_files = []
-                            seen_files = set()  # Track seen files to avoid duplicates
+                            seen_files = set()
                             
                             for emumovies_type in emumovies_types:
                                 if emumovies_type not in system_index:
@@ -12676,19 +12510,14 @@ def multiscraper_search_endpoint():
                                     matched_value = media_type_index[normalized_gamename]
                                 
                                 if matched_value:
-                                    # Handle array of files - only add first file to avoid duplicates
+                                    # Handle array of files
                                     if isinstance(matched_value, list):
-                                        # Use first file from array (user can see all options if needed)
                                         filename = matched_value[0]
-                                        # Create unique key: emumovies_type + filename
                                         file_key = f"{emumovies_type}:{filename}"
                                         if file_key not in seen_files:
                                             seen_files.add(file_key)
-                                            # Construct download URL using EmuMovies API (use absolute URL for PDF preview)
-                                            # URL encode filename for proper handling
                                             from urllib.parse import quote
                                             encoded_filename = quote(filename)
-                                            # Use relative URL - browser will use current domain and port
                                             download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
                                             found_files.append({
                                                 'url': download_url,
@@ -12697,15 +12526,13 @@ def multiscraper_search_endpoint():
                                                 'emumovies_system': emumovies_system
                                             })
                                     else:
-                                        # Single file - check for duplicates
+                                        # Single file
                                         filename = matched_value
                                         file_key = f"{emumovies_type}:{filename}"
                                         if file_key not in seen_files:
                                             seen_files.add(file_key)
-                                            # Single file (use relative URL - browser will use current domain and port)
                                             from urllib.parse import quote
                                             encoded_filename = quote(matched_value)
-                                            # Use relative URL - browser will use current domain and port
                                             download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
                                             found_files.append({
                                                 'url': download_url,
@@ -12715,26 +12542,74 @@ def multiscraper_search_endpoint():
                                             })
                             
                             if found_files:
-                                result = {
+                                return {
                                     'media_fields': {
                                         media_type: found_files
                                     }
                                 }
-                                scrap_results['emumovies'] = result
-                                print(f"🔧 DEBUG: EmuMovies found {len(found_files)} files")
-                            else:
-                                print(f"🔧 DEBUG: EmuMovies found no matching files")
+                            return None
+                        except Exception as e:
+                            print(f"🔧 DEBUG: emumovies scraper failed: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            return None
                     
-                        emumovies_end_time = time.time()
-                        print(f"⏱️ EmuMovies took {emumovies_end_time - emumovies_start_time:.3f} seconds")
+                    scrapers_to_run.append(('emumovies', search_emumovies_inline))
+        
+        # Execute all scrapers in parallel with cancellation support
+        import uuid
+        import concurrent.futures
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
+        
+        # Generate unique search ID and create cancellation event
+        search_id = str(uuid.uuid4())
+        cancel_event = threading.Event()
+        global _manual_search_cancel_events
+        _manual_search_cancel_events[search_id] = cancel_event
+        
+        print(f"🚀 Starting {len(scrapers_to_run)} scrapers in parallel (search_id: {search_id})")
+        
+        if scrapers_to_run:
+            # Execute scrapers in parallel
+            with ThreadPoolExecutor(max_workers=len(scrapers_to_run)) as executor:
+                # Submit all scraper tasks
+                future_to_scraper = {
+                    executor.submit(scraper_func): scraper_name
+                    for scraper_name, scraper_func in scrapers_to_run
+                }
+                
+                # Collect results as they complete
+                for future in as_completed(future_to_scraper):
+                    scraper_name = future_to_scraper[future]
+                    
+                    # Check for cancellation
+                    if cancel_event.is_set():
+                        print(f"🛑 Manual search {search_id} cancelled, skipping remaining scrapers")
+                        # Cancel pending futures
+                        for f in future_to_scraper:
+                            f.cancel()
+                        break
+                    
+                    try:
+                        result = future.result(timeout=30)  # 30 second timeout per scraper
+                        if result:
+                            scrap_results[scraper_name] = result
+                            print(f"✅ {scraper_name} scraper completed")
+                        else:
+                            print(f"ℹ️ {scraper_name} scraper returned no results")
+                    except concurrent.futures.TimeoutError:
+                        print(f"⏱️ {scraper_name} scraper timed out after 30 seconds")
                     except Exception as e:
-                        print(f"🔧 DEBUG: emumovies scraper failed: {e}")
+                        print(f"❌ {scraper_name} scraper failed: {e}")
                         import traceback
-                        print(f"🔧 DEBUG: emumovies traceback: {traceback.format_exc()}")
-                else:
-                    print(f"🔧 DEBUG: Skipping EmuMovies - no mapping for media type '{media_type}'")
-            else:
-                print(f"🔧 DEBUG: Skipping EmuMovies - no system mapping for '{system_name}'")
+                        traceback.print_exc()
+        
+        # Clean up cancellation event
+        try:
+            del _manual_search_cancel_events[search_id]
+        except:
+            pass
         
         # Filter results to only include the requested media type
         processing_start_time = time.time()
@@ -13909,32 +13784,37 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 steamgriddb_key = scraper_config['image_type_mappings'].get(media_type)
             
             if steamgriddb_key:
+                # Batch candidates to fetch media in parallel
+                candidates = []
                 for g in games_with_similarity:
                     similarity_score = g.get('similarity_score', 0.0)
-                    # Only process games with reasonable similarity (>= 0.7)
-                    if similarity_score < 0.7:
-                        continue
-                    
+                    if similarity_score < 0.7: continue
                     gid = g.get('id')
-                    if not gid:
-                        continue
-                    media = run_async_safely(sgdb_service.get_steamgrid_media(gid, [steamgriddb_key], api_key=api_key))
-                    if media and steamgriddb_key in media and media[steamgriddb_key]:
-                        urls = []
-                        for item in media[steamgriddb_key]:
-                            url = item.get('url', '')
-                            if url:
-                                urls.append(url)
-                        
-                        if urls:
-                            results.append({
-                                'scraper': 'steamgriddb',
-                                'game_name': g.get('name', ''),
-                                'game_id': gid,
-                                'similarity_score': similarity_score,
-                                f'{media_type}_urls': urls,
-                                'region': 'Unknown'
-                            })
+                    if gid: candidates.append((gid, g, similarity_score))
+                
+                if candidates:
+                    async def fetch_all_media(can_list, key, key_arg):
+                        limits = httpx.Limits(max_connections=50, max_keepalive_connections=50)
+                        async with httpx.AsyncClient(limits=limits, http2=True, timeout=30.0) as client:
+                            tasks = [sgdb_service.get_steamgrid_media(c[0], [key], api_key=key_arg, client=client) for c in can_list]
+                            return await asyncio.gather(*tasks, return_exceptions=True)
+                    
+                    batch_media_results = run_async_safely(fetch_all_media(candidates, steamgriddb_key, api_key))
+                    
+                    for i, media in enumerate(batch_media_results):
+                        if isinstance(media, Exception): continue
+                        gid, g, similarity_score = candidates[i]
+                        if media and steamgriddb_key in media and media[steamgriddb_key]:
+                            urls = [item.get('url') for item in media[steamgriddb_key] if item.get('url')]
+                            if urls:
+                                results.append({
+                                    'scraper': 'steamgriddb',
+                                    'game_name': g.get('name', ''),
+                                    'game_id': gid,
+                                    'similarity_score': similarity_score,
+                                    f'{media_type}_urls': urls,
+                                    'region': 'Unknown'
+                                })
 
         elif scraper_name == 'screenscraper':
             from screenscraper_service import ScreenScraperService
@@ -14635,9 +14515,13 @@ def marquee_search_endpoint():
         print(f"Error in marquee search: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+# Shared global executor to avoid thread explosion
+_global_async_executor = None
+
 def run_async_safely(coro):
     """Safely run an async coroutine, handling event loop conflicts"""
     import time
+    global _global_async_executor
     
     async_safely_start_time = time.time()
     
@@ -14645,30 +14529,32 @@ def run_async_safely(coro):
         # Try asyncio.run first (fastest option)
         result = asyncio.run(coro)
         async_safely_end_time = time.time()
-        print(f"⏱️ run_async_safely (asyncio.run) took {async_safely_end_time - async_safely_start_time:.3f} seconds")
+        # print(f"⏱️ run_async_safely (asyncio.run) took {async_safely_end_time - async_safely_start_time:.3f} seconds")
         return result
     except RuntimeError as e:
         if "cannot be called from a running event loop" in str(e):
             # We're in an async context, need to use thread
-            print(f"🔧 DEBUG: Event loop conflict detected, using thread fallback")
+            # print(f"🔧 DEBUG: Event loop conflict detected, using thread fallback")
             import concurrent.futures
             import threading
             
-            def run_in_new_thread():
+            if _global_async_executor is None:
+                _global_async_executor = concurrent.futures.ThreadPoolExecutor(max_workers=32)
+            
+            def run_in_new_thread(c):
                 """Run the coroutine in a completely new thread with its own event loop"""
                 new_loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(new_loop)
                 try:
-                    return new_loop.run_until_complete(coro)
+                    return new_loop.run_until_complete(c)
                 finally:
                     new_loop.close()
             
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_in_new_thread)
-                result = future.result()
-                async_safely_end_time = time.time()
-                print(f"⏱️ run_async_safely (thread fallback) took {async_safely_end_time - async_safely_start_time:.3f} seconds")
-                return result
+            future = _global_async_executor.submit(run_in_new_thread, coro)
+            result = future.result()
+            async_safely_end_time = time.time()
+            # print(f"⏱️ run_async_safely (thread fallback) took {async_safely_end_time - async_safely_start_time:.3f} seconds")
+            return result
         else:
             # Other RuntimeError, re-raise
             raise e

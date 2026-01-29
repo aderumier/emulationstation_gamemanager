@@ -64,7 +64,7 @@ class SteamGridService:
             logger.error(f"Error saving SteamGridDB API key: {e}")
             return False
     
-    async def get_steamgrid_id_by_steam_id(self, steam_id: int, api_key: str = None, limit: int = 1) -> List[Dict]:
+    async def get_steamgrid_id_by_steam_id(self, steam_id: int, api_key: str = None, limit: int = 1, client: httpx.AsyncClient = None) -> List[Dict]:
         """Get SteamGridDB games using Steam ID"""
         if not steam_id:
             return []
@@ -76,20 +76,41 @@ class SteamGridService:
             headers = {}
             if api_key:
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f"Using SteamGridDB API key: {api_key[:8]}...{api_key[-4:] if len(api_key) > 12 else '***'}")
-            else:
-                logger.warning("No SteamGridDB API key provided - requests may be rate limited")
+            
+            async def _perform_request(c):
+                logger.debug(f"Fetching SteamGridDB games for Steam ID {steam_id}: {url}")
+                response = await c.get(url, headers=headers)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if data.get('success') and data.get('data'):
+                        game_data = data['data']
+                        # Convert single game to list format for consistency
+                        games = [{
+                            'id': game_data.get('id'),
+                            'name': game_data.get('name', 'Unknown'),
+                            'verified': game_data.get('verified', False),
+                            'types': ['game'],  # Default type
+                            'grid_image': None  # Will be populated below
+                        }]
+                        
+                        # Fetch grid image for the game
+                        if games:
+                            grid_image = await self.get_steamgrid_grid_image(games[0]['id'], api_key, client=c)
+                            if grid_image:
+                                games[0]['grid_image'] = grid_image
+                        
+                        return games[:limit]
+                    return []
+                return []
+
+            if client:
+                return await _perform_request(client)
             
             limits = httpx.Limits(max_connections=50, max_keepalive_connections=50)
-            async with httpx.AsyncClient(
-                limits=limits,
-                http2=True,
-                timeout=30.0,
-                headers=headers
-            ) as client:
-                logger.debug(f"Fetching SteamGridDB games for Steam ID {steam_id}: {url}")
-                
-                response = await client.get(url)
+            async with httpx.AsyncClient(limits=limits, http2=True, timeout=30.0) as new_client:
+                return await _perform_request(new_client)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -136,7 +157,7 @@ class SteamGridService:
             logger.error(f"Error fetching SteamGridDB games for Steam ID {steam_id}: {e}")
             return []
     
-    async def get_steamgrid_id_by_name(self, game_name: str, api_key: str = None, limit: int = 20) -> List[Dict]:
+    async def get_steamgrid_id_by_name(self, game_name: str, api_key: str = None, limit: int = 20, client: httpx.AsyncClient = None) -> List[Dict]:
         """Get SteamGridDB games by searching game name"""
         if not game_name:
             return []
@@ -155,20 +176,34 @@ class SteamGridService:
             headers = {}
             if api_key:
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f"Using SteamGridDB API key: {api_key[:8]}...{api_key[-4:] if len(api_key) > 12 else '***'}")
-            else:
-                logger.warning("No SteamGridDB API key provided - requests may be rate limited")
             
-            limits = httpx.Limits(max_connections=50, max_keepalive_connections=50)
-            async with httpx.AsyncClient(
-                limits=limits,
-                http2=True,
-                timeout=30.0,
-                headers=headers
-            ) as client:
+            async def _perform_request(c):
                 logger.debug(f"Searching SteamGridDB for game '{clean_name}': {url}")
+                response = await c.get(url, headers=headers)
                 
-                response = await client.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('success') and data.get('data'):
+                        games_data = data['data']
+                        games = []
+                        for game in games_data:
+                            games.append({
+                                'id': game.get('id'),
+                                'name': game.get('name', 'Unknown'),
+                                'verified': game.get('verified', False),
+                                'types': game.get('types', ['game']),
+                                'grid_image': None
+                            })
+                        return games[:limit]
+                    return []
+                return []
+
+            if client:
+                return await _perform_request(client)
+                
+            limits = httpx.Limits(max_connections=50, max_keepalive_connections=50)
+            async with httpx.AsyncClient(limits=limits, http2=True, timeout=30.0) as new_client:
+                return await _perform_request(new_client)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -259,7 +294,7 @@ class SteamGridService:
         
         return None
     
-    async def get_steamgrid_media(self, steamgrid_id: int, media_types: List[str] = None, api_key: str = None) -> Dict[str, List[Dict]]:
+    async def get_steamgrid_media(self, steamgrid_id: int, media_types: List[str] = None, api_key: str = None, client: httpx.AsyncClient = None) -> Dict[str, List[Dict]]:
         """Get media from SteamGridDB for a specific game"""
         if not steamgrid_id:
             return {}
@@ -274,18 +309,31 @@ class SteamGridService:
         headers = {}
         if api_key:
             headers['Authorization'] = f'Bearer {api_key}'
-            logger.debug(f"Using SteamGridDB API key: {api_key[:8]}...{api_key[-4:] if len(api_key) > 12 else '***'}")
-        else:
-            logger.warning("No SteamGridDB API key provided - requests may be rate limited")
         
-        # Create HTTP client with connection pool and HTTP/2
+        async def _perform_request(c):
+            for media_type in media_types:
+                try:
+                    url = f"{base_url}/{media_type}/game/{steamgrid_id}"
+                    response = await c.get(url, headers=headers)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get('success') and data.get('data'):
+                            results[media_type] = data['data']
+                        else:
+                            results[media_type] = []
+                    else:
+                        results[media_type] = []
+                except Exception as e:
+                    logger.error(f"Error fetching {media_type} for SteamGridDB ID {steamgrid_id}: {e}")
+                    results[media_type] = []
+            return results
+
+        if client:
+            return await _perform_request(client)
+            
         limits = httpx.Limits(max_connections=50, max_keepalive_connections=50)
-        async with httpx.AsyncClient(
-            limits=limits,
-            http2=True,
-            timeout=30.0,
-            headers=headers
-        ) as client:
+        async with httpx.AsyncClient(limits=limits, http2=True, timeout=30.0) as new_client:
+            return await _perform_request(new_client)
             
             for media_type in media_types:
                 try:
@@ -326,7 +374,7 @@ class SteamGridService:
         
         return results
     
-    async def get_steamgrid_grid_image(self, steamgrid_id: int, api_key: str = None) -> Optional[str]:
+    async def get_steamgrid_grid_image(self, steamgrid_id: int, api_key: str = None, client: httpx.AsyncClient = None) -> Optional[str]:
         """Get a single grid image URL for a SteamGridDB game"""
         if not steamgrid_id:
             return None
@@ -338,17 +386,23 @@ class SteamGridService:
             headers = {}
             if api_key:
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f"Using SteamGridDB API key: {api_key[:8]}...{api_key[-4:] if len(api_key) > 12 else '***'}")
-            else:
-                logger.warning("No SteamGridDB API key provided - requests may be rate limited")
+            
+            async def _perform_request(c):
+                response = await c.get(url, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('success') and data.get('data'):
+                        grids = data['data']
+                        if grids and grids[0].get('url'):
+                            return grids[0].get('url')
+                return None
+
+            if client:
+                return await _perform_request(client)
             
             limits = httpx.Limits(max_connections=50, max_keepalive_connections=50)
-            async with httpx.AsyncClient(
-                limits=limits,
-                http2=True,
-                timeout=30.0,
-                headers=headers
-            ) as client:
+            async with httpx.AsyncClient(limits=limits, http2=True, timeout=30.0) as new_client:
+                return await _perform_request(new_client)
                 logger.debug(f"Fetching grid image for SteamGridDB ID {steamgrid_id}: {url}")
                 
                 response = await client.get(url)
