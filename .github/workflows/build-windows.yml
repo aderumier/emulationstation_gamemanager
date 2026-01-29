@@ -159,10 +159,8 @@ jobs:
           # Update config.json for Windows (set roms_root_directory for Retrobat)
           $configPath = "dist\gamemanager_windows\var\config\config.json"
           if (Test-Path $configPath) {
-            $configContent = Get-Content $configPath -Raw -Encoding UTF8
-            $configContent = $configContent -replace '"roms_root_directory":\s*"[^"]*"', '"roms_root_directory": "roms"'
-            $configContent | Set-Content $configPath -Encoding UTF8 -NoNewline
-            Write-Host "  Updated config.json for Windows (relative roms directory)"
+            (Get-Content $configPath) | Where-Object { $_ -notmatch '"roms_root_directory":' } | Set-Content $configPath
+            Write-Host "  Removed roms_root_directory from config.json to use dynamic default"
           }
         }
         
