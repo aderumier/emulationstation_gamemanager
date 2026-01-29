@@ -29,6 +29,9 @@ bcrypt>=4.0.0
 # Environment management
 python-dotenv>=1.0.0
 
+# Date/time parsing (YouTube publishedAt, etc.)
+python-dateutil>=2.8.0
+
 # Image manipulation
 Wand>=0.6.0
 

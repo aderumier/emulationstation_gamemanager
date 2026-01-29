@@ -62,6 +62,9 @@ hiddenimports = [
     'bcrypt',
     # Environment
     'dotenv',
+    # Date parsing (YouTube publishedAt)
+    'dateutil',
+    'dateutil.parser',
     # String matching (jellyfish has C extension)
     'jellyfish',
     'jellyfish._jellyfish',
