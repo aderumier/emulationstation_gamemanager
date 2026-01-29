@@ -273,7 +273,14 @@ jobs:
         name: gamemanager-windows
         path: ${{ env.ZIP_NAME }}
         retention-days: 30
-        
+
+    - name: Upload gamemanager.exe only
+      uses: actions/upload-artifact@v4
+      with:
+        name: gamemanager-windows-exe
+        path: dist/gamemanager_windows/gamemanager.exe
+        retention-days: 30
+
     - name: Create Release (on tag)
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
