@@ -421,14 +421,23 @@ def get_user_by_discord_id(discord_id):
             )
     return None
 
-def create_user(username, password, email=None, discord_id=None, role='user'):
-    """Create a new user"""
+def create_user(username, password, email=None, discord_id=None, role=None):
+    """Create a new user. 
+    If this is the first user, they automatically get the admin role.
+    """
     users = load_users()
     user_id = str(uuid.uuid4())
     
+    # Check if this is the first user
+    is_first_user = len(users) == 0
+    if is_first_user:
+        role = 'admin'
+    else:
+        role = (role or 'user').lower()
+
     # Check if username already exists
     for existing_user in users.values():
-        if existing_user['username'] == username:
+        if existing_user['username'].lower() == username.lower():
             return None, "Username already exists"
     
     # Check if Discord ID already exists
@@ -437,9 +446,9 @@ def create_user(username, password, email=None, discord_id=None, role='user'):
             if existing_user.get('discord_id') == discord_id:
                 return None, "Discord account already linked"
     
-    role = (role or 'user').lower() if role else 'user'
     if role not in ('admin', 'user'):
         role = 'user'
+        
     user_data = {
         'username': username,
         'password_hash': hash_password(password),
@@ -449,9 +458,12 @@ def create_user(username, password, email=None, discord_id=None, role='user'):
         'is_validated': (role == 'admin'),  # admin considered validated
         'created_at': datetime.now().isoformat(),
         'last_login': None,
-        'allowed_systems': [],
-        'role': role
+        'allowed_systems': []
     }
+    
+    # Only add role if it's not 'user' (per request to keep config clean)
+    if role != 'user':
+        user_data['role'] = role
     
     users[user_id] = user_data
     save_users(users)
