@@ -7004,6 +7004,14 @@ def serve_temp_file(filename):
     """Serve temporary files (e.g., screenshots)"""
     return send_from_directory(VAR_TEMP_DIR, filename)
 
+@app.route('/api/temp-image/<path:filename>')
+@login_required
+def serve_temp_image(filename):
+    """Serve temporary images from var/temp with proper headers"""
+    # Use forward slashes for the internal path calculation regardless of OS
+    safe_filename = filename.replace('\\', '/')
+    return send_from_directory(VAR_TEMP_DIR, safe_filename)
+
 # Test Cropper Route
 @app.route('/test_cropper_simple.html')
 def test_cropper():
@@ -17925,13 +17933,15 @@ def extract_first_frame():
             
             print(f"Extracting frame at time: {frame_time} seconds (middle of video)")
         
-        # Create frames directory if it doesn't exist
-        frames_dir = os.path.join(os.path.dirname(video_path), 'frames')
+        # Create frames directory in VAR_TEMP_DIR if it doesn't exist
+        frames_dir = os.path.join(VAR_TEMP_DIR, 'video_frames')
         os.makedirs(frames_dir, exist_ok=True)
         
         # Generate frame filename
         video_basename = os.path.splitext(os.path.basename(video_path))[0]
-        frame_filename = f"{video_basename}_frame.jpg"
+        # Clean basename for filename (remove characters that might cause issues)
+        image_basename = "".join([c for c in video_basename if c.isalnum() or c in (' ', '.', '_', '-')]).rstrip()
+        frame_filename = f"{image_basename}_frame.jpg"
         frame_path = os.path.join(frames_dir, frame_filename)
         
         # Extract frame from video using ffmpeg
@@ -17955,8 +17965,9 @@ def extract_first_frame():
         if not os.path.exists(frame_path):
             return jsonify({'error': 'Frame extraction failed - no output file'}), 500
         
-        # Return relative path for web access
-        relative_frame_path = os.path.relpath(frame_path, ROMS_FOLDER)
+        # Return relative path for web access (relative to VAR_TEMP_DIR)
+        # Use forward slashes for web compatibility even on Windows
+        relative_frame_path = os.path.relpath(frame_path, VAR_TEMP_DIR).replace(os.path.sep, '/')
         
         return jsonify({
             'success': True,
