@@ -48,6 +48,20 @@ python scrapper.py --no-selenium
 - **`hol_db.json`**: The main database file containing all scraped game data
 - **`scraper_progress.json`**: Progress tracking file (used for resume functionality)
 
+### Fixing control characters in an existing database
+
+If you copy `hol_db.json` to `var/db/custom/amigahol.json` for use with the main app, and the Custom2 scraper fails with "All strings must be XML compatible" (NULL bytes or control characters in descriptions/cheats), run:
+
+```bash
+python fix_control_chars.py [path_to_json]
+# Default: ../../var/db/custom/amigahol.json
+python fix_control_chars.py  # from tools/hol/
+# Or from project root:
+python tools/hol/fix_control_chars.py var/db/custom/amigahol.json
+```
+
+The scraper also sanitizes all extracted text when saving, so new data is clean.
+
 ### Data Structure
 
 Each game version entry in the JSON database contains:

@@ -43,6 +43,36 @@ try:
 except ImportError:
     HAS_SELENIUM = False
 
+def _sanitize_text(s: str) -> str:
+    """Remove NULL bytes and control characters so text is safe for JSON/XML.
+    Keeps tab, newline, carriage return and printable Unicode (XML 1.0 compatible)."""
+    if s is None or not isinstance(s, str):
+        return s if s is not None else ''
+    result = []
+    for c in s:
+        code = ord(c)
+        if code == 0x9 or code == 0xA or code == 0xD:
+            result.append(c)
+        elif 0x20 <= code <= 0xD7FF or 0xE000 <= code <= 0xFFFD or (0x10000 <= code <= 0x10FFFF):
+            result.append(c)
+    return ''.join(result)
+
+
+def _sanitize_dict_strings(obj):
+    """Recursively sanitize all string values in a dict/list (in place)."""
+    if isinstance(obj, dict):
+        for k, v in list(obj.items()):
+            obj[k] = _sanitize_dict_strings(v)
+        return obj
+    if isinstance(obj, list):
+        for i, v in enumerate(obj):
+            obj[i] = _sanitize_dict_strings(v)
+        return obj
+    if isinstance(obj, str):
+        return _sanitize_text(obj)
+    return obj
+
+
 class HOLScraper:
     def __init__(self, use_selenium: bool = False, cookies_file: str = None):
         self.base_url = "https://amiga.abime.net"
@@ -1146,8 +1176,9 @@ class HOLScraper:
         game_entries = self.extract_game_info(soup, game_url, game_name_from_list)
         
         if game_entries:
-            # Add all entries to database
+            # Add all entries to database (sanitize strings to remove control chars / NULL)
             for game_info in game_entries:
+                _sanitize_dict_strings(game_info)
                 gameid = game_info.get('gameid')
                 if gameid:
                     self.games_db[gameid] = game_info
