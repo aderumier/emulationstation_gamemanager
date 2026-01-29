@@ -108,6 +108,12 @@ def main():
         shutil.copytree(internal_src, dist_dir / '_internal', dirs_exist_ok=True)
         print(f"✅ Copied _internal folder")
     
+    # Copy static and templates folder
+    for folder in ['static', 'templates']:
+        if os.path.exists(folder):
+            shutil.copytree(folder, dist_dir / folder, dirs_exist_ok=True)
+            print(f"✅ Copied {folder} folder")
+    
     # Copy tools
     if tools_dir.exists():
         shutil.copytree('tools', dist_dir / 'tools', dirs_exist_ok=True)

@@ -128,6 +128,13 @@ jobs:
           New-Item -ItemType Directory -Path "dist\gamemanager_windows\tools\windows" -Force | Out-Null
           Copy-Item -Path "tools\windows\*" -Destination "dist\gamemanager_windows\tools\windows" -Recurse -Force
         }
+        # Copy static and templates folder
+        if (Test-Path "static") {
+          Copy-Item -Path "static" -Destination "dist\gamemanager_windows\static" -Recurse -Force
+        }
+        if (Test-Path "templates") {
+          Copy-Item -Path "templates" -Destination "dist\gamemanager_windows\templates" -Recurse -Force
+        }
         # Create var directory structure
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\config" -Force | Out-Null
         New-Item -ItemType Directory -Path "dist\gamemanager_windows\var\db" -Force | Out-Null
