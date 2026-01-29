@@ -31,6 +31,10 @@ else:
     _app_dir = os.path.dirname(os.path.abspath(__file__))
     _base_dir = _app_dir
 
+# 2D/3D box templates dirs: resolve from _base_dir so frozen Windows exe finds var/*/templates next to exe
+VAR_2DBOX_TEMPLATES_DIR = os.path.join(_base_dir, 'var', '2dbox', 'templates')
+VAR_3DBOX_TEMPLATES_DIR = os.path.join(_base_dir, 'var', '3dbox', 'templates')
+
 # Ensure current directory is first in sys.path to use embedded libraries
 # (selenium, pyrate_limiter, pixelmatch) instead of system-installed versions
 if _app_dir not in sys.path:
@@ -28965,7 +28969,7 @@ def save_box_template():
             return jsonify({'success': False, 'error': 'Template name is required'}), 400
         
         # Create templates directory if it doesn't exist
-        templates_dir = 'var/2dbox/templates'
+        templates_dir = VAR_2DBOX_TEMPLATES_DIR
         os.makedirs(templates_dir, exist_ok=True)
         
         # Sanitize template name for filesystem
@@ -29206,7 +29210,7 @@ def process_background_image():
 def list_box_templates():
     """List all saved box templates"""
     try:
-        templates_dir = 'var/2dbox/templates'
+        templates_dir = VAR_2DBOX_TEMPLATES_DIR
         templates = []
         
         if os.path.exists(templates_dir):
@@ -29240,7 +29244,7 @@ def load_box_template():
         if not template_name:
             return jsonify({'success': False, 'error': 'Template name is required'}), 400
         
-        templates_dir = 'var/2dbox/templates'
+        templates_dir = VAR_2DBOX_TEMPLATES_DIR
         safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
         template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
         
@@ -29295,7 +29299,7 @@ def delete_box_template():
         if not template_name:
             return jsonify({'success': False, 'error': 'Template name is required'}), 400
         
-        templates_dir = 'var/2dbox/templates'
+        templates_dir = VAR_2DBOX_TEMPLATES_DIR
         safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
         template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
         
@@ -29336,13 +29340,16 @@ def get_template_image():
         if not path:
             return jsonify({'error': 'Path is required'}), 400
         
-        templates_dir = 'var/2dbox/templates'
-        image_path = os.path.join(templates_dir, path)
+        templates_dir = VAR_2DBOX_TEMPLATES_DIR
+        image_path = os.path.normpath(os.path.join(templates_dir, path))
         
-        # Security: ensure path is within templates directory
-        abs_templates_dir = os.path.abspath(templates_dir)
-        abs_image_path = os.path.abspath(image_path)
-        if not abs_image_path.startswith(abs_templates_dir):
+        # Security: ensure path is within templates directory (normpath for Windows)
+        abs_templates_dir = os.path.normpath(os.path.abspath(templates_dir))
+        abs_image_path = os.path.normpath(os.path.abspath(image_path))
+        try:
+            if os.path.commonpath([abs_templates_dir, abs_image_path]) != abs_templates_dir:
+                return jsonify({'error': 'Invalid path'}), 403
+        except ValueError:
             return jsonify({'error': 'Invalid path'}), 403
         
         if not os.path.exists(image_path):
@@ -29363,7 +29370,7 @@ def save_3dbox_template():
             return jsonify({'success': False, 'error': 'Template name is required'}), 400
         
         # Create templates directory if it doesn't exist
-        templates_dir = 'var/3dbox/templates'
+        templates_dir = VAR_3DBOX_TEMPLATES_DIR
         os.makedirs(templates_dir, exist_ok=True)
         
         # Sanitize template name for filesystem
@@ -29496,7 +29503,7 @@ def save_3dbox_template():
 def list_3dbox_templates():
     """List all saved 3D box templates"""
     try:
-        templates_dir = 'var/3dbox/templates'
+        templates_dir = VAR_3DBOX_TEMPLATES_DIR
         templates = []
         
         if os.path.exists(templates_dir):
@@ -29530,7 +29537,7 @@ def load_3dbox_template():
         if not template_name:
             return jsonify({'success': False, 'error': 'Template name is required'}), 400
         
-        templates_dir = 'var/3dbox/templates'
+        templates_dir = VAR_3DBOX_TEMPLATES_DIR
         safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
         template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
         
@@ -29599,7 +29606,7 @@ def delete_3dbox_template():
         if not template_name:
             return jsonify({'success': False, 'error': 'Template name is required'}), 400
         
-        templates_dir = 'var/3dbox/templates'
+        templates_dir = VAR_3DBOX_TEMPLATES_DIR
         safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
         template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
         
@@ -29647,13 +29654,16 @@ def get_3dbox_template_image():
         if not path:
             return jsonify({'error': 'Path is required'}), 400
         
-        templates_dir = 'var/3dbox/templates'
-        image_path = os.path.join(templates_dir, path)
+        templates_dir = VAR_3DBOX_TEMPLATES_DIR
+        image_path = os.path.normpath(os.path.join(templates_dir, path))
         
-        # Security: ensure path is within templates directory
-        abs_templates_dir = os.path.abspath(templates_dir)
-        abs_image_path = os.path.abspath(image_path)
-        if not abs_image_path.startswith(abs_templates_dir):
+        # Security: ensure path is within templates directory (normpath for Windows)
+        abs_templates_dir = os.path.normpath(os.path.abspath(templates_dir))
+        abs_image_path = os.path.normpath(os.path.abspath(image_path))
+        try:
+            if os.path.commonpath([abs_templates_dir, abs_image_path]) != abs_templates_dir:
+                return jsonify({'error': 'Invalid path'}), 403
+        except ValueError:
             return jsonify({'error': 'Invalid path'}), 403
         
         if not os.path.exists(image_path):
@@ -29721,7 +29731,7 @@ def preview_3dbox():
         if background_file:
             background_file.save(background_path)
         else:
-            templates_dir = 'var/3dbox/templates'
+            templates_dir = VAR_3DBOX_TEMPLATES_DIR
             source_path = os.path.join(templates_dir, background_image_path)
             if os.path.exists(source_path):
                 shutil.copy2(source_path, background_path)
@@ -29786,7 +29796,7 @@ def preview_3dbox():
                 spine_path = os.path.join(temp_dir, 'spine.png')
                 spine_file.save(spine_path)
             elif spine_image_path:
-                templates_dir = 'var/3dbox/templates'
+                templates_dir = VAR_3DBOX_TEMPLATES_DIR
                 source_spine_path = os.path.join(templates_dir, spine_image_path)
                 if os.path.exists(source_spine_path):
                     spine_path = os.path.join(temp_dir, 'spine.png')
@@ -30062,7 +30072,7 @@ def generate_3dbox():
         if background_file:
             background_file.save(background_path)
         else:
-            templates_dir = 'var/3dbox/templates'
+            templates_dir = VAR_3DBOX_TEMPLATES_DIR
             # Ensure background_image_path is just a filename (no path separators)
             # Remove any path components that might have been included
             background_filename = os.path.basename(background_image_path)
@@ -30086,7 +30096,7 @@ def generate_3dbox():
             spine_path = os.path.join(temp_dir, 'spine.png')
             spine_file.save(spine_path)
         elif spine_image_path:
-            templates_dir = 'var/3dbox/templates'
+            templates_dir = VAR_3DBOX_TEMPLATES_DIR
             source_spine_path = os.path.join(templates_dir, spine_image_path)
             
             abs_templates_dir = os.path.abspath(templates_dir)
@@ -30172,7 +30182,7 @@ def generate_template_box():
             background_file.save(background_path)
         elif background_image_path:
             # Use existing template image
-            templates_dir = 'var/2dbox/templates'
+            templates_dir = VAR_2DBOX_TEMPLATES_DIR
             source_path = os.path.join(templates_dir, background_image_path)
             
             # Security: ensure path is within templates directory
@@ -30254,7 +30264,7 @@ def preview_template_box():
         if background_file:
             background_file.save(background_path)
         elif background_image_path:
-            templates_dir = 'var/2dbox/templates'
+            templates_dir = VAR_2DBOX_TEMPLATES_DIR
             source_path = os.path.join(templates_dir, background_image_path)
             abs_templates_dir = os.path.abspath(templates_dir)
             abs_source_path = os.path.abspath(source_path)
