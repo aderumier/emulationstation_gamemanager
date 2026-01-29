@@ -14406,12 +14406,18 @@ def marquee_search_stream_endpoint():
     if not game_name:
         return jsonify({'error': 'Game name is required'}), 400
     
+    # Generate unique search ID and cancellation event
+    search_id = str(uuid.uuid4())
+    cancel_event = threading.Event()
+    global _manual_search_cancel_events
+    _manual_search_cancel_events[search_id] = cancel_event
+    
     def generate():
         try:
-            print(f"🔧 DEBUG: Marquee search stream for game: {game_name}, system: {system_name}, scraper: {selected_scraper}")
+            print(f"🔧 DEBUG: Marquee search stream for game: {game_name}, system: {system_name}, scraper: {selected_scraper}, search_id: {search_id}")
             
-            # Send initial connection message
-            yield f"data: {json.dumps({'type': 'connected', 'message': 'Marquee search started'})}\n\n"
+            # Send initial connection message with search_id
+            yield f"data: {json.dumps({'type': 'connected', 'message': 'Marquee search started', 'search_id': search_id})}\n\n"
             
             # Load scrappers configuration
             scrappers_config = load_scrappers_config()
@@ -14437,6 +14443,12 @@ def marquee_search_stream_endpoint():
             
             # Search each scraper and stream results as they come
             for scraper_name, scraper_config in scrapers_to_search:
+                # Check for cancellation
+                if cancel_event.is_set():
+                    print(f"🛑 Marquee search {search_id} cancelled, skipping remaining scrapers")
+                    yield f"data: {json.dumps({'type': 'cancelled', 'message': 'Search cancelled'})}\n\n"
+                    break
+                    
                 try:
                     print(f"🔧 DEBUG: Searching {scraper_name} for marquee...")
                     yield f"data: {json.dumps({'type': 'scraper_start', 'scraper': scraper_name})}\n\n"
@@ -14456,13 +14468,25 @@ def marquee_search_stream_endpoint():
                     yield f"data: {json.dumps({'type': 'scraper_error', 'scraper': scraper_name, 'error': str(e)})}\n\n"
                     continue
             
-            # Send completion with all sorted results
-            all_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
-            yield f"data: {json.dumps({'type': 'completed', 'total_found': len(all_results), 'results': all_results})}\n\n"
-            print(f"🔧 DEBUG: Marquee search completed with {len(all_results)} total results")
+            # Send completion with all sorted results (if not cancelled)
+            if not cancel_event.is_set():
+                all_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
+                yield f"data: {json.dumps({'type': 'completed', 'total_found': len(all_results), 'results': all_results})}\n\n"
+                print(f"🔧 DEBUG: Marquee search completed with {len(all_results)} total results")
+            
+            # Clean up cancellation event
+            try:
+                del _manual_search_cancel_events[search_id]
+            except:
+                pass
             
         except Exception as e:
             print(f"Error in marquee search stream: {e}")
+            # Clean up cancellation event on error
+            try:
+                _manual_search_cancel_events.pop(search_id, None)
+            except:
+                pass
             import traceback
             traceback.print_exc()
             yield f"data: {json.dumps({'type': 'error', 'message': f'Internal server error: {str(e)}'})}\n\n"
@@ -14472,6 +14496,21 @@ def marquee_search_stream_endpoint():
     response.headers['Connection'] = 'keep-alive'
     response.headers['X-Accel-Buffering'] = 'no'  # Disable nginx buffering
     return response
+
+@app.route('/api/cancel-marquee-search/<search_id>', methods=['POST'])
+@login_required
+def cancel_marquee_search(search_id):
+    """Cancel an ongoing marquee search"""
+    global _manual_search_cancel_events
+    
+    if search_id in _manual_search_cancel_events:
+        # Set the cancellation event
+        _manual_search_cancel_events[search_id].set()
+        print(f"🛑 Marquee search {search_id} cancellation requested")
+        return jsonify({'success': True, 'message': 'Search cancelled'})
+    else:
+        # Search either completed or never existed
+        return jsonify({'success': False, 'message': 'Search not found or already completed'})
 
 @app.route('/api/marquee-search', methods=['POST'])
 @login_required

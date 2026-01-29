@@ -39151,6 +39151,14 @@ class GameCollectionManager {
         document.getElementById('marqueeSearchResults').style.display = 'none';
         document.getElementById('marqueeResultsContainer').innerHTML = '';
 
+        // Set up modal close listener to cancel search
+        const modalElement = document.getElementById('marqueeSearchModal');
+        const modalCloseHandler = () => {
+            this.cancelMarqueeSearch();
+            modalElement.removeEventListener('hidden.bs.modal', modalCloseHandler);
+        };
+        modalElement.addEventListener('hidden.bs.modal', modalCloseHandler);
+
         // Show the modal
         modal.show();
     }
@@ -39193,6 +39201,10 @@ class GameCollectionManager {
 
     async performMarqueeSearch() {
         // Cancel any previous running search first
+        if (this.currentMarqueeSearchId) {
+            await this.cancelMarqueeSearch();
+        }
+
         if (this.currentMarqueeSearchStream) {
             this.currentMarqueeSearchStream.close();
             this.currentMarqueeSearchStream = null;
@@ -39287,6 +39299,10 @@ class GameCollectionManager {
         switch (data.type) {
             case 'connected':
                 console.log('Marquee search connected:', data.message);
+                // Store search_id for potential cancellation
+                if (data.search_id) {
+                    this.currentMarqueeSearchId = data.search_id;
+                }
                 break;
 
             case 'scraper_start':
@@ -39314,12 +39330,50 @@ class GameCollectionManager {
                 if (data.total_found === 0) {
                     container.innerHTML = '<div class="col-12"><div class="alert alert-info">No marquee found.</div></div>';
                 }
+                // Clear search_id after completion
+                this.currentMarqueeSearchId = null;
+                break;
+
+            case 'cancelled':
+                document.getElementById('marqueeSearchLoading').style.display = 'none';
+                console.log('Marquee search was cancelled');
+                this.currentMarqueeSearchId = null;
                 break;
 
             case 'error':
                 this.showAlert(`Error: ${data.message}`, 'error');
                 document.getElementById('marqueeSearchLoading').style.display = 'none';
+                this.currentMarqueeSearchId = null;
                 break;
+        }
+    }
+
+    async cancelMarqueeSearch() {
+        if (!this.currentMarqueeSearchId) {
+            return;
+        }
+
+        const searchId = this.currentMarqueeSearchId;
+        this.currentMarqueeSearchId = null; // Clear immediately
+
+        try {
+            const response = await fetch(`/api/cancel-marquee-search/${searchId}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Marquee search cancelled:', data.message);
+            }
+        } catch (error) {
+            console.error('Error cancelling marquee search:', error);
+        }
+
+        // Close stream if still active
+        if (this.currentMarqueeSearchStream) {
+            this.currentMarqueeSearchStream.close();
+            this.currentMarqueeSearchStream = null;
         }
     }
 
