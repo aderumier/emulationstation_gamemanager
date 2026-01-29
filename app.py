@@ -1300,7 +1300,9 @@ def _env_with_yt_dlp_path(yt_dlp_path):
     return env
 
 
-app = Flask(__name__)
+app = Flask(__name__, 
+            static_folder=os.path.join(_app_dir, 'static'),
+            template_folder=os.path.join(_app_dir, 'templates'))
 
 # Load environment variables from .env file
 load_dotenv()
