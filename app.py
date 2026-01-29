@@ -1246,6 +1246,30 @@ def get_yt_dlp_path():
     else:
         return 'yt-dlp'
 
+
+def _env_with_yt_dlp_path(yt_dlp_path):
+    """Build env dict with PATH including yt-dlp and ffmpeg dirs so yt-dlp can find ffmpeg for merging bestvideo+bestaudio."""
+    env = os.environ.copy()
+    current_path = env.get('PATH', '')
+    path_additions = []
+    yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+    if yt_dlp_dir and yt_dlp_dir not in current_path:
+        path_additions.append(yt_dlp_dir)
+    ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+    if os.path.sep in str(ffmpeg_cmd) and os.path.exists(ffmpeg_cmd):
+        ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
+        if ffmpeg_dir not in current_path and ffmpeg_dir not in path_additions:
+            path_additions.append(ffmpeg_dir)
+    if sys.platform == 'win32':
+        bundled_ffmpeg = os.path.join(_base_dir, 'tools', 'windows', 'ffmpeg')
+        if os.path.isdir(bundled_ffmpeg) and bundled_ffmpeg not in current_path and bundled_ffmpeg not in path_additions:
+            path_additions.append(bundled_ffmpeg)
+    for d in path_additions:
+        current_path = os.pathsep.join([d, current_path])
+    env['PATH'] = current_path
+    return env
+
+
 app = Flask(__name__)
 
 # Load environment variables from .env file
@@ -25377,21 +25401,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
             task.update_progress(f"  🎮 Steam Store URL detected, using playlist index: {playlist_index}")
         task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
         
-        # Add yt-dlp and ffmpeg directories to PATH (yt-dlp needs ffmpeg to merge bestvideo+bestaudio)
-        yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
-        ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
-        ffmpeg_dir = ''
-        if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
-            ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
-        env = os.environ.copy()
-        current_path = env.get('PATH', '')
-        path_additions = [yt_dlp_dir]
-        if ffmpeg_dir and ffmpeg_dir not in current_path:
-            path_additions.append(ffmpeg_dir)
-        for d in path_additions:
-            if d and d not in current_path:
-                current_path = os.pathsep.join([d, current_path])
-        env['PATH'] = current_path
+        env = _env_with_yt_dlp_path(yt_dlp_path)
         
         process = subprocess.Popen(
             download_cmd,
@@ -25495,18 +25505,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
                     pass
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 
-                # Add yt-dlp and ffmpeg to PATH (same as initial attempt)
-                yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
-                ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
-                ffmpeg_dir = ''
-                if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
-                    ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
-                env = os.environ.copy()
-                current_path = env.get('PATH', '')
-                for d in ([yt_dlp_dir] + ([ffmpeg_dir] if ffmpeg_dir and ffmpeg_dir not in current_path else [])):
-                    if d and d not in current_path:
-                        current_path = os.pathsep.join([d, current_path])
-                env['PATH'] = current_path
+                env = _env_with_yt_dlp_path(yt_dlp_path)
                 
                 process = subprocess.Popen(
                     download_cmd,
@@ -25593,18 +25592,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
                 download_cmd = build_download_cmd(first_mode, use_cookies=True)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 
-                # Add yt-dlp and ffmpeg to PATH (same as initial attempt)
-                yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
-                ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
-                ffmpeg_dir = ''
-                if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
-                    ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
-                env = os.environ.copy()
-                current_path = env.get('PATH', '')
-                for d in ([yt_dlp_dir] + ([ffmpeg_dir] if ffmpeg_dir and ffmpeg_dir not in current_path else [])):
-                    if d and d not in current_path:
-                        current_path = os.pathsep.join([d, current_path])
-                env['PATH'] = current_path
+                env = _env_with_yt_dlp_path(yt_dlp_path)
                 
                 process = subprocess.Popen(
                     download_cmd,
@@ -25707,18 +25695,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
                 download_cmd = build_download_cmd('po', use_cookies=po_use_cookies)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 
-                # Add yt-dlp and ffmpeg to PATH (same as initial attempt)
-                yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
-                ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
-                ffmpeg_dir = ''
-                if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
-                    ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
-                env = os.environ.copy()
-                current_path = env.get('PATH', '')
-                for d in ([yt_dlp_dir] + ([ffmpeg_dir] if ffmpeg_dir and ffmpeg_dir not in current_path else [])):
-                    if d and d not in current_path:
-                        current_path = os.pathsep.join([d, current_path])
-                env['PATH'] = current_path
+                env = _env_with_yt_dlp_path(yt_dlp_path)
                 
                 process = subprocess.Popen(
                     download_cmd,
@@ -25796,18 +25773,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
                     download_cmd = build_download_cmd('po', use_cookies=True)
                     task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                     
-                    # Add yt-dlp and ffmpeg to PATH (same as initial attempt)
-                    yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
-                    ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
-                    ffmpeg_dir = ''
-                    if os.path.sep in ffmpeg_cmd and os.path.exists(ffmpeg_cmd):
-                        ffmpeg_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
-                    env = os.environ.copy()
-                    current_path = env.get('PATH', '')
-                    for d in ([yt_dlp_dir] + ([ffmpeg_dir] if ffmpeg_dir and ffmpeg_dir not in current_path else [])):
-                        if d and d not in current_path:
-                            current_path = os.pathsep.join([d, current_path])
-                    env['PATH'] = current_path
+                    env = _env_with_yt_dlp_path(yt_dlp_path)
                     
                     process = subprocess.Popen(
                         download_cmd,
