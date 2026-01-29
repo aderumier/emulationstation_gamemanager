@@ -26,20 +26,10 @@ import tempfile
 import subprocess
 import logging
 
-def _convert_cmd():
-    """ImageMagick convert; uses bundled tools/windows/imagemagick on Windows."""
-    from game_utils import find_tool
-    return find_tool("convert", "convert.exe")
-
-def _identify_cmd():
-    """ImageMagick identify; uses bundled tools/windows/imagemagick on Windows."""
-    from game_utils import find_tool
-    return find_tool("identify", "identify.exe")
-
-def _composite_cmd():
-    """ImageMagick composite; uses bundled tools/windows/imagemagick on Windows."""
-    from game_utils import find_tool
-    return find_tool("composite", "composite.exe")
+def _imagemagick_cmd(subcommand):
+    """ImageMagick argv prefix (convert/identify/composite). IM 7 uses magick.exe on Windows."""
+    from game_utils import get_imagemagick_cmd
+    return get_imagemagick_cmd(subcommand)
 
 class BoxGenerator:
     def __init__(self, width=600, height=800, logo_position="north", logo_offset="+0+60", 
@@ -76,8 +66,7 @@ class BoxGenerator:
     def validate_dependencies(self):
         """Validate that ImageMagick is available (uses bundled path on Windows)."""
         try:
-            convert_cmd = _convert_cmd()
-            result = subprocess.run([convert_cmd, '-version'],
+            result = subprocess.run(_imagemagick_cmd('convert') + ['-version'],
                                   capture_output=True, text=True, timeout=5)
             return result.returncode == 0
         except Exception as e:
@@ -225,8 +214,7 @@ class BoxGenerator:
                 width = max(200, estimated_width)  # Minimum 200px
             
             # Build command for text generation
-            cmd = [
-                _convert_cmd(),
+            cmd = _imagemagick_cmd('convert') + [
                 '-background', 'none',
                 '-fill', color,
                 '-font', font_path,
@@ -257,8 +245,7 @@ class BoxGenerator:
             
             # Trim whitespace/padding from the generated image
             temp_trimmed = output_path + '.trimmed'
-            cmd_trim = [
-                _convert_cmd(),
+            cmd_trim = _imagemagick_cmd('convert') + [
                 output_path,
                 '-trim',
                 '+repage',
@@ -274,14 +261,14 @@ class BoxGenerator:
             
             # Add underline if needed
             if text_logo_settings.get('underline', False):
-                identify_cmd = [_identify_cmd(), '-format', '%wx%h', output_path]
+                identify_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', output_path]
                 dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                 if dim_result.returncode == 0:
                     logo_width, logo_height = dim_result.stdout.strip().split('x')
                     underline_y = int(logo_height) - 2
                     temp_with_underline = output_path + '.tmp'
-                    cmd_underline = [
-                        _convert_cmd(), output_path,
+                    cmd_underline = _imagemagick_cmd('convert') + [
+                        output_path,
                         '-stroke', color,
                         '-strokewidth', '2',
                         '-draw', f'line 0,{underline_y} {logo_width},{underline_y}',
@@ -338,8 +325,8 @@ class BoxGenerator:
                 # Resize additional screenshot to fit in middle third (1/3 of height)
                 additional_width = int(self.width * 50 / 100)  # 50% width
                 additional_height = int(self.height * 30 / 100)  # ~30% height to fit in middle third
-                cmd = [
-                    _convert_cmd(), additional_screenshot_path,
+                cmd = _imagemagick_cmd('convert') + [
+                    additional_screenshot_path,
                     '-resize', f'{additional_width}x{additional_height}>',
                     '-bordercolor', self.title_border_color,
                     '-border', f'{self.title_border_size}x{self.title_border_size}',
@@ -348,7 +335,7 @@ class BoxGenerator:
                 subprocess.run(cmd, check=True)
                 temp_files.append('temp_additional_screenshot.jpg')
                 # Get actual height for positioning calculations
-                identify_cmd = [_identify_cmd(), '-format', '%h', 'temp_additional_screenshot.jpg']
+                identify_cmd = _imagemagick_cmd('identify') + ['-format', '%h', 'temp_additional_screenshot.jpg']
                 dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                 if dim_result.returncode == 0:
                     additional_screenshot_height = int(dim_result.stdout.strip())
@@ -370,8 +357,8 @@ class BoxGenerator:
             
             if self.use_blurred_bg:
                 # Create blurred background from titlescreen
-                cmd = [
-                    _convert_cmd(), titlescreen_path,
+                cmd = _imagemagick_cmd('convert') + [
+                    titlescreen_path,
                     '-resize', f'{self.width}x{self.height}^',
                     '-gravity', 'center',
                     '-extent', f'{self.width}x{self.height}',
@@ -398,8 +385,8 @@ class BoxGenerator:
                     additional_geometry = f'+0{additional_y_offset}'  # Negative: +0-136
                 logging.info(f"Composing additional screenshot at geometry: {additional_geometry}")
                 if self.use_blurred_bg:
-                    cmd = [
-                        _convert_cmd(), base_bg,
+                    cmd = _imagemagick_cmd('convert') + [
+                        base_bg,
                         'temp_additional_screenshot.jpg',
                         '-gravity', 'center',
                         '-geometry', additional_geometry,
@@ -410,8 +397,7 @@ class BoxGenerator:
                     base_bg = 'temp_bg_with_additional.jpg'
                 else:
                     # Create solid background and add additional screenshot
-                    cmd = [
-                        _convert_cmd(),
+                    cmd = _imagemagick_cmd('convert') + [
                         '-size', f'{self.width}x{self.height}',
                         f'xc:{self.background_color}',
                         'temp_additional_screenshot.jpg',
@@ -430,8 +416,8 @@ class BoxGenerator:
                 # But allow it to be a bit larger to fill the space better
                 gameplay_height = int(self.height * 40 / 100)  # Slightly larger than 33% to fill bottom third
                 logging.info(f"Resizing gameplay to fit bottom third: {gameplay_width}x{gameplay_height}")
-                cmd = [
-                    _convert_cmd(), gameplay_path,
+                cmd = _imagemagick_cmd('convert') + [
+                    gameplay_path,
                     '-resize', f'{gameplay_width}x{gameplay_height}>',
                     '-bordercolor', self.title_border_color,
                     '-border', f'{self.title_border_size}x{self.title_border_size}',
@@ -440,8 +426,8 @@ class BoxGenerator:
             else:
                 # Normal resize (75% width, full height) - resize to fit while maintaining aspect ratio
                 # Remove '>' so smaller images are upscaled to match the target size
-                cmd = [
-                    _convert_cmd(), gameplay_path,
+                cmd = _imagemagick_cmd('convert') + [
+                    gameplay_path,
                     '-resize', f'{gameplay_width}x{self.height}',  # Resize to fit, maintain aspect ratio
                     '-bordercolor', self.title_border_color,
                     '-border', f'{self.title_border_size}x{self.title_border_size}',
@@ -454,8 +440,8 @@ class BoxGenerator:
             logging.info(f"Composing gameplay at offset: +0+{gameplay_y_offset} (from center)")
             if self.use_blurred_bg:
                 # Use base_bg which may already have additional screenshot
-                cmd = [
-                    _convert_cmd(), base_bg, 'temp_main.jpg',
+                cmd = _imagemagick_cmd('convert') + [
+                    base_bg, 'temp_main.jpg',
                     '-gravity', 'center',
                     '-geometry', f'+0+{gameplay_y_offset}',
                     '-composite', 'temp_bg.jpg'
@@ -466,16 +452,15 @@ class BoxGenerator:
                 # Create background with gameplay positioned in lower 2/3
                 if base_bg:
                     # base_bg already has additional screenshot, just add gameplay
-                    cmd = [
-                        _convert_cmd(), base_bg, 'temp_main.jpg',
+                    cmd = _imagemagick_cmd('convert') + [
+                        base_bg, 'temp_main.jpg',
                         '-gravity', 'center',
                         '-geometry', f'+0+{gameplay_y_offset}',
                         '-composite', 'temp_bg.jpg'
                     ]
                 else:
                     # No additional screenshot, create normal background
-                    cmd = [
-                        _convert_cmd(), 
+                    cmd = _imagemagick_cmd('convert') + [
                         '-size', f'{self.width}x{self.height}',
                         f'xc:{self.background_color}',
                         'temp_main.jpg',
@@ -489,14 +474,14 @@ class BoxGenerator:
             # Apply additional blur if requested
             if self.blur_background:
                 logging.info("   Applying blur...")
-                cmd = [_convert_cmd(), 'temp_bg.jpg', '-blur', '0x2', 'temp_bg.jpg']
+                cmd = _imagemagick_cmd('convert') + ['temp_bg.jpg', '-blur', '0x2', 'temp_bg.jpg']
                 subprocess.run(cmd, check=True)
             
             # Step 2: Apply vintage effect if requested
             if self.vintage_effect:
                 logging.info("2. Applying vintage effect...")
-                cmd = [
-                    _convert_cmd(), 'temp_bg.jpg',
+                cmd = _imagemagick_cmd('convert') + [
+                    'temp_bg.jpg',
                     '-modulate', '110,130,100',
                     '-colorize', '10,5,0',
                     '-sigmoidal-contrast', '2,50%',
@@ -507,16 +492,16 @@ class BoxGenerator:
             # Step 3: Add gradient (exactly like bash script)
             logging.info("3. Adding gradient...")
             if self.logo_position == "north":
-                cmd = [
-                    _convert_cmd(), 'temp_bg.jpg',
+                cmd = _imagemagick_cmd('convert') + [
+                    'temp_bg.jpg',
                     '(', '-size', f'{self.width}x{self.gradient_height}',
                     'gradient:black-transparent', ')',
                     '-gravity', 'north',
                     '-composite', 'temp_with_gradient.jpg'
                 ]
             elif self.logo_position == "south":
-                cmd = [
-                    _convert_cmd(), 'temp_bg.jpg',
+                cmd = _imagemagick_cmd('convert') + [
+                    'temp_bg.jpg',
                     '(', '-size', f'{self.width}x{self.gradient_height}',
                     'gradient:transparent-black', ')',
                     '-gravity', 'south',
@@ -524,8 +509,8 @@ class BoxGenerator:
                 ]
             elif self.logo_position == "center":
                 gradient_height = self.height // 3
-                cmd = [
-                    _convert_cmd(), 'temp_bg.jpg',
+                cmd = _imagemagick_cmd('convert') + [
+                    'temp_bg.jpg',
                     '(', '-size', f'{self.width}x{gradient_height}',
                     'gradient:transparent-black', ')',
                     '-gravity', 'center',
@@ -542,8 +527,8 @@ class BoxGenerator:
             logging.info("4. Processing logos...")
             
             # Process main logo
-            cmd = [
-                _convert_cmd(), logo_path,
+            cmd = _imagemagick_cmd('convert') + [
+                logo_path,
                 '-resize', f'{self.logo_max_width}x{self.logo_max_height}>',
                 '-background', 'transparent',
                 'temp_logo.png'
@@ -553,8 +538,8 @@ class BoxGenerator:
             
             # Process secondary logo if provided
             if secondary_logo_path and os.path.exists(secondary_logo_path):
-                cmd = [
-                    _convert_cmd(), secondary_logo_path,
+                cmd = _imagemagick_cmd('convert') + [
+                    secondary_logo_path,
                     '-resize', f'{self.logo_max_width}x{self.logo_max_height}>',
                     '-background', 'transparent',
                     'temp_secondary_logo.png'
@@ -566,8 +551,8 @@ class BoxGenerator:
             logging.info("5. Final composition...")
             
             # Compose main logo
-            cmd = [
-                _convert_cmd(), 'temp_with_gradient.jpg',
+            cmd = _imagemagick_cmd('convert') + [
+                'temp_with_gradient.jpg',
                 'temp_logo.png',
                 '-gravity', self.logo_position,
                 '-geometry', self.logo_offset,
@@ -580,8 +565,8 @@ class BoxGenerator:
             
             # Compose secondary logo if present
             if secondary_logo_path and os.path.exists(secondary_logo_path):
-                cmd = [
-                    _convert_cmd(), final_temp,
+                cmd = _imagemagick_cmd('convert') + [
+                    final_temp,
                     'temp_secondary_logo.png',
                     '-gravity', self.secondary_position,
                     '-geometry', self.secondary_offset,
@@ -594,8 +579,8 @@ class BoxGenerator:
             # Step 6: Add border if requested (exactly like bash script)
             if self.border_size > 0:
                 logging.info("6. Adding border...")
-                cmd = [
-                    _convert_cmd(), final_temp,
+                cmd = _imagemagick_cmd('convert') + [
+                    final_temp,
                     '-bordercolor', self.border_color,
                     '-border', f'{self.border_size}x{self.border_size}',
                     output_path
@@ -603,7 +588,7 @@ class BoxGenerator:
                 subprocess.run(cmd, check=True)
             else:
                 # Convert to PNG format when copying
-                cmd = [_convert_cmd(), final_temp, output_path]
+                cmd = _imagemagick_cmd('convert') + [final_temp, output_path]
                 subprocess.run(cmd, check=True)
             
             logging.info(f"✅ 2D box generated successfully: {output_path}")
@@ -668,13 +653,13 @@ class BoxGenerator:
                 logo_path = os.path.normpath(os.path.abspath(logo_path))
             
             # Get background image dimensions
-            identify_cmd = [_identify_cmd(), '-format', '%wx%h', background_path]
+            identify_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', background_path]
             dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
             if dim_result.returncode != 0:
                 raise Exception("Failed to get background image dimensions")
             
             # Use background image as base (copy it first)
-            cmd = [_convert_cmd(), background_path, temp_background]
+            cmd = _imagemagick_cmd('convert') + [background_path, temp_background]
             subprocess.run(cmd, check=True)
             temp_files.append(temp_background)
             
@@ -688,7 +673,7 @@ class BoxGenerator:
             target_height = max_y - min_y
             
             # Get screenshot dimensions
-            screenshot_dim_cmd = [_identify_cmd(), '-format', '%wx%h', screenshot_path]
+            screenshot_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', screenshot_path]
             screenshot_dim_result = subprocess.run(screenshot_dim_cmd, capture_output=True, text=True, timeout=5)
             if screenshot_dim_result.returncode != 0:
                 raise Exception("Failed to get screenshot dimensions")
@@ -712,8 +697,8 @@ class BoxGenerator:
             # For smaller images, this will upscale and stretch to fill the target area
             # The ! flag forces ImageMagick to resize to exact dimensions, stretching smaller images
             resize_spec = f'{target_width}x{target_height}!'
-            cmd = [
-                _convert_cmd(), screenshot_path,
+            cmd = _imagemagick_cmd('convert') + [
+                screenshot_path,
                 '-resize', resize_spec,  # ! forces exact size, ignoring aspect ratio (stretches to fill, upscales smaller images)
                 temp_resized
             ]
@@ -725,7 +710,7 @@ class BoxGenerator:
             logging.info(f"✅ Screenshot resized and stretched to {target_width}x{target_height}")
             
             # Verify the resized image dimensions
-            verify_cmd = [_identify_cmd(), '-format', '%wx%h', temp_resized]
+            verify_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', temp_resized]
             verify_result = subprocess.run(verify_cmd, capture_output=True, text=True, timeout=5)
             if verify_result.returncode == 0:
                 resized_dims = verify_result.stdout.strip().split('x')
@@ -740,8 +725,8 @@ class BoxGenerator:
                         temp_fixed = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
                         temp_files.append(temp_fixed)
                         # Use scale to force exact dimensions (more aggressive than resize)
-                        fix_cmd = [
-                            _convert_cmd(), screenshot_path,
+                        fix_cmd = _imagemagick_cmd('convert') + [
+                            screenshot_path,
                             '-scale', f'{target_width}x{target_height}!',  # scale with ! forces exact dimensions
                             temp_fixed
                         ]
@@ -749,7 +734,7 @@ class BoxGenerator:
                         fix_result = subprocess.run(fix_cmd, check=True, capture_output=True, text=True)
                         if fix_result.returncode == 0:
                             # Verify the fixed dimensions
-                            fix_verify_cmd = [_identify_cmd(), '-format', '%wx%h', temp_fixed]
+                            fix_verify_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', temp_fixed]
                             fix_verify_result = subprocess.run(fix_verify_cmd, capture_output=True, text=True, timeout=5)
                             if fix_verify_result.returncode == 0:
                                 fix_dims = fix_verify_result.stdout.strip().split('x')
@@ -776,8 +761,7 @@ class BoxGenerator:
             # Use composite command with geometry for exact positioning
             # Position at min_x, min_y to align with the corner positions
             logging.info(f"Placing resized screenshot onto background at position ({min_x}, {min_y})")
-            cmd = [
-                _composite_cmd(),
+            cmd = _imagemagick_cmd('composite') + [
                 '-geometry', f'+{min_x}+{min_y}',
                 temp_resized,  # Use the resized image directly
                 temp_background,
@@ -891,8 +875,7 @@ class BoxGenerator:
                     caption_width = int(logo_zone_width * 0.95)
                     
                     # Build base command for text generation
-                    cmd = [
-                        _convert_cmd(),
+                    cmd = _imagemagick_cmd('convert') + [
                         '-background', 'none',
                         '-fill', color,
                         '-font', font_path,
@@ -925,13 +908,13 @@ class BoxGenerator:
                             raise Exception(f"ImageMagick text generation failed: {result.stderr}")
                         
                         # Get text dimensions and draw underline
-                        identify_cmd = [_identify_cmd(), '-format', '%wx%h', temp_text]
+                        identify_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', temp_text]
                         dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                         if dim_result.returncode == 0:
                             width, height = dim_result.stdout.strip().split('x')
                             underline_y = int(height) - 2
-                            cmd_underline = [
-                                _convert_cmd(), temp_text,
+                            cmd_underline = _imagemagick_cmd('convert') + [
+                                temp_text,
                                 '-stroke', color,
                                 '-strokewidth', '2',
                                 '-draw', f'line 0,{underline_y} {width},{underline_y}',
@@ -975,8 +958,8 @@ class BoxGenerator:
                     
                     # Resize logo to fit zone
                     # Uses logo_placement_gravity (alignment-based for text logos, center for marquee)
-                    cmd = [
-                        _convert_cmd(), logo_file_to_use,
+                    cmd = _imagemagick_cmd('convert') + [
+                        logo_file_to_use,
                         '-resize', f'{logo_zone_width}x{logo_zone_height}',
                         '-background', 'none',
                         '-gravity', logo_placement_gravity,
@@ -988,8 +971,7 @@ class BoxGenerator:
                     subprocess.run(cmd, check=True)
                     
                     # Composite logo onto output (same as marquee)
-                    cmd = [
-                        _composite_cmd(),
+                    cmd = _imagemagick_cmd('composite') + [
                         '-geometry', f'+{logo_min_x}+{logo_min_y}',
                         temp_logo,
                         output_path,
@@ -1046,8 +1028,7 @@ class BoxGenerator:
         box2d_path = os.path.normpath(os.path.abspath(box2d_path))
         output_path = os.path.normpath(os.path.abspath(output_path))
         
-        cmd_info = [
-            _identify_cmd(),
+        cmd_info = _imagemagick_cmd('identify') + [
             '-format', '%wx%h',
             box2d_path
         ]
@@ -1062,8 +1043,7 @@ class BoxGenerator:
             if not spine_color.startswith('#'):
                 spine_color = '#' + spine_color
             # Create solid color image in sRGB color space to ensure proper color handling
-            cmd = [
-                _convert_cmd(),
+            cmd = _imagemagick_cmd('convert') + [
                 '-size', f'{int(spine_width)}x{box_height}',
                 '-colorspace', 'sRGB',
                 f'xc:{spine_color}',
@@ -1089,8 +1069,7 @@ class BoxGenerator:
             
             # Crop left side: crop from (0,0) with width=crop_width, height=box_height
             # Then flip horizontally with -flop
-            cmd = [
-                _convert_cmd(),
+            cmd = _imagemagick_cmd('convert') + [
                 box2d_path,
                 '-crop', f'{crop_width}x{box_height}+0+0',  # Crop from left: width x height +x +y
                 '-flop',  # Mirror horizontally
@@ -1217,8 +1196,7 @@ class BoxGenerator:
                 f'{source_bottomleft_x},{source_bottomleft_y} {target_bottomleft_x},{target_bottomleft_y}'
             )
             
-            cmd_combined = [
-                _convert_cmd(),
+            cmd_combined = _imagemagick_cmd('convert') + [
                 box2d_path,
                 '-resize', f'{resize_width}x{resize_height}!',
                 '-background', 'none',
@@ -1235,8 +1213,7 @@ class BoxGenerator:
             
             # Step 4: Composite the distorted 2D box onto the 3D box template
             # Use composite with exact geometry positioning at source top-left coordinates
-            cmd_composite = [
-                _composite_cmd(),
+            cmd_composite = _imagemagick_cmd('composite') + [
                 '-geometry', f'+{source_topleft_x}+{source_topleft_y}',
                 temp_perspective_resized,
                 background_path,
@@ -1437,7 +1414,7 @@ class BoxGenerator:
                                                 temp_files.append(temp_preview_logo_resized)
                                                 
                                                 # Get original dimensions
-                                                orig_dim_cmd = [_identify_cmd(), '-format', '%wx%h', spine_logo_to_use]
+                                                orig_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', spine_logo_to_use]
                                                 orig_dim_result = subprocess.run(orig_dim_cmd, capture_output=True, text=True, timeout=5)
                                                 if orig_dim_result.returncode == 0:
                                                     orig_dims = orig_dim_result.stdout.strip().split('x')
@@ -1451,8 +1428,7 @@ class BoxGenerator:
                                                     text_logo_width = int(text_logo_height * orig_aspect)  # Maintain aspect ratio
                                                     
                                                     # Resize by height only to maintain aspect ratio
-                                                    cmd_resize = [
-                                                        _convert_cmd(),
+                                                    cmd_resize = _imagemagick_cmd('convert') + [
                                                         spine_logo_to_use,
                                                         '-background', 'transparent',
                                                         '-alpha', 'set',
@@ -1485,7 +1461,7 @@ class BoxGenerator:
                                                 temp_files.append(temp_preview_logo_resized)
                                                 
                                                 # Get original dimensions
-                                                orig_dim_cmd = [_identify_cmd(), '-format', '%wx%h', spine_logo_to_use]
+                                                orig_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', spine_logo_to_use]
                                                 orig_dim_result = subprocess.run(orig_dim_cmd, capture_output=True, text=True, timeout=5)
                                                 if orig_dim_result.returncode == 0:
                                                     orig_dims = orig_dim_result.stdout.strip().split('x')
@@ -1499,8 +1475,7 @@ class BoxGenerator:
                                                     text_logo_width = int(text_logo_height * orig_aspect)  # Maintain aspect ratio
                                                     
                                                     # Resize by height only to maintain aspect ratio
-                                                    cmd_resize = [
-                                                        _convert_cmd(),
+                                                    cmd_resize = _imagemagick_cmd('convert') + [
                                                         spine_logo_to_use,
                                                         '-background', 'transparent',
                                                         '-alpha', 'set',
@@ -1586,7 +1561,7 @@ class BoxGenerator:
                                             # Keep aspect ratio: if text logo is bigger than topY-bottomY area (effective_zone_height),
                                             # fix width to effective_zone_height and adapt height to maintain aspect ratio
                                             # Get original dimensions
-                                            orig_dim_cmd = [_identify_cmd(), '-format', '%wx%h', generated_text_logo]
+                                            orig_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', generated_text_logo]
                                             orig_dim_result = subprocess.run(orig_dim_cmd, capture_output=True, text=True, timeout=5)
                                             if orig_dim_result.returncode == 0:
                                                 orig_dims = orig_dim_result.stdout.strip().split('x')
@@ -1604,8 +1579,7 @@ class BoxGenerator:
                                                     text_logo_height = int(text_logo_width / orig_aspect) if orig_aspect > 0 else max_width
                                                     
                                                     # Resize by width to maintain aspect ratio
-                                                    cmd_resize = [
-                                                        _convert_cmd(),
+                                                    cmd_resize = _imagemagick_cmd('convert') + [
                                                         generated_text_logo,
                                                         '-background', 'transparent',
                                                         '-alpha', 'set',
@@ -1626,8 +1600,7 @@ class BoxGenerator:
                                                 # Fallback: use zone dimensions
                                                 text_logo_width = effective_zone_height
                                                 text_logo_height = effective_zone_width
-                                                cmd_resize = [
-                                                    _convert_cmd(),
+                                                cmd_resize = _imagemagick_cmd('convert') + [
                                                     generated_text_logo,
                                                     '-background', 'transparent',
                                                     '-alpha', 'set',
@@ -1644,8 +1617,7 @@ class BoxGenerator:
                                             # Center horizontally, use full height (preserve transparency)
                                             text_logo_width = effective_zone_height
                                             text_logo_height = effective_zone_width
-                                            cmd_resize = [
-                                                _convert_cmd(),
+                                            cmd_resize = _imagemagick_cmd('convert') + [
                                                 generated_text_logo,
                                                 '-background', 'transparent',
                                                 '-alpha', 'set',
@@ -1670,8 +1642,7 @@ class BoxGenerator:
                                 temp_files.extend([temp_spine_resized, temp_spine_perspective, temp_spine_perspective_resized])
                                 
                                 # Step S1: Resize
-                                cmd_spine_resize = [
-                                    _convert_cmd(),
+                                cmd_spine_resize = _imagemagick_cmd('convert') + [
                                     spine_source_image,
                                     '-resize', f'{spine_resize_width}x{spine_resize_height}!',
                                     temp_spine_resized
@@ -1769,7 +1740,7 @@ class BoxGenerator:
                                         # DO NOT resize it again - it's already been resized to maintain aspect ratio
                                         temp_logo_resized = spine_logo_to_use
                                         # Get dimensions for positioning
-                                        logo_dim_cmd = [_identify_cmd(), '-format', '%wx%h', spine_logo_to_use]
+                                        logo_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', spine_logo_to_use]
                                         logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
                                         if logo_dim_result.returncode == 0:
                                             orig_dims = logo_dim_result.stdout.strip().split('x')
@@ -1794,7 +1765,7 @@ class BoxGenerator:
                                                 # Keep aspect ratio: if logo is bigger than topY-bottomY area (zone_height_resized),
                                                 # fix width to zone_height_resized and adapt height to maintain aspect ratio
                                                 # Get original logo dimensions
-                                                logo_dim_cmd = [_identify_cmd(), '-format', '%wx%h', spine_logo_to_use]
+                                                logo_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', spine_logo_to_use]
                                                 logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
                                                 if logo_dim_result.returncode == 0:
                                                     orig_dims = logo_dim_result.stdout.strip().split('x')
@@ -1837,7 +1808,7 @@ class BoxGenerator:
                                                 # Keep aspect ratio: scale vertically only to match spine width (after rotation)
                                                 # After rotation, width should be spine_resize_width
                                                 # Get original logo dimensions
-                                                logo_dim_cmd = [_identify_cmd(), '-format', '%wx%h', spine_logo_to_use]
+                                                logo_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', spine_logo_to_use]
                                                 logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
                                                 if logo_dim_result.returncode == 0:
                                                     orig_dims = logo_dim_result.stdout.strip().split('x')
@@ -1872,8 +1843,7 @@ class BoxGenerator:
                                             # If width was fixed to zone_height_resized, resize by width; otherwise resize by height
                                             if logo_pre_rotate_width == zone_height_resized and zone_height_resized > 0:
                                                 # Width was fixed, resize by width
-                                                cmd_logo_resize = [
-                                                    _convert_cmd(),
+                                                cmd_logo_resize = _imagemagick_cmd('convert') + [
                                                     spine_logo_to_use,
                                                     '-background', 'transparent',
                                                     '-alpha', 'set',
@@ -1882,8 +1852,7 @@ class BoxGenerator:
                                                 ]
                                             else:
                                                 # Height was fixed, resize by height
-                                                cmd_logo_resize = [
-                                                    _convert_cmd(),
+                                                cmd_logo_resize = _imagemagick_cmd('convert') + [
                                                     spine_logo_to_use,
                                                     '-background', 'transparent',
                                                     '-alpha', 'set',
@@ -1892,8 +1861,7 @@ class BoxGenerator:
                                                 ]
                                         else:
                                             # Force exact size (stretch to fill)
-                                            cmd_logo_resize = [
-                                                _convert_cmd(),
+                                            cmd_logo_resize = _imagemagick_cmd('convert') + [
                                                 spine_logo_to_use,
                                                 '-background', 'transparent',
                                                 '-alpha', 'set',
@@ -1912,8 +1880,7 @@ class BoxGenerator:
                                     # and should only be rotated, not resized
                                     if is_generated_text_logo and keep_aspect_ratio:
                                         logging.info(f"3D Box Spine: Rotating pre-resized generated text logo (no resize, maintaining aspect ratio)")
-                                    cmd_logo_rotate = [
-                                        _convert_cmd(),
+                                    cmd_logo_rotate = _imagemagick_cmd('convert') + [
                                         temp_logo_resized,
                                         '-background', 'transparent',
                                         '-alpha', 'set',
@@ -1928,7 +1895,7 @@ class BoxGenerator:
                                         logging.info(f"3D Box Spine: Logo rotated successfully")
                                     
                                     # Get logo dimensions after rotation (for verification)
-                                    identify_cmd = [_identify_cmd(), '-format', '%wx%h', temp_logo_rotated_resized]
+                                    identify_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', temp_logo_rotated_resized]
                                     logo_dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                                     if logo_dim_result.returncode == 0:
                                         logo_dims = logo_dim_result.stdout.strip().split('x')
@@ -1988,8 +1955,7 @@ class BoxGenerator:
                                         # Composite logo onto resized spine (before perspective transformation)
                                         # Use convert with composite to ensure sRGB color space is preserved
                                         # This prevents greyscale conversion on white backgrounds
-                                        cmd_logo_composite = [
-                                            _convert_cmd(),
+                                        cmd_logo_composite = _imagemagick_cmd('convert') + [
                                             temp_spine_resized,
                                             temp_logo_rotated_resized,
                                             '-colorspace', 'sRGB',
@@ -2004,8 +1970,7 @@ class BoxGenerator:
                                         logging.warning(f"Failed to get logo dimensions, skipping logo composite")
                                 
                                 # Step S2: Apply perspective distortion
-                                cmd_spine_perspective = [
-                                    _convert_cmd(),
+                                cmd_spine_perspective = _imagemagick_cmd('convert') + [
                                     temp_spine_resized,
                                     '-background', 'none',
                                     '-virtual-pixel', 'transparent',
@@ -2017,8 +1982,7 @@ class BoxGenerator:
                                 subprocess.run(cmd_spine_perspective, check=True)
                                 
                                 # Step S3: Resize perspective image
-                                cmd_spine_resize_perspective = [
-                                    _convert_cmd(),
+                                cmd_spine_resize_perspective = _imagemagick_cmd('convert') + [
                                     temp_spine_perspective,
                                     '-resize', f'{spine_resize_width}x{spine_resize_height}!',
                                     temp_spine_perspective_resized
@@ -2032,8 +1996,7 @@ class BoxGenerator:
                                     temp_files.extend([temp_spine_resized, temp_spine_perspective_resized])
                                     
                                     # Step S1: Resize (needed for logo compositing)
-                                    cmd_spine_resize = [
-                                        _convert_cmd(),
+                                    cmd_spine_resize = _imagemagick_cmd('convert') + [
                                         spine_source_image,
                                         '-resize', f'{spine_resize_width}x{spine_resize_height}!',
                                         temp_spine_resized
@@ -2134,7 +2097,7 @@ class BoxGenerator:
                                             # The earlier resize might have used fallback dimensions, so we need to check against actual zone
                                             temp_logo_resized = spine_logo_to_use
                                             # Get current dimensions
-                                            logo_dim_cmd = [_identify_cmd(), '-format', '%wx%h', spine_logo_to_use]
+                                            logo_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', spine_logo_to_use]
                                             logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
                                             if logo_dim_result.returncode == 0:
                                                 orig_dims = logo_dim_result.stdout.strip().split('x')
@@ -2153,8 +2116,7 @@ class BoxGenerator:
                                                         # Resize to correct dimensions
                                                         temp_text_logo_recalc = os.path.splitext(temp_logo_resized)[0] + '_recalc.png'
                                                         temp_files.append(temp_text_logo_recalc)
-                                                        cmd_recalc = [
-                                                            _convert_cmd(),
+                                                        cmd_recalc = _imagemagick_cmd('convert') + [
                                                             spine_logo_to_use,
                                                             '-background', 'transparent',
                                                             '-alpha', 'set',
@@ -2198,7 +2160,7 @@ class BoxGenerator:
                                                     # Keep aspect ratio: if logo is bigger than topY-bottomY area (zone_height_resized),
                                                     # fix width to zone_height_resized and adapt height to maintain aspect ratio
                                                     # Get original logo dimensions
-                                                    logo_dim_cmd = [_identify_cmd(), '-format', '%wx%h', spine_logo_to_use]
+                                                    logo_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', spine_logo_to_use]
                                                     logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
                                                     if logo_dim_result.returncode == 0:
                                                         orig_dims = logo_dim_result.stdout.strip().split('x')
@@ -2240,7 +2202,7 @@ class BoxGenerator:
                                                     # Keep aspect ratio: scale vertically only to match spine width (after rotation)
                                                     # After rotation, width should be spine_resize_width
                                                     # Get original logo dimensions
-                                                    logo_dim_cmd = [_identify_cmd(), '-format', '%wx%h', spine_logo_to_use]
+                                                    logo_dim_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', spine_logo_to_use]
                                                     logo_dim_result = subprocess.run(logo_dim_cmd, capture_output=True, text=True, timeout=5)
                                                     if logo_dim_result.returncode == 0:
                                                         orig_dims = logo_dim_result.stdout.strip().split('x')
@@ -2275,8 +2237,7 @@ class BoxGenerator:
                                                 # If width was fixed to zone_height_resized, resize by width; otherwise resize by height
                                                 if logo_pre_rotate_width == zone_height_resized and zone_height_resized > 0:
                                                     # Width was fixed, resize by width
-                                                    cmd_logo_resize = [
-                                                        _convert_cmd(),
+                                                    cmd_logo_resize = _imagemagick_cmd('convert') + [
                                                         spine_logo_to_use,
                                                         '-background', 'transparent',
                                                         '-alpha', 'set',
@@ -2285,8 +2246,7 @@ class BoxGenerator:
                                                     ]
                                                 else:
                                                     # Height was fixed, resize by height
-                                                    cmd_logo_resize = [
-                                                        _convert_cmd(),
+                                                    cmd_logo_resize = _imagemagick_cmd('convert') + [
                                                         spine_logo_to_use,
                                                         '-background', 'transparent',
                                                         '-alpha', 'set',
@@ -2295,8 +2255,7 @@ class BoxGenerator:
                                                     ]
                                             else:
                                                 # Force exact size (stretch to fill)
-                                                cmd_logo_resize = [
-                                                    _convert_cmd(),
+                                                cmd_logo_resize = _imagemagick_cmd('convert') + [
                                                     spine_logo_to_use,
                                                     '-background', 'transparent',
                                                     '-alpha', 'set',
@@ -2315,8 +2274,7 @@ class BoxGenerator:
                                         # and should only be rotated, not resized
                                         if is_generated_text_logo and keep_aspect_ratio:
                                             logging.info(f"3D Box Spine (Uploaded/Field): Rotating pre-resized generated text logo (no resize, maintaining aspect ratio)")
-                                        cmd_logo_rotate = [
-                                            _convert_cmd(),
+                                        cmd_logo_rotate = _imagemagick_cmd('convert') + [
                                             temp_logo_resized,
                                             '-background', 'transparent',
                                             '-alpha', 'set',
@@ -2331,7 +2289,7 @@ class BoxGenerator:
                                             logging.info(f"3D Box Spine: Logo rotated successfully")
                                         
                                         # Get logo dimensions after rotation (for verification)
-                                        identify_cmd = [_identify_cmd(), '-format', '%wx%h', temp_logo_rotated_resized]
+                                        identify_cmd = _imagemagick_cmd('identify') + ['-format', '%wx%h', temp_logo_rotated_resized]
                                         logo_dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                                         if logo_dim_result.returncode == 0:
                                             logo_dims = logo_dim_result.stdout.strip().split('x')
@@ -2399,8 +2357,7 @@ class BoxGenerator:
                                             # Composite logo onto resized spine (before perspective transformation)
                                             # Use convert with composite to ensure sRGB color space is preserved
                                             # This prevents greyscale conversion on white backgrounds
-                                            cmd_logo_composite = [
-                                                _convert_cmd(),
+                                            cmd_logo_composite = _imagemagick_cmd('convert') + [
                                                 temp_spine_resized,
                                                 temp_logo_rotated_resized,
                                                 '-colorspace', 'sRGB',
@@ -2415,8 +2372,7 @@ class BoxGenerator:
                                             logging.warning(f"Failed to get logo dimensions, skipping logo composite")
                                     
                                     # Step S2-3: Combined perspective + resize
-                                    cmd_spine_combined = [
-                                        _convert_cmd(),
+                                    cmd_spine_combined = _imagemagick_cmd('convert') + [
                                         temp_spine_resized,
                                         '-background', 'none',
                                         '-virtual-pixel', 'transparent',
@@ -2431,8 +2387,7 @@ class BoxGenerator:
                                     # No logo: combine all 3 steps (resize + perspective + resize) for maximum optimization
                                     temp_files.append(temp_spine_perspective_resized)
                                     
-                                    cmd_spine_combined = [
-                                        _convert_cmd(),
+                                    cmd_spine_combined = _imagemagick_cmd('convert') + [
                                         spine_source_image,
                                         '-resize', f'{spine_resize_width}x{spine_resize_height}!',
                                         '-background', 'none',
@@ -2447,8 +2402,7 @@ class BoxGenerator:
                             
                             # Step S5: Composite spine onto the result (which already has front)
                             # Use source coordinates for compositing (exactly like the front surface)
-                            cmd_spine_composite = [
-                                _composite_cmd(),
+                            cmd_spine_composite = _imagemagick_cmd('composite') + [
                                 '-geometry', f'+{spine_source_topleft_x}+{spine_source_topleft_y}',
                                 temp_spine_perspective_resized,
                                 output_path,
@@ -2527,8 +2481,7 @@ class BoxGenerator:
                                         temp_files.extend([temp_logo_resized, temp_logo_transformed])
                                         
                                         # Step 1: Resize logo to fit bounding box
-                                        cmd_logo_resize = [
-                                            _convert_cmd(),
+                                        cmd_logo_resize = _imagemagick_cmd('convert') + [
                                             logo_file_for_corners,
                                             '-resize', f'{logo_resize_width}x{logo_resize_height}!',
                                             temp_logo_resized
@@ -2554,8 +2507,7 @@ class BoxGenerator:
                                             f'{source_bl_x},{source_bl_y} {target_bl_x},{target_bl_y}'
                                         )
                                         
-                                        cmd_logo_perspective = [
-                                            _convert_cmd(),
+                                        cmd_logo_perspective = _imagemagick_cmd('convert') + [
                                             temp_logo_resized,
                                             '-background', 'none',
                                             '-virtual-pixel', 'transparent',
@@ -2569,8 +2521,7 @@ class BoxGenerator:
                                         # Step 3: Composite transformed logo onto final output
                                         # Use convert with composite to ensure sRGB color space is preserved
                                         # This prevents greyscale conversion on white backgrounds
-                                        cmd_logo_composite = [
-                                            _convert_cmd(),
+                                        cmd_logo_composite = _imagemagick_cmd('convert') + [
                                             output_path,
                                             temp_logo_transformed,
                                             '-colorspace', 'sRGB',

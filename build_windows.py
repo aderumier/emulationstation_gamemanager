@@ -42,8 +42,7 @@ def main():
     tools_required = {
         'ffmpeg/ffmpeg.exe': 'FFmpeg',
         'ffmpeg/ffprobe.exe': 'FFprobe',
-        'imagemagick/convert.exe': 'ImageMagick convert',
-        'imagemagick/identify.exe': 'ImageMagick identify',
+        'imagemagick/magick.exe': 'ImageMagick (magick – IM 7)',
         'yt-dlp.exe': 'yt-dlp',
     }
     

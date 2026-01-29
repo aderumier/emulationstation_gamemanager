@@ -46,8 +46,7 @@ The following tools are bundled in the `tools/windows/` directory:
   - Used for: Video downloads, cropping, re-encoding, duration detection
 
 - **ImageMagick** (`tools/windows/imagemagick/`)
-  - `convert.exe` - Image conversion and processing
-  - `identify.exe` - Image information extraction
+  - `magick.exe` - ImageMagick 7 (replaces convert/identify/composite; same params)
   - Used for: Image resizing, format conversion, logo generation, 2D box art
 
 - **yt-dlp** (`tools/windows/yt-dlp.exe`)
@@ -115,8 +114,7 @@ If you see errors about missing tools (ffmpeg, ImageMagick, yt-dlp):
 2. Check that the tool executables are present:
    - `tools/windows/ffmpeg/ffmpeg.exe`
    - `tools/windows/ffmpeg/ffprobe.exe`
-   - `tools/windows/imagemagick/convert.exe`
-   - `tools/windows/imagemagick/identify.exe`
+   - `tools/windows/imagemagick/magick.exe`
    - `tools/windows/yt-dlp.exe`
 
 3. If tools are missing, re-download the release package

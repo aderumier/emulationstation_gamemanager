@@ -49,32 +49,38 @@ jobs:
         Copy-Item "$ffmpegDir\bin\ffprobe.exe" "tools\windows\ffmpeg\ffprobe.exe"
         Write-Host "FFmpeg downloaded and extracted"
         
+    - name: Setup 7-Zip (for ImageMagick portable .7z)
+      uses: milliewalky/setup-7-zip@v2
+
     - name: Download ImageMagick
       run: |
-        $imagemagickUrl = "https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-15-Q16-HDRI-x64-dll.exe"
-        $imagemagickInstaller = "$env:TEMP\imagemagick.exe"
-        # Try to download portable version first, fallback to installer
+        $portableUrl = "https://imagemagick.org/archive/binaries/ImageMagick-7.1.2-13-portable-Q16-HDRI-x64.7z"
+        $im7z = "$env:TEMP\imagemagick.7z"
+        $imExtract = "$env:TEMP\imagemagick"
+        New-Item -ItemType Directory -Path "tools\windows\imagemagick" -Force | Out-Null
         try {
-          $portableUrl = "https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-15-Q16-HDRI-x64.zip"
-          Invoke-WebRequest -Uri $portableUrl -OutFile "$env:TEMP\imagemagick.zip" -ErrorAction Stop
-          Expand-Archive -Path "$env:TEMP\imagemagick.zip" -DestinationPath "$env:TEMP\imagemagick" -Force
-          $imDir = Get-ChildItem "$env:TEMP\imagemagick" -Directory | Select-Object -First 1
-          New-Item -ItemType Directory -Path "tools\windows\imagemagick" -Force | Out-Null
-          Copy-Item "$imDir\ImageMagick-*\bin\convert.exe" "tools\windows\imagemagick\convert.exe" -ErrorAction SilentlyContinue
-          Copy-Item "$imDir\ImageMagick-*\bin\identify.exe" "tools\windows\imagemagick\identify.exe" -ErrorAction SilentlyContinue
-          # Try alternative path structure
-          if (-not (Test-Path "tools\windows\imagemagick\convert.exe")) {
-            $binDir = Get-ChildItem "$env:TEMP\imagemagick" -Recurse -Filter "convert.exe" | Select-Object -First 1
-            if ($binDir) {
-              Copy-Item $binDir.FullName "tools\windows\imagemagick\convert.exe"
-              Copy-Item $binDir.DirectoryName\identify.exe "tools\windows\imagemagick\identify.exe"
-            }
+          Write-Host "Downloading ImageMagick portable..."
+          Invoke-WebRequest -Uri $portableUrl -OutFile $im7z -UseBasicParsing -ErrorAction Stop
+          if (-not (Test-Path $im7z) -or (Get-Item $im7z).Length -lt 1000000) {
+            throw "Download failed or file too small"
           }
+          Write-Host "Extracting ImageMagick..."
+          if (Test-Path $imExtract) { Remove-Item $imExtract -Recurse -Force }
+          New-Item -ItemType Directory -Path $imExtract -Force | Out-Null
+          & 7z x $im7z "-o$imExtract" -y
+          if ($LASTEXITCODE -ne 0) { throw "7z extract failed (exit $LASTEXITCODE)" }
+          $magickExe = Get-ChildItem -Path $imExtract -Recurse -Filter "magick.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $magickExe) { throw "magick.exe not found in archive (IM 7 uses magick instead of convert/identify/composite)" }
+          Copy-Item $magickExe.FullName "tools\windows\imagemagick\magick.exe" -Force
         } catch {
-          Write-Host "Portable version not available, will need manual ImageMagick setup"
-          New-Item -ItemType Directory -Path "tools\windows\imagemagick" -Force | Out-Null
+          Write-Host "ImageMagick download/extract failed: $_"
+          exit 1
         }
-        Write-Host "ImageMagick setup completed"
+        if (-not (Test-Path "tools\windows\imagemagick\magick.exe")) {
+          Write-Host "magick.exe missing after setup"
+          exit 1
+        }
+        Write-Host "ImageMagick setup completed (magick.exe – IM 7 uses magick for convert/identify/composite)"
         
     - name: Download yt-dlp
       run: |

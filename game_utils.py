@@ -42,10 +42,6 @@ def find_tool(tool_name, windows_exe=None):
             os.path.join(base_dir, 'tools', 'windows', exe_name),
             os.path.join(base_dir, 'tools', tool_name, exe_name),
         ]
-        # ImageMagick on Windows deploy is in tools/windows/imagemagick/
-        if tool_name in ('convert', 'identify', 'composite'):
-            bundled_paths.insert(0, os.path.join(base_dir, 'tools', 'windows', 'imagemagick', exe_name))
-        
         for path in bundled_paths:
             if os.path.exists(path):
                 return path
@@ -57,6 +53,36 @@ def find_tool(tool_name, windows_exe=None):
         # Only bundled tools like yt-dlp are in tools/ directory
         # For system tools (ffmpeg, convert, identify), just return the name
         return tool_name
+
+
+def get_imagemagick_cmd(subcommand):
+    """
+    Return argv prefix for ImageMagick (convert / identify / composite).
+    IM 7 on Windows uses magick.exe only: magick (convert), magick identify, magick composite.
+    See: https://github.com/ImageMagick/ImageMagick/discussions/6193
+
+    Args:
+        subcommand: 'convert' | 'identify' | 'composite'
+
+    Returns:
+        List to prepend to subprocess argv, e.g. [magick_exe] or [magick_exe, 'identify'].
+    """
+    if sys.platform == 'win32':
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+        magick_exe = 'magick.exe'
+        bundled = os.path.join(base_dir, 'tools', 'windows', 'imagemagick', magick_exe)
+        if os.path.exists(bundled):
+            magick_exe = bundled
+        if subcommand == 'convert':
+            return [magick_exe]
+        return [magick_exe, subcommand]
+    if subcommand == 'convert':
+        return ['convert']
+    return [subcommand]
+
 
 ARTICLE_PATTERN_BEGIN = re.compile(r"^\b(|a|an|the|le|la|l'|un|une|el|los|las|de|der|die|das)\b")
 ARTICLE_PATTERN_END = re.compile(r",\s?(the|a|an|le|la|l'|un|une|el|los|las|de|der|die|das)(?=\s|$|:)")
@@ -290,7 +316,7 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
         if needs_resize:
             try:
                 # Use ImageMagick identify to get dimensions
-                identify_cmd = ['identify', '-format', '%wx%h', file_path]
+                identify_cmd = get_imagemagick_cmd('identify') + ['-format', '%wx%h', file_path]
                 result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     dimensions = result.stdout.strip().split('x')
@@ -318,8 +344,7 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
         if needs_conversion and target_extension and target_extension.lower() in ['.jpg', '.jpeg']:
             # Check if image has transparency (RGBA, LA, or P mode)
             try:
-                identify_cmd = find_tool('identify', 'identify.exe')
-                identify_alpha_cmd = [identify_cmd, '-format', '%[channels]', file_path]
+                identify_alpha_cmd = get_imagemagick_cmd('identify') + ['-format', '%[channels]', file_path]
                 alpha_result = subprocess.run(identify_alpha_cmd, capture_output=True, text=True, timeout=10)
                 if alpha_result.returncode == 0 and 'a' in alpha_result.stdout.lower():
                     # Image has alpha channel, add white background and remove alpha

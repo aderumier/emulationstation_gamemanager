@@ -10,8 +10,7 @@ tools/windows/
 │   ├── ffmpeg.exe      # Video processing
 │   └── ffprobe.exe     # Video metadata
 ├── imagemagick/
-│   ├── convert.exe     # Image conversion
-│   └── identify.exe    # Image information
+│   └── magick.exe      # ImageMagick 7 (convert, identify, composite – same params)
 └── yt-dlp.exe         # YouTube downloader
 ```
 
@@ -27,9 +26,10 @@ tools/windows/
 ### ImageMagick
 
 1. Visit: https://imagemagick.org/script/download.php
-2. Download: Windows portable version (zip) or installer
-3. If zip: Extract and copy `convert.exe` and `identify.exe` from `ImageMagick-*/bin/` to `tools/windows/imagemagick/`
-4. If installer: Install and copy from installation directory (usually `C:\Program Files\ImageMagick-*/`)
+2. Download: Windows portable version (zip or .7z) or installer – **ImageMagick 7** required
+3. IM 7 uses `magick.exe` only (replaces convert/identify/composite). See: https://github.com/ImageMagick/ImageMagick/discussions/6193
+4. If zip/7z: Extract and copy `magick.exe` from `ImageMagick-*/` (or `bin/`) to `tools/windows/imagemagick/`
+5. If installer: Install and copy `magick.exe` from installation directory (usually `C:\Program Files\ImageMagick-*/`)
 
 ### yt-dlp
 

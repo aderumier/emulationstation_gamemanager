@@ -111,10 +111,6 @@ def find_tool(tool_name, windows_exe=None):
             os.path.join(_base_dir, 'tools', 'windows', exe_name),
             os.path.join(_base_dir, 'tools', tool_name, exe_name),
         ]
-        # ImageMagick on Windows deploy is in tools/windows/imagemagick/
-        if tool_name in ('convert', 'identify', 'composite'):
-            bundled_paths.insert(0, os.path.join(_base_dir, 'tools', 'windows', 'imagemagick', exe_name))
-        
         for path in bundled_paths:
             if os.path.exists(path):
                 return path
@@ -10685,7 +10681,7 @@ def load_launchbox_config():
 
 
 
-from game_utils import normalize_game_name
+from game_utils import normalize_game_name, get_imagemagick_cmd
 
 def normalize_igdb_url(image_id: str, media_type: str = 'default') -> str:
     """Normalize IGDB image URL - always use .png extension"""
@@ -18195,9 +18191,7 @@ def remove_game_media_background(system_name):
                 # Use ImageMagick to remove the detected background color
                 # -fuzz 10% handles slight variations in color
                 # -transparent removes the detected background color
-                convert_cmd = find_tool('convert', 'convert.exe')
-                cmd = [
-                    convert_cmd,
+                cmd = get_imagemagick_cmd('convert') + [
                     full_media_path,
                     '-fuzz', '10%',  # 10% threshold for color matching
                     '-transparent', background_color,  # Remove detected background color
@@ -26449,8 +26443,7 @@ def run_image_crop_task(task_id, data):
         
         # Check if ImageMagick is available
         try:
-            convert_cmd = find_tool('convert', 'convert.exe')
-            result = subprocess.run([convert_cmd, '-version'], capture_output=True, text=True, timeout=10)
+            result = subprocess.run(get_imagemagick_cmd('convert') + ['-version'], capture_output=True, text=True, timeout=10)
             if result.returncode != 0:
                 task.complete(False, 'ImageMagick is not installed or not available')
                 return
@@ -26466,9 +26459,7 @@ def run_image_crop_task(task_id, data):
         task.update_progress(f"Applying image crop with dimensions: {crop_width}x{crop_height} at ({crop_x},{crop_y})")
         
         # ImageMagick crop syntax: -crop WIDTHxHEIGHT+X+Y
-        convert_cmd = find_tool('convert', 'convert.exe')
-        crop_cmd = [
-            convert_cmd,
+        crop_cmd = get_imagemagick_cmd('convert') + [
             image_path,
             '-crop', f'{crop_width}x{crop_height}+{crop_x}+{crop_y}',
             '+repage',  # Remove virtual canvas
@@ -27015,8 +27006,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
         
         # Validate ImageMagick is available
         try:
-            convert_cmd = find_tool('convert', 'convert.exe')
-            result = subprocess.run([convert_cmd, '-version'], 
+            result = subprocess.run(get_imagemagick_cmd('convert') + ['-version'], 
                                   capture_output=True, text=True, timeout=5)
             if result.returncode != 0:
                 task.complete(False, 'ImageMagick not available. Please install ImageMagick.')
@@ -27353,8 +27343,7 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
         
         # Validate ImageMagick is available
         try:
-            convert_cmd = find_tool('convert', 'convert.exe')
-            result = subprocess.run([convert_cmd, '-version'], 
+            result = subprocess.run(get_imagemagick_cmd('convert') + ['-version'], 
                                   capture_output=True, text=True, timeout=5)
             if result.returncode != 0:
                 task.complete(False, 'ImageMagick not available. Please install ImageMagick.')
@@ -27482,9 +27471,7 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 
                 # For bold: use stroke with same color as fill to simulate bold
                 # For italic: use shear to skew text horizontally
-                convert_cmd = find_tool('convert', 'convert.exe')
-                cmd = [
-                    convert_cmd,
+                cmd = get_imagemagick_cmd('convert') + [
                     '-background', 'none',  # Transparent background
                     '-fill', color,         # Text color
                     '-font', font_path,     # Font family (or path to custom font)
@@ -27523,15 +27510,14 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                         continue
                     
                     # Get text dimensions and draw underline
-                    identify_cmd = find_tool('identify', 'identify.exe')
-                    identify_cmd = [identify_cmd, '-format', '%wx%h', temp_text]
+                    identify_cmd = get_imagemagick_cmd('identify') + ['-format', '%wx%h', temp_text]
                     dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                     if dim_result.returncode == 0:
                         width, height = dim_result.stdout.strip().split('x')
                         # Draw underline at bottom of text
                         underline_y = int(height) - 2
-                        cmd = [
-                            'convert', temp_text,
+                        cmd = get_imagemagick_cmd('convert') + [
+                            temp_text,
                             '-stroke', color,
                             '-strokewidth', '2',
                             '-draw', f'line 0,{underline_y} {width},{underline_y}',
@@ -28058,17 +28044,15 @@ def serve_cbz_file(system_name, cbz_path):
 def serve_pdf_for_viewer(system_name, pdf_path):
     """Serve PDF files for EmbedPDF viewer with proper CORS headers. Converts CBZ to PDF on-the-fly if needed."""
     try:
-        # Sanitize path (remove leading ./ or /)
+        # Sanitize path (remove leading ./ or /, path traversal)
         pdf_path = pdf_path.replace('..', '').lstrip('/').lstrip('./')
+        parts = [p for p in pdf_path.replace('\\', '/').split('/') if p]
         
-        # Construct full PDF path
-        full_pdf_path = os.path.join('roms', system_name, pdf_path)
-        
-        # Normalize path
-        full_pdf_path = os.path.normpath(full_pdf_path)
+        # Construct full PDF path (use ROMS_FOLDER, not hardcoded 'roms')
+        full_pdf_path = os.path.normpath(os.path.join(ROMS_FOLDER, system_name, *parts))
         
         # Security check
-        abs_roms = os.path.abspath('roms')
+        abs_roms = os.path.abspath(os.path.normpath(ROMS_FOLDER))
         abs_pdf = os.path.abspath(full_pdf_path)
         if not abs_pdf.startswith(abs_roms):
             return jsonify({'error': 'Invalid PDF path'}), 400
@@ -28078,9 +28062,10 @@ def serve_pdf_for_viewer(system_name, pdf_path):
         
         # Check if it's a CBZ file - convert to PDF on-the-fly
         # Also support PDF/CBZ paths for map field (same as manual)
-        if pdf_path.lower().endswith('.cbz'):
+        path_lower = full_pdf_path.lower()
+        if path_lower.endswith('.cbz'):
             return convert_cbz_to_pdf_response(full_pdf_path)
-        elif not pdf_path.lower().endswith('.pdf'):
+        elif not path_lower.endswith('.pdf'):
             return jsonify({'error': 'File is not a PDF or CBZ'}), 400
         
         # Serve PDF with CORS headers for EmbedPDF
@@ -30527,9 +30512,7 @@ def generate_logo_preview():
             # Calculate approximate width needed based on max_chars_per_line
             caption_width = int(font_size * max_chars_per_line * 0.6)  # Approximate width
             
-            convert_cmd = find_tool('convert', 'convert.exe')
-            cmd_base = [
-                convert_cmd,
+            cmd_base = get_imagemagick_cmd('convert') + [
                 '-background', 'none',
                 '-fill', color,
                 '-font', font_path,
@@ -30545,8 +30528,7 @@ def generate_logo_preview():
                 return jsonify({'error': f'ImageMagick failed: {result.stderr}'}), 500
             
             # Step 2: Apply effects
-            convert_cmd = find_tool('convert', 'convert.exe')
-            cmd = [convert_cmd, temp_base]
+            cmd = get_imagemagick_cmd('convert') + [temp_base]
             
             # Apply italic (shear) if needed - do this before bold
             if italic:
@@ -30572,15 +30554,14 @@ def generate_logo_preview():
             # Step 3: Add underline if needed
             if underline:
                 # Get text dimensions and draw underline
-                identify_cmd = find_tool('identify', 'identify.exe')
-                identify_cmd = [identify_cmd, '-format', '%wx%h', output_path]
+                identify_cmd = get_imagemagick_cmd('identify') + ['-format', '%wx%h', output_path]
                 dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                 if dim_result.returncode == 0:
                     width, height = dim_result.stdout.strip().split('x')
                     # Draw underline at bottom of text
                     underline_y = int(height) - 2
-                    cmd_underline = [
-                        'convert', output_path,
+                    cmd_underline = get_imagemagick_cmd('convert') + [
+                        output_path,
                         '-stroke', color,
                         '-strokewidth', '2',
                         '-draw', f'line 0,{underline_y} {width},{underline_y}',
