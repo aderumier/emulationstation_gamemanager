@@ -36,6 +36,12 @@ VAR_2DBOX_TEMPLATES_DIR = os.path.join(_base_dir, 'var', '2dbox', 'templates')
 VAR_3DBOX_TEMPLATES_DIR = os.path.join(_base_dir, 'var', '3dbox', 'templates')
 VAR_TEMP_DIR = os.path.join(_base_dir, 'var', 'temp')
 
+# Default ROMs directory: appdir + "/roms" on Windows, /opt/gamemanager/roms as fallback on Linux
+if sys.platform == 'win32' or getattr(sys, 'frozen', False):
+    DEFAULT_ROMS_DIRECTORY = os.path.join(_base_dir, 'roms')
+else:
+    DEFAULT_ROMS_DIRECTORY = '/opt/gamemanager/roms'
+
 # Ensure current directory is first in sys.path to use embedded libraries
 # (selenium, pyrate_limiter, pixelmatch) instead of system-installed versions
 if _app_dir not in sys.path:
@@ -695,7 +701,7 @@ def load_config():
     
     config_file = 'var/config/config.json'
     default_config = {
-        'roms_root_directory': 'roms',
+        'roms_root_directory': DEFAULT_ROMS_DIRECTORY,
         'task_logs_directory': 'var/task_logs',
         'max_tasks_to_keep': 30,
         'server': {
@@ -13137,7 +13143,7 @@ def download_multiscraper_media_endpoint():
                     if not media_subdirectory:
                         return jsonify({'error': f'No directory configured for media type: {media_type}'}), 400
                     
-                    roms_root = config.get('roms_root_directory', '/opt/gamemanager/roms')
+                    roms_root = config.get('roms_root_directory', DEFAULT_ROMS_DIRECTORY)
                     media_dir = os.path.join(roms_root, system_name, 'media', media_subdirectory)
                     os.makedirs(media_dir, exist_ok=True)
                     
@@ -37392,7 +37398,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                 traceback.print_exc()
                 raise e
             
-            roms_root = config.get('roms_root_directory', '/opt/gamemanager/roms')
+            roms_root = config.get('roms_root_directory', DEFAULT_ROMS_DIRECTORY)
             steam_config = scrappers_config.get('steam', {})
             image_type_mappings = steam_config.get('image_type_mappings', {
                 'boxart': 'capsule',
@@ -38226,7 +38232,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
             with open('var/config/config.json', 'r') as f:
                 config = json.load(f)
             
-            roms_root = config.get('roms_root_directory', '/opt/gamemanager/roms')
+            roms_root = config.get('roms_root_directory', DEFAULT_ROMS_DIRECTORY)
             steamgriddb_config = scrappers_config.get('steamgriddb', {})
             image_type_mappings = steamgriddb_config.get('image_type_mappings', {
                 'boxart': 'grids',
@@ -38656,7 +38662,7 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
             with open('var/config/config.json', 'r') as f:
                 config = json.load(f)
             
-            roms_root = config.get('roms_root_directory', '/opt/gamemanager/roms')
+            roms_root = config.get('roms_root_directory', DEFAULT_ROMS_DIRECTORY)
             scrappers_config = load_scrappers_config()
             emumovies_config = scrappers_config.get('emumovies', {})
             image_type_mappings = emumovies_config.get('image_type_mappings', {})
