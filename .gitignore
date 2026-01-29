@@ -186,5 +186,9 @@ screenscraper_test.txt
 # Tools - exclude large binaries
 tools/deno
 
+# Whitelist static images
+!static/images/
+!static/images/**
+
 # Unused submodule
 google-images-scraper/
