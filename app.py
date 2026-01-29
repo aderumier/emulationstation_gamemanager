@@ -17718,8 +17718,9 @@ def extract_first_frame():
         
         # Convert web path to file system path if needed
         if video_path.startswith('/roms/'):
-            # Convert /roms/system/path to actual file system path
-            video_path = os.path.join(ROMS_FOLDER, video_path[6:])  # Remove '/roms/' prefix
+            # Convert /roms/system/path to actual file system path (normpath for Windows)
+            rest = video_path[6:].replace('/', os.path.sep)
+            video_path = os.path.normpath(os.path.join(ROMS_FOLDER, rest))
         
         print(f"Extracting frame from video path: {video_path}")
         
@@ -17803,6 +17804,9 @@ def extract_first_frame():
         
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'Frame extraction timed out'}), 500
+    except FileNotFoundError as e:
+        print(f"Error extracting first frame: {e}")
+        return jsonify({'error': 'ffmpeg/ffprobe not found. On Windows, ensure tools/windows/ffmpeg/ (ffmpeg.exe, ffprobe.exe) is next to the executable.'}), 500
     except Exception as e:
         print(f"Error extracting first frame: {e}")
         import traceback
