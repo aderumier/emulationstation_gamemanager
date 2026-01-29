@@ -64,7 +64,7 @@ def main():
         print("\nDownload instructions:")
         print("  - FFmpeg: https://www.gyan.dev/ffmpeg/builds/ (put ffmpeg.exe, ffprobe.exe in tools/windows/)")
         print("  - ImageMagick: https://imagemagick.org/script/download.php")
-        print("  - yt-dlp: https://github.com/yt-dlp/yt-dlp/releases/latest")
+        print("  - yt-dlp: https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest")
         response = input("\nContinue anyway? (y/N): ")
         if response.lower() != 'y':
             return
@@ -118,6 +118,13 @@ def main():
     if tools_dir.exists():
         shutil.copytree('tools', dist_dir / 'tools', dirs_exist_ok=True)
         print(f"✅ Copied tools directory")
+        
+        # Copy yt-dlp-plugins to tools/windows to be next to yt-dlp.exe
+        plugins_src = Path('tools/yt-dlp-plugins')
+        if plugins_src.exists():
+            plugins_dst = dist_dir / 'tools' / 'windows' / 'yt-dlp-plugins'
+            shutil.copytree(plugins_src, plugins_dst, dirs_exist_ok=True)
+            print(f"✅ Copied yt-dlp-plugins to {plugins_dst}")
     
     # Create var directory structure
     var_dir = dist_dir / 'var'

@@ -1222,7 +1222,7 @@ def ensure_yt_dlp_binary():
             try:
                 print("Downloading latest yt-dlp binary...")
                 # Download the latest yt-dlp binary
-                response = requests.get('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', timeout=30)
+                response = requests.get('https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp', timeout=30)
                 response.raise_for_status()
                 
                 # Save the binary
