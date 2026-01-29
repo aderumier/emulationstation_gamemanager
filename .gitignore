@@ -185,6 +185,8 @@ screenscraper_test.txt
 
 # Tools - exclude large binaries
 tools/deno
+!tools/yt-dlp-plugins/
+!tools/yt-dlp-plugins/**
 
 # Whitelist static images
 !static/images/
