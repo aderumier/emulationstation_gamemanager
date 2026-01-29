@@ -17619,11 +17619,11 @@ def save_screenshot_to_field(system_name):
         if not game:
             return jsonify({'error': f'Game not found with ROM path: {rom_path}'}), 404
         
-        # Convert temp path to absolute path (use VAR_TEMP_DIR for frozen Windows)
+        # Convert temp path to path relative to VAR_TEMP_DIR (e.g. /var/temp/medias/x.jpg -> medias/x.jpg)
         if temp_path.startswith('/var/temp/'):
-            rel_path = temp_path[1:]  # Remove leading /
+            rel_path = temp_path[len('/var/temp/'):]
         elif temp_path.startswith('var/temp/'):
-            rel_path = temp_path
+            rel_path = temp_path[len('var/temp/'):]
         else:
             rel_path = os.path.join('medias', os.path.basename(temp_path))
         temp_file_path = os.path.join(VAR_TEMP_DIR, rel_path)
