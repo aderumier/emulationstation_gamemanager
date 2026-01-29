@@ -31,9 +31,10 @@ else:
     _app_dir = os.path.dirname(os.path.abspath(__file__))
     _base_dir = _app_dir
 
-# 2D/3D box templates dirs: resolve from _base_dir so frozen Windows exe finds var/*/templates next to exe
+# 2D/3D box templates and var/temp: resolve from _base_dir so frozen Windows exe finds them next to exe
 VAR_2DBOX_TEMPLATES_DIR = os.path.join(_base_dir, 'var', '2dbox', 'templates')
 VAR_3DBOX_TEMPLATES_DIR = os.path.join(_base_dir, 'var', '3dbox', 'templates')
+VAR_TEMP_DIR = os.path.join(_base_dir, 'var', 'temp')
 
 # Ensure current directory is first in sys.path to use embedded libraries
 # (selenium, pyrate_limiter, pixelmatch) instead of system-installed versions
@@ -2725,7 +2726,7 @@ def cleanup_temp_files():
         temp_files = []
         
         # Find all .temp files in the var/temp/medias directory
-        temp_medias_dir = os.path.join('var', 'temp', 'medias')
+        temp_medias_dir = os.path.join(VAR_TEMP_DIR, 'medias')
         if os.path.exists(temp_medias_dir):
             for file in os.listdir(temp_medias_dir):
                 if '.temp' in file:  # Handle both .temp and .temp.{extension} formats
@@ -6947,8 +6948,7 @@ def serve_rom_file(filename):
 @login_required
 def serve_temp_file(filename):
     """Serve temporary files (e.g., screenshots)"""
-    temp_dir = os.path.join('var', 'temp')
-    return send_from_directory(temp_dir, filename)
+    return send_from_directory(VAR_TEMP_DIR, filename)
 
 # Test Cropper Route
 @app.route('/test_cropper_simple.html')
@@ -17558,7 +17558,7 @@ def save_screenshot(system_name):
             return jsonify({'error': 'No file selected'}), 400
         
         # Create temp directory for screenshots
-        temp_medias_dir = os.path.join('var', 'temp', 'medias')
+        temp_medias_dir = os.path.join(VAR_TEMP_DIR, 'medias')
         os.makedirs(temp_medias_dir, exist_ok=True)
         
         # Generate unique temp filename
@@ -17619,13 +17619,14 @@ def save_screenshot_to_field(system_name):
         if not game:
             return jsonify({'error': f'Game not found with ROM path: {rom_path}'}), 404
         
-        # Convert temp path to absolute path
+        # Convert temp path to absolute path (use VAR_TEMP_DIR for frozen Windows)
         if temp_path.startswith('/var/temp/'):
-            temp_file_path = temp_path[1:]  # Remove leading /
+            rel_path = temp_path[1:]  # Remove leading /
         elif temp_path.startswith('var/temp/'):
-            temp_file_path = temp_path
+            rel_path = temp_path
         else:
-            temp_file_path = os.path.join('var', 'temp', 'medias', os.path.basename(temp_path))
+            rel_path = os.path.join('medias', os.path.basename(temp_path))
+        temp_file_path = os.path.join(VAR_TEMP_DIR, rel_path)
         
         if not os.path.exists(temp_file_path):
             return jsonify({'error': f'Temp screenshot file not found: {temp_file_path}'}), 404
@@ -24967,7 +24968,7 @@ def run_youtube_download_task(task_id, data):
         task.update_progress(f"Created videos directory: {videos_dir}")
         
         # Create temp directory for video processing
-        temp_videos_dir = os.path.abspath(os.path.join('var', 'temp', 'videos'))
+        temp_videos_dir = os.path.join(VAR_TEMP_DIR, 'videos')
         os.makedirs(temp_videos_dir, exist_ok=True)
         task.update_progress(f"Created temp directory: {temp_videos_dir}")
         
@@ -25085,7 +25086,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         os.makedirs(videos_dir, exist_ok=True)
         
         # Create temp directory for video processing
-        temp_videos_dir = os.path.abspath(os.path.join('var', 'temp', 'videos'))
+        temp_videos_dir = os.path.join(VAR_TEMP_DIR, 'videos')
         os.makedirs(temp_videos_dir, exist_ok=True)
         task.update_progress(f"Created temp directory: {temp_videos_dir}")
         
@@ -26238,7 +26239,7 @@ def run_manual_crop_task(task_id, data):
         os.makedirs(videos_dir, exist_ok=True)
         
         # Create temp directory for video processing
-        temp_videos_dir = os.path.abspath(os.path.join('var', 'temp', 'videos'))
+        temp_videos_dir = os.path.join(VAR_TEMP_DIR, 'videos')
         os.makedirs(temp_videos_dir, exist_ok=True)
         
         # Use original filename (replace the original video)
@@ -26435,7 +26436,7 @@ def run_image_crop_task(task_id, data):
         original_filename = os.path.basename(image_path)
         
         # Create temp directory for image processing
-        temp_images_dir = os.path.abspath(os.path.join('var', 'temp', 'medias'))
+        temp_images_dir = os.path.join(VAR_TEMP_DIR, 'medias')
         os.makedirs(temp_images_dir, exist_ok=True)
         
         # Create temporary filename for crop
@@ -31660,7 +31661,7 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             print(f"{emoji} DEBUG: Content type: {content_type}")
             
             # Create temporary directory for downloads
-            temp_medias_dir = os.path.join('var', 'temp', 'medias')
+            temp_medias_dir = os.path.join(VAR_TEMP_DIR, 'medias')
             os.makedirs(temp_medias_dir, exist_ok=True)
             
             # Determine file extension from content type or URL
