@@ -251,8 +251,9 @@ def crop_video(video_file_path, newfile, start_time, duration):
         raise
 
 # User model for authentication
+# role: 'admin' = full access to all systems and admin features; 'user' = restricted to allowed_systems only (empty = no access)
 class User(UserMixin):
-    def __init__(self, user_id, username, email=None, discord_id=None, is_active=True, is_validated=False, created_at=None, last_login=None):
+    def __init__(self, user_id, username, email=None, discord_id=None, is_active=True, is_validated=False, created_at=None, last_login=None, allowed_systems=None, role=None):
         self.id = user_id
         self.username = username
         self.email = email
@@ -261,6 +262,10 @@ class User(UserMixin):
         self.is_validated = is_validated
         self.created_at = created_at or datetime.now().isoformat()
         self.last_login = last_login
+        self.allowed_systems = allowed_systems  # for role 'user': list of system names; empty = no access
+        self.role = (role or 'user').lower() if role else 'user'
+        if self.role not in ('admin', 'user'):
+            self.role = 'user'
     
     @property
     def is_active(self):
@@ -351,6 +356,11 @@ def get_user_by_id(user_id):
     users = load_users()
     user_data = users.get(user_id)
     if user_data:
+        role = user_data.get('role')
+        if not role and user_data.get('is_validated'):
+            role = 'admin'  # backward compat: validated users were admins
+        elif not role:
+            role = 'user'
         return User(
             user_id=user_id,
             username=user_data['username'],
@@ -359,7 +369,9 @@ def get_user_by_id(user_id):
             is_active=user_data.get('is_active', True),
             is_validated=user_data.get('is_validated', False),
             created_at=user_data.get('created_at'),
-            last_login=user_data.get('last_login')
+            last_login=user_data.get('last_login'),
+            allowed_systems=user_data.get('allowed_systems'),
+            role=role
         )
     return None
 
@@ -368,6 +380,7 @@ def get_user_by_username(username):
     users = load_users()
     for user_id, user_data in users.items():
         if user_data['username'] == username:
+            role = user_data.get('role') or ('admin' if user_data.get('is_validated') else 'user')
             return User(
                 user_id=user_id,
                 username=user_data['username'],
@@ -376,7 +389,9 @@ def get_user_by_username(username):
                 is_active=user_data.get('is_active', True),
                 is_validated=user_data.get('is_validated', False),
                 created_at=user_data.get('created_at'),
-                last_login=user_data.get('last_login')
+                last_login=user_data.get('last_login'),
+                allowed_systems=user_data.get('allowed_systems'),
+                role=role
             )
     return None
 
@@ -385,6 +400,7 @@ def get_user_by_discord_id(discord_id):
     users = load_users()
     for user_id, user_data in users.items():
         if user_data.get('discord_id') == discord_id:
+            role = user_data.get('role') or ('admin' if user_data.get('is_validated') else 'user')
             return User(
                 user_id=user_id,
                 username=user_data['username'],
@@ -393,11 +409,13 @@ def get_user_by_discord_id(discord_id):
                 is_active=user_data.get('is_active', True),
                 is_validated=user_data.get('is_validated', False),
                 created_at=user_data.get('created_at'),
-                last_login=user_data.get('last_login')
+                last_login=user_data.get('last_login'),
+                allowed_systems=user_data.get('allowed_systems'),
+                role=role
             )
     return None
 
-def create_user(username, password, email=None, discord_id=None):
+def create_user(username, password, email=None, discord_id=None, role='user'):
     """Create a new user"""
     users = load_users()
     user_id = str(uuid.uuid4())
@@ -413,15 +431,20 @@ def create_user(username, password, email=None, discord_id=None):
             if existing_user.get('discord_id') == discord_id:
                 return None, "Discord account already linked"
     
+    role = (role or 'user').lower() if role else 'user'
+    if role not in ('admin', 'user'):
+        role = 'user'
     user_data = {
         'username': username,
         'password_hash': hash_password(password),
         'email': email,
         'discord_id': discord_id,
         'is_active': True,
-        'is_validated': False,  # New users need validation
+        'is_validated': (role == 'admin'),  # admin considered validated
         'created_at': datetime.now().isoformat(),
-        'last_login': None
+        'last_login': None,
+        'allowed_systems': [],
+        'role': role
     }
     
     users[user_id] = user_data
@@ -433,8 +456,10 @@ def create_user(username, password, email=None, discord_id=None):
         email=email,
         discord_id=discord_id,
         is_active=True,
-        is_validated=False,
-        created_at=user_data['created_at']
+        is_validated=(role == 'admin'),
+        created_at=user_data['created_at'],
+        allowed_systems=[],
+        role=role
     ), None
 
 def update_user_last_login(user_id):
@@ -443,6 +468,57 @@ def update_user_last_login(user_id):
     if user_id in users:
         users[user_id]['last_login'] = datetime.now().isoformat()
         save_users(users)
+
+
+def is_admin_user(user):
+    """Return True if user has admin role (full access). When auth is disabled, bypass user is admin."""
+    if not user:
+        return False
+    return getattr(user, 'role', 'user') == 'admin'
+
+
+def user_can_access_system(user, system_name):
+    """Return True if user is allowed to access the given system. Admin = all systems; user = only allowed_systems (empty = none)."""
+    if not user or not system_name:
+        return False
+    if is_admin_user(user):
+        return True
+    allowed = getattr(user, 'allowed_systems', None)
+    if not allowed or not isinstance(allowed, list):
+        return False
+    return system_name in allowed
+
+
+def filter_systems_for_user(systems_list, user):
+    """Filter systems list by user. Admin = all; user = only allowed_systems (empty allowed = none)."""
+    if not user:
+        return systems_list
+    if is_admin_user(user):
+        return systems_list
+    allowed = getattr(user, 'allowed_systems', None)
+    if not allowed or not isinstance(allowed, list):
+        return []
+    allowed_set = set(allowed)
+    result = []
+    for s in systems_list:
+        if isinstance(s, dict):
+            name = s.get('name')
+        else:
+            name = s
+        if name in allowed_set:
+            result.append(s)
+    return result
+
+
+def require_system_access(system_name):
+    """Return a 403 JSON response if current_user cannot access system_name, else None. Call at start of system-scoped routes."""
+    from flask_login import current_user
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if not user_can_access_system(current_user, system_name):
+        return jsonify({'error': 'Access denied to this system'}), 403
+    return None
+
 
 def is_local_auth_disabled():
     """Check if local authentication is disabled"""
@@ -489,11 +565,13 @@ def get_or_create_admin_user():
                 is_active=user_data.get('is_active', True),
                 is_validated=user_data.get('is_validated', True),  # Auto-validate for bypass
                 created_at=user_data.get('created_at'),
-                last_login=user_data.get('last_login')
+                last_login=user_data.get('last_login'),
+                allowed_systems=user_data.get('allowed_systems'),
+                role=user_data.get('role') or 'admin'  # Bypass user is always admin
             )
     
-    # Create admin user if it doesn't exist
-    admin_user, error = create_user('admin', 'admin123', 'admin@localhost')
+    # Create admin user if it doesn't exist (auth disabled: user is admin)
+    admin_user, error = create_user('admin', 'admin123', 'admin@localhost', None, role='admin')
     if admin_user:
         # Auto-validate the admin user
         admin_user.is_validated = True
@@ -507,149 +585,104 @@ def get_or_create_admin_user():
 
 
 def should_auto_create_discord_user(discord_id, access_token, discord_config):
-    """Check if Discord user should be auto-created based on server membership and role
-    Returns (should_create, error_message) tuple"""
+    """Check if Discord user should be auto-created based on server membership and role.
+    Returns (should_create, error_message, assigned_role). assigned_role is 'admin' or 'user'."""
     try:
-        # Get Discord configuration for auto-creation
         auto_create_config = discord_config.get('auto_create', {})
         required_guild_id = auto_create_config.get('guild_id')
-        required_role_name = auto_create_config.get('role_name')
+        admin_role_name = (auto_create_config.get('admin_role_name') or '').strip()
+        user_role_name = (auto_create_config.get('user_role_name') or '').strip()
         auto_create_enabled = auto_create_config.get('enabled', False)
         
-        print(f"[DISCORD DEBUG] Auto-create config: enabled={auto_create_enabled}, guild_id={required_guild_id}, role_name={required_role_name}")
+        print(f"[DISCORD DEBUG] Auto-create config: enabled={auto_create_enabled}, guild_id={required_guild_id}, admin_role={admin_role_name!r}, user_role={user_role_name!r}")
         
-        # If auto-create is disabled or no configuration, don't auto-create
         if not auto_create_enabled:
-            return False, "Auto-creation is disabled"
+            return False, "Auto-creation is disabled", None
         if not required_guild_id:
-            return False, "No Discord server configured for auto-creation"
+            return False, "No Discord server configured for auto-creation", None
         
-        # Get bot token from Discord credentials
         bot_token = discord_config.get('bot_token', '')
         if not bot_token:
-            print(f"[DISCORD DEBUG] No bot token found in credentials - falling back to guild membership only")
-            # Fall back to guild membership check only
-            return _check_guild_membership_only(discord_id, access_token, required_guild_id, required_role_name)
+            if admin_role_name or user_role_name:
+                return False, "Role verification requires bot token. Please configure Discord bot token.", None
+            ok, err = _check_guild_membership_only(discord_id, access_token, required_guild_id)
+            return (ok, err, 'user') if ok else (False, err, None)
         
-        # Add rate limiting protection
         import time
-        time.sleep(1)  # Wait 1 second to avoid rate limiting
+        time.sleep(1)
         
-        # First check guild membership using OAuth2 token
         headers = {'Authorization': f'Bearer {access_token}'}
         try:
             guilds_response = requests.get('https://discord.com/api/users/@me/guilds', headers=headers, timeout=10)
-            
-            if guilds_response.status_code == 429:  # Rate limited
-                return False, "Discord API rate limited. Please try again later."
-            elif guilds_response.status_code != 200:
-                return False, "Failed to verify Discord server membership"
+            if guilds_response.status_code == 429:
+                return False, "Discord API rate limited. Please try again later.", None
+            if guilds_response.status_code != 200:
+                return False, "Failed to verify Discord server membership", None
             
             user_guilds = guilds_response.json()
-            print(f"[DISCORD DEBUG] User guilds: {[guild['name'] for guild in user_guilds]}")
-            
-            # Check if user is member of required guild
             user_guild_ids = [guild['id'] for guild in user_guilds]
-            print(f"[DISCORD DEBUG] User guild IDs: {user_guild_ids}")
-            print(f"[DISCORD DEBUG] Required guild ID: {required_guild_id}")
             if required_guild_id not in user_guild_ids:
-                return False, f"You must be a member of the Discord server to create an account"
+                return False, "You must be a member of the Discord server to create an account", None
             
-            # If no specific role required, just guild membership is enough
-            if not required_role_name:
-                print(f"[DISCORD DEBUG] No role required - guild membership sufficient")
-                return True, None
+            if not admin_role_name and not user_role_name:
+                return True, None, 'user'
             
-            # Role verification using bot token (like PHP implementation)
-            print(f"[DISCORD DEBUG] Role '{required_role_name}' required - using bot token for verification")
-            return _check_role_with_bot(discord_id, bot_token, required_guild_id, required_role_name)
-            
+            allowed, assigned_role = _check_role_with_bot(discord_id, bot_token, required_guild_id, admin_role_name, user_role_name)
+            if allowed:
+                return True, None, assigned_role
+            return False, assigned_role if isinstance(assigned_role, str) else "You must have the admin or user role in the Discord server to create an account", None
         except requests.exceptions.Timeout:
-            return False, "Discord API request timed out. Please try again."
+            return False, "Discord API request timed out. Please try again.", None
         except requests.exceptions.RequestException as e:
-            return False, "Failed to verify Discord server membership due to network error"
-            
+            return False, "Failed to verify Discord server membership due to network error", None
     except Exception as e:
-        return False, "An error occurred while verifying Discord permissions"
+        return False, "An error occurred while verifying Discord permissions", None
 
-def _check_guild_membership_only(discord_id, access_token, required_guild_id, required_role_name):
-    """Fallback method to check only guild membership (no role verification)"""
+
+def _check_guild_membership_only(discord_id, access_token, required_guild_id):
+    """Check guild membership only (no role verification). Returns (ok, error_message)."""
     try:
-        print(f"[DISCORD DEBUG] Checking guild membership only (no role verification)")
-        
-        # Get user's guild memberships using OAuth2 token
         headers = {'Authorization': f'Bearer {access_token}'}
         guilds_response = requests.get('https://discord.com/api/users/@me/guilds', headers=headers, timeout=10)
-        
         if guilds_response.status_code != 200:
             return False, "Failed to verify Discord server membership"
-        
-        user_guilds = guilds_response.json()
-        user_guild_ids = [guild['id'] for guild in user_guilds]
-        
+        user_guild_ids = [guild['id'] for guild in guilds_response.json()]
         if required_guild_id not in user_guild_ids:
-            return False, f"You must be a member of the Discord server to create an account"
-        
-        # If no specific role required, just guild membership is enough
-        if not required_role_name:
-            print(f"[DISCORD DEBUG] No role required - guild membership sufficient")
-            return True, None
-        
-        # Role required but no bot token - can't verify roles
-        print(f"[DISCORD DEBUG] Role '{required_role_name}' required but no bot token available")
-        return False, f"Role verification requires bot configuration. Please contact an administrator."
-        
+            return False, "You must be a member of the Discord server to create an account"
+        return True, None
     except Exception as e:
-        return False, f"Error checking guild membership: {str(e)}"
+        return False, str(e)
 
-def _check_role_with_bot(discord_id, bot_token, required_guild_id, required_role_name):
-    """Check user role using bot token (like PHP implementation)"""
+
+def _check_role_with_bot(discord_id, bot_token, required_guild_id, admin_role_name, user_role_name):
+    """Check if user has admin or user Discord role. Returns (allowed, assigned_role). assigned_role is 'admin' or 'user'."""
     try:
-        print(f"[DISCORD DEBUG] Checking role with bot token")
-        
-        # Get all roles in the guild
         headers = {'Authorization': f'Bot {bot_token}'}
         roles_response = requests.get(f'https://discord.com/api/guilds/{required_guild_id}/roles', headers=headers, timeout=10)
-        
         if roles_response.status_code != 200:
-            print(f"[DISCORD DEBUG] Failed to get guild roles: {roles_response.status_code}")
             return False, "Failed to verify Discord server roles"
         
         guild_roles = roles_response.json()
-        print(f"[DISCORD DEBUG] Available roles in guild: {[role['name'] for role in guild_roles]}")
+        admin_role_id = None
+        user_role_id = None
+        for r in guild_roles:
+            if admin_role_name and r['name'].lower() == admin_role_name.lower():
+                admin_role_id = r['id']
+            if user_role_name and r['name'].lower() == user_role_name.lower():
+                user_role_id = r['id']
         
-        # Find the required role ID
-        required_role_id = None
-        for role in guild_roles:
-            if role['name'].lower() == required_role_name.lower():
-                required_role_id = role['id']
-                print(f"[DISCORD DEBUG] Found required role '{required_role_name}' with ID: {required_role_id}")
-                break
-        
-        if not required_role_id:
-            return False, f"Required role '{required_role_name}' not found in Discord server"
-        
-        # Get user's roles in the guild
         member_response = requests.get(f'https://discord.com/api/guilds/{required_guild_id}/members/{discord_id}', headers=headers, timeout=10)
-        
         if member_response.status_code != 200:
-            print(f"[DISCORD DEBUG] Failed to get member info: {member_response.status_code}")
             return False, "Failed to verify your Discord roles"
+        user_roles = member_response.json().get('roles', [])
         
-        member_data = member_response.json()
-        user_roles = member_data.get('roles', [])
-        print(f"[DISCORD DEBUG] User roles in guild: {user_roles}")
-        
-        # Check if user has the required role
-        if required_role_id in user_roles:
-            print(f"[DISCORD DEBUG] User has required role! Auto-creation approved.")
-            return True, None
-        else:
-            print(f"[DISCORD DEBUG] User does not have required role. Denying auto-creation.")
-            return False, f"You must have the '{required_role_name}' role in the Discord server to create an account"
-            
+        if admin_role_id and admin_role_id in user_roles:
+            return True, 'admin'
+        if user_role_id and user_role_id in user_roles:
+            return True, 'user'
+        return False, "You must have the admin or user role in the Discord server to create an account"
     except Exception as e:
-        return False, f"Error checking role with bot: {str(e)}"
+        return False, str(e)
 
 
 # Configuration loading function with caching
@@ -7015,6 +7048,8 @@ def list_rom_systems():
     
     # Sort systems alphabetically by name
     systems.sort(key=lambda x: x['name'].lower())
+    # Filter by user's allowed_systems
+    systems = filter_systems_for_user(systems, current_user)
     
     return jsonify(systems)
 
@@ -7037,7 +7072,9 @@ def get_genres():
 @app.route('/api/config', methods=['GET', 'PUT'])
 @login_required
 def get_config():
-    """Get or update application configuration"""
+    """Get or update application configuration. PUT requires admin role."""
+    if request.method == 'PUT' and not is_admin_user(current_user):
+        return jsonify({'error': 'Admin role required'}), 403
     if request.method == 'GET':
         # Reload scrappers_config on each GET to ensure we have the latest mappings
         # This makes the DAT Scrapper checkboxes truly dynamic based on scrappers.json
@@ -7451,7 +7488,9 @@ def get_screenscraper_credentials_values():
 @app.route('/api/discord-credentials', methods=['GET', 'PUT'])
 @login_required
 def manage_discord_credentials():
-    """Get or update Discord credentials"""
+    """Get or update Discord credentials. Admin role required."""
+    if not is_admin_user(current_user):
+        return jsonify({'error': 'Admin role required'}), 403
     try:
         from credential_manager import credential_manager
         
@@ -7905,8 +7944,10 @@ def manage_systems():
         current_systems_config = load_systems_config()
         
         if request.method == 'GET':
-            # Return all systems
+            # Return systems (filtered by user's allowed_systems)
             systems = current_systems_config
+            if current_user:
+                systems = {k: v for k, v in systems.items() if user_can_access_system(current_user, k)}
             return jsonify({'success': True, 'systems': systems})
         
         elif request.method == 'POST':
@@ -8971,6 +9012,9 @@ def manage_youtube_credentials():
 @login_required
 def scrap_steamgriddb_system(system_name):
     """Start SteamGridDB task for a specific system (SteamGridDB API only)"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -9014,6 +9058,9 @@ def scrap_steamgriddb_system(system_name):
 @login_required
 def scrap_screenscraper_system(system_name):
     """Start ScreenScraper task for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -9067,6 +9114,9 @@ def scrap_screenscraper_system(system_name):
 @login_required
 def scrap_emumovies_system(system_name):
     """Start EmuMovies task for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -9110,6 +9160,9 @@ def scrap_emumovies_system(system_name):
 @login_required
 def scrap_mobygames_system(system_name):
     """Start MobyGames task for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -9164,6 +9217,9 @@ def scrap_mobygames_system(system_name):
 @login_required
 def scrap_datscrapper_system(system_name):
     """Start DAT Scrapper task for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -9296,6 +9352,9 @@ def scrap_custom_system(system_name, scraper_type='custom'):
         system_name: Name of the system to scrape
         scraper_type: Type of scraper ('custom' or 'custom2'), defaults to 'custom'
     """
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -9430,6 +9489,9 @@ def get_datscrapper_files():
 @login_required
 def get_system_dat_files(system_name):
     """Get available DAT files for a system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         dat_path = 'var/db/dats'
         if not os.path.exists(dat_path):
@@ -9504,6 +9566,9 @@ def search_mobygames_games():
 @login_required
 def scrap_steam_system(system_name):
     """Start Steam task for a specific system (Steam CDN only)"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -9552,6 +9617,9 @@ def scrap_steam_system(system_name):
 @login_required
 def scrap_igdb_system(system_name):
     """Start IGDB scraping process for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -10256,6 +10324,9 @@ def flush_launchbox_caches():
 @login_required
 def rom_system_gamelist_batch(system_name):
     """Batch update multiple games in gamelist for a specific ROM system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         system_path = os.path.join(ROMS_FOLDER, system_name)
         if not os.path.exists(system_path):
@@ -10316,6 +10387,9 @@ def rom_system_gamelist_batch(system_name):
 @login_required
 def rom_system_gamelist(system_name):
     """Get or update gamelist for a specific ROM system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         system_path = os.path.join(ROMS_FOLDER, system_name)
         if not os.path.exists(system_path):
@@ -10625,6 +10699,9 @@ def rom_system_gamelist(system_name):
 @login_required
 def gamelist_diff_endpoint(system_name):
     """Get differences between var/gamelists and roms gamelist files"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         result = compare_gamelist_files(system_name)
         if result['success']:
@@ -10638,6 +10715,9 @@ def gamelist_diff_endpoint(system_name):
 @login_required
 def save_gamelist_endpoint(system_name):
     """Save gamelist from var/gamelists to roms/ directory"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Get request data
         data = request.get_json() or {}
@@ -10655,6 +10735,9 @@ def save_gamelist_endpoint(system_name):
 @login_required
 def force_import_gamelist_endpoint(system_name):
     """Force import gamelist.xml from roms directory to var/gamelists directory"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         import shutil
         import os
@@ -11001,6 +11084,9 @@ def write_gamelist_xml(games, file_path):
 @login_required
 def scrap_launchbox_simple(system_name):
     """Start simplified LaunchBox scraping process that runs in main thread using global cache"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         if not system_name:
             return jsonify({'error': 'System name required'}), 400
@@ -12031,6 +12117,9 @@ def reencode_medias_endpoint():
 @login_required
 def get_import_source_directories(system_name):
     """Get available source directories for import medias"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         import_dir = os.path.join('roms', system_name, 'media', 'import')
         
@@ -12054,6 +12143,9 @@ def get_import_source_directories(system_name):
 @login_required
 def get_import_roms_source_directories(system_name):
     """Get available source directories for import ROMs"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         import_dir = os.path.join('roms', system_name, 'media', 'import')
         
@@ -16559,6 +16651,9 @@ def format_releasedates_in_gamelist(gamelist_path):
 @login_required
 def scan_media_endpoint(system_name):
     """Scan media files for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -16575,6 +16670,9 @@ def scan_media_endpoint(system_name):
 @login_required
 def clean_missing_medias_endpoint(system_name):
     """Clean missing media fields for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -16596,6 +16694,9 @@ def clean_missing_medias_endpoint(system_name):
 @login_required
 def search_image_similarity_endpoint(system_name):
     """Search for images by similarity for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
 
     try:
@@ -16625,6 +16726,9 @@ def search_image_similarity_endpoint(system_name):
 @login_required
 def delete_similar_images_endpoint(system_name):
     """Delete similar images for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
 
     try:
@@ -17343,6 +17447,9 @@ def delete_files_batch():
 @login_required
 def upload_game_media(system_name):
     """Upload a media file for a specific game"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Check if system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -17462,6 +17569,9 @@ def upload_game_media(system_name):
 @login_required
 def upload_game_rom(system_name):
     """Upload a new ROM file to replace the existing one"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Check if system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -17564,6 +17674,9 @@ def upload_game_rom(system_name):
 @login_required
 def save_screenshot(system_name):
     """Save a screenshot from video player to temp directory"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Check if system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -17610,6 +17723,9 @@ def save_screenshot(system_name):
 @login_required
 def save_screenshot_to_field(system_name):
     """Move screenshot from temp directory to final location and update gamelist"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Check if system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -18024,6 +18140,9 @@ def apply_image_crop():
 @login_required
 def rotate_game_media(system_name):
     """Rotate a media file for a specific game"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Check if system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -18131,6 +18250,9 @@ def rotate_game_media(system_name):
 @login_required
 def remove_game_media_background(system_name):
     """Remove black or white background from a PNG image, making it transparent"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Check if system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -18270,6 +18392,9 @@ def remove_game_media_background(system_name):
 @login_required
 def delete_game_media(system_name):
     """Delete a media file for a specific game"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Check if system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -18389,6 +18514,9 @@ def delete_game_media(system_name):
 @login_required
 def delete_game_media_batch(system_name):
     """Delete multiple media files for a specific game in one operation"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Check if system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -18529,6 +18657,9 @@ def delete_game_media_batch(system_name):
 @login_required
 def manual_scrap_game(system_name):
     """Manually scrape a single game from all available sources"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Check if system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -18785,6 +18916,9 @@ def manual_scrap_game(system_name):
 @login_required
 def explore_directory(system_name):
     """Explore directory contents within the system's ROM directory"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         path = request.args.get('path', '/')
         
@@ -18858,6 +18992,9 @@ def explore_directory(system_name):
 @login_required
 def create_directory(system_name):
     """Create a new directory within the system's ROM directory"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         data = request.get_json()
         if not data:
@@ -18919,6 +19056,9 @@ def create_directory(system_name):
 @login_required
 def move_rom(system_name):
     """Move a ROM file/directory within the system's ROM directory"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         data = request.get_json()
         if not data:
@@ -19139,6 +19279,9 @@ def update_gamelist_after_move_batch(system_name, path_updates):
 @login_required
 def move_roms_bulk(system_name):
     """Move multiple ROM files/directories within the system's ROM directory"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         data = request.get_json()
         if not data:
@@ -19277,6 +19420,9 @@ def move_roms_bulk(system_name):
 @login_required
 def update_games_hidden(system_name):
     """Update hidden field for multiple games"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         data = request.get_json(force=True) or {}
         rom_paths = data.get('rom_paths', [])
@@ -19425,6 +19571,9 @@ def create_m3u_from_games(system_name):
 @login_required
 def apply_manual_scrap(system_name):
     """Apply selected manual scrap changes: update text fields and download selected media."""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         data = request.get_json(force=True) or {}
         rom_path = data.get('rom_path')
@@ -23462,6 +23611,9 @@ def youtube_download():
 @login_required
 def youtube_download_batch(system_name):
     """Start batch YouTube download process for multiple games"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -23524,6 +23676,9 @@ def youtube_download_batch(system_name):
 @login_required
 def download_images_endpoint(system_name):
     """Download LaunchBox images for a specific game or all games in a system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     import time
     import threading
     
@@ -23550,6 +23705,9 @@ def download_images_endpoint(system_name):
 @login_required
 def scan_rom_endpoint(system_name):
     """Start ROM scan for a specific system"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -24650,6 +24808,9 @@ def run_rom_scan_task(system_name):
 @login_required
 def get_rom_scan_results(system_name):
     """Get ROM scan results for confirmation"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -24700,6 +24861,9 @@ def get_rom_scan_results(system_name):
 @login_required
 def scan_rom_files_confirm(system_name):
     """Confirm ROM scan and apply changes (add new ROMs, remove games with missing ROMs)"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     global current_task_id
     
     try:
@@ -27977,6 +28141,9 @@ def convert_cbz_to_pdf_response(cbz_path):
 @login_required
 def serve_cbz_file(system_name, cbz_path):
     """Serve CBZ files directly for JSZip viewer with proper CORS headers."""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Sanitize path (remove leading ./ or /)
         cbz_path = cbz_path.replace('..', '').lstrip('/').lstrip('./')
@@ -28015,6 +28182,9 @@ def serve_cbz_file(system_name, cbz_path):
 @login_required
 def serve_pdf_for_viewer(system_name, pdf_path):
     """Serve PDF files for EmbedPDF viewer with proper CORS headers. Converts CBZ to PDF on-the-fly if needed."""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Sanitize path (remove leading ./ or /, path traversal)
         pdf_path = pdf_path.replace('..', '').lstrip('/').lstrip('./')
@@ -28193,6 +28363,9 @@ def get_pdf_preview_remote():
 @login_required
 def get_cbz_preview(system_name, cbz_path):
     """Extract first image from CBZ file and serve as JPG"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         from PIL import Image
         import io
@@ -28269,6 +28442,9 @@ def get_cbz_preview(system_name, cbz_path):
 @login_required
 def get_pdf_preview(system_name, pdf_path):
     """Convert first page of PDF to JPG on-the-fly"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
     try:
         # Import pymupdf directly as recommended in the documentation
         # See https://pymupdf.readthedocs.io/en/latest/recipes-images.html
@@ -28647,27 +28823,21 @@ def discord_callback():
                 else:
                     
                     # Check if user should be auto-created based on Discord server membership and role
-                    should_create, error_message = should_auto_create_discord_user(discord_id, access_token, discord_config)
+                    should_create, error_message, assigned_role = should_auto_create_discord_user(discord_id, access_token, discord_config)
                     if should_create:
-                        # Auto-create user
-                        new_username = username  # Use Discord username directly
+                        new_username = username
                         user_email = email or f"{discord_id}@discord.local"
-                        
-                        user, error = create_user(new_username, None, user_email, discord_id)
+                        role = assigned_role or 'user'
+                        user, error = create_user(new_username, None, user_email, discord_id, role=role)
                         if user:
-                            # Auto-validate the user since they met the criteria
                             users = load_users()
-                            if user.id in users:
-                                users[user.id]['is_validated'] = True
+                            if user.id in users and role == 'user':
+                                users[user.id]['is_validated'] = True  # Auto-approve so they can log in
                                 save_users(users)
-                                
-                                # Log the user in
-                                login_user(user)
-                                update_user_last_login(user.id)
-                                flash(f'Welcome! Your account has been automatically created and validated.', 'success')
-                                return redirect(url_for('index'))
-                            else:
-                                flash('Account created but validation failed. Please contact an administrator.', 'error')
+                            login_user(user)
+                            update_user_last_login(user.id)
+                            flash('Welcome! Your account has been automatically created.', 'success')
+                            return redirect(url_for('index'))
                         else:
                             flash(f'Failed to create account: {error}', 'error')
                     else:
@@ -28706,14 +28876,15 @@ def discord_callback():
 @app.route('/admin/users')
 @login_required
 def admin_users():
-    # Check if user is validated (basic admin check)
-    if not current_user.is_validated:
-        flash('Access denied. You need to be validated to access this page.', 'error')
+    # Check if user has admin role
+    if not is_admin_user(current_user):
+        flash('Access denied. Admin role required.', 'error')
         return redirect(url_for('index'))
     
     users = load_users()
     user_list = []
     for user_id, user_data in users.items():
+        role = user_data.get('role') or ('admin' if user_data.get('is_validated') else 'user')
         user_list.append({
             'id': user_id,
             'username': user_data['username'],
@@ -28722,15 +28893,19 @@ def admin_users():
             'is_active': user_data.get('is_active', True),
             'is_validated': user_data.get('is_validated', False),
             'created_at': user_data.get('created_at'),
-            'last_login': user_data.get('last_login')
+            'last_login': user_data.get('last_login'),
+            'allowed_systems': user_data.get('allowed_systems', []),
+            'role': role
         })
     
-    return render_template('admin_users.html', users=user_list)
+    # All system names for the allowed-systems multi-select (from systems config)
+    all_system_names = sorted(load_systems_config().keys())
+    return render_template('admin_users.html', users=user_list, all_system_names=all_system_names)
 
 @app.route('/admin/users/<user_id>/validate', methods=['POST'])
 @login_required
 def validate_user(user_id):
-    if not current_user.is_validated:
+    if not is_admin_user(current_user):
         return jsonify({'error': 'Access denied'}), 403
     
     users = load_users()
@@ -28744,7 +28919,7 @@ def validate_user(user_id):
 @app.route('/admin/users/<user_id>/deactivate', methods=['POST'])
 @login_required
 def deactivate_user(user_id):
-    if not current_user.is_validated:
+    if not is_admin_user(current_user):
         return jsonify({'error': 'Access denied'}), 403
     
     users = load_users()
@@ -28758,7 +28933,7 @@ def deactivate_user(user_id):
 @app.route('/admin/users/<user_id>/activate', methods=['POST'])
 @login_required
 def activate_user(user_id):
-    if not current_user.is_validated:
+    if not is_admin_user(current_user):
         return jsonify({'error': 'Access denied'}), 403
     
     users = load_users()
@@ -28768,6 +28943,57 @@ def activate_user(user_id):
         return jsonify({'success': True, 'message': 'User activated successfully'})
     
     return jsonify({'error': 'User not found'}), 404
+
+
+@app.route('/admin/users/<user_id>/allowed-systems', methods=['PUT'])
+@login_required
+def update_user_allowed_systems(user_id):
+    """Update allowed_systems for a user (admin only). Empty list = no access for user role."""
+    if not is_admin_user(current_user):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'Request body required'}), 400
+    
+    allowed_systems = data.get('allowed_systems', [])
+    if not isinstance(allowed_systems, list):
+        return jsonify({'error': 'allowed_systems must be a list'}), 400
+    allowed_systems = list(allowed_systems)
+    
+    users = load_users()
+    if user_id not in users:
+        return jsonify({'error': 'User not found'}), 404
+    
+    users[user_id]['allowed_systems'] = allowed_systems
+    save_users(users)
+    return jsonify({'success': True, 'message': 'Allowed systems updated', 'allowed_systems': allowed_systems})
+
+
+@app.route('/admin/users/<user_id>/role', methods=['PUT'])
+@login_required
+def update_user_role(user_id):
+    """Update role for a user (admin only). role: 'admin' or 'user'."""
+    if not is_admin_user(current_user):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'Request body required'}), 400
+    
+    role = (data.get('role') or '').strip().lower()
+    if role not in ('admin', 'user'):
+        return jsonify({'error': 'role must be "admin" or "user"'}), 400
+    
+    users = load_users()
+    if user_id not in users:
+        return jsonify({'error': 'User not found'}), 404
+    
+    users[user_id]['role'] = role
+    users[user_id]['is_validated'] = (role == 'admin') or users[user_id].get('is_validated', False)
+    save_users(users)
+    return jsonify({'success': True, 'message': 'Role updated', 'role': role})
+
 
 @app.route('/api/change-password', methods=['POST'])
 @login_required

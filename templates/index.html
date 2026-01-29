@@ -450,6 +450,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openVideoConfigModal">
                             <i class="bi bi-camera-video me-2"></i>Video Configuration
                         </a></li>
+                        {% if current_user.is_authenticated and current_user.role == 'admin' %}
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
                             <i class="bi bi-people me-2"></i>User Management
@@ -458,6 +459,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openAppConfigModal">
                             <i class="bi bi-gear me-2"></i>Application Configuration
                         </a></li>
+                        {% endif %}
                     </ul>
                 </div>
             </div>
@@ -3425,9 +3427,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             <div class="form-text">Required for auto-creation (Discord server ID)</div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="discordRoleName" class="form-label">Role Name</label>
-                                            <input type="text" class="form-control" id="discordRoleName" placeholder="Creator">
-                                            <div class="form-text">Required role for auto-creation</div>
+                                            <label for="discordAdminRoleName" class="form-label">Admin role name</label>
+                                            <input type="text" class="form-control" id="discordAdminRoleName" placeholder="Admin">
+                                            <div class="form-text">Discord role that gets full access (all systems).</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discordUserRoleName" class="form-label">User role name</label>
+                                            <input type="text" class="form-control" id="discordUserRoleName" placeholder="Member">
+                                            <div class="form-text">Discord role that gets restricted access (assign systems in User Management).</div>
                                         </div>
                                     </div>
                                     <div class="col-md-6">

@@ -12,8 +12,8 @@
         "file": "app.log"
     },
     "authentication": {
-        "disable_local_auth": true,
-        "allow_registration": false
+        "disable_local_auth": false,
+        "allow_registration": true
     },
     "media": {
         "scan_settings": {

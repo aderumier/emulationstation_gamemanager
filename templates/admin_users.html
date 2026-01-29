@@ -118,6 +118,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 {% endif %}
                                 
                                 <div class="mb-2">
+                                    <span class="badge {{ 'bg-primary' if user.role == 'admin' else 'bg-secondary' }} status-badge me-1" title="Role">
+                                        {{ 'Admin' if user.role == 'admin' else 'User' }}
+                                    </span>
                                     <span class="badge {{ 'bg-success' if user.is_validated else 'bg-warning' }} status-badge me-1">
                                         {{ 'Validated' if user.is_validated else 'Pending' }}
                                     </span>
@@ -125,12 +128,38 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         {{ 'Active' if user.is_active else 'Inactive' }}
                                     </span>
                                 </div>
+
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1"><i class="bi bi-person-badge me-1"></i>Role</label>
+                                    <div class="d-flex gap-1 align-items-center">
+                                        <select class="form-select form-select-sm" id="role-{{ user.id }}" style="width: auto;">
+                                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin (all systems)</option>
+                                            <option value="user" {% if user.role == 'user' %}selected{% endif %}>User (restricted)</option>
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="saveRole('{{ user.id }}')">
+                                            <i class="bi bi-check2 me-1"></i>Save role
+                                        </button>
+                                    </div>
+                                </div>
                                 
                                 <div class="small text-muted mb-3">
                                     <div><i class="bi bi-calendar-plus me-1"></i>Created: {{ user.created_at[:10] if user.created_at else 'Unknown' }}</div>
                                     {% if user.last_login %}
                                     <div><i class="bi bi-clock me-1"></i>Last login: {{ user.last_login[:10] if user.last_login else 'Never' }}</div>
                                     {% endif %}
+                                </div>
+
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1"><i class="bi bi-folder2 me-1"></i>Allowed systems</label>
+                                    <select class="form-select form-select-sm" id="allowed-systems-{{ user.id }}" multiple size="3">
+                                        {% for sys in (all_system_names or []) %}
+                                        <option value="{{ sys }}" {% if sys in (user.allowed_systems or []) %}selected{% endif %}>{{ sys }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="text-muted">User role only: empty = no access. Admin ignores this. Ctrl+click to select multiple.</small>
+                                    <button type="button" class="btn btn-outline-primary btn-sm mt-1" onclick="saveAllowedSystems('{{ user.id }}')">
+                                        <i class="bi bi-check2 me-1"></i>Save allowed systems
+                                    </button>
                                 </div>
                                 
                                 <div class="d-flex gap-2">
@@ -236,6 +265,71 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     alert('An error occurred while activating the user.');
                 });
             }
+        }
+
+        function saveRole(userId) {
+            const select = document.getElementById('role-' + userId);
+            if (!select) return;
+            const role = select.value;
+            fetch(`/admin/users/${userId}/role`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: role })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert('Error: ' + (data.error || 'Failed to save'));
+            })
+            .catch(() => alert('An error occurred while saving role.'));
+        }
+
+        function saveAllowedSystems(userId) {
+            const select = document.getElementById('allowed-systems-' + userId);
+            if (!select) return;
+            const selected = Array.from(select.selectedOptions).map(opt => opt.value);
+            fetch(`/admin/users/${userId}/allowed-systems`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ allowed_systems: selected })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to save'));
+                }
+            })
+            .catch(error => {
+                alert('An error occurred while saving allowed systems.');
+            });
+        }
+
+        function saveRole(userId) {
+            const select = document.getElementById('role-' + userId);
+            if (!select) return;
+            const role = select.value;
+            fetch(`/admin/users/${userId}/role`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ role: role })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to save role'));
+                }
+            })
+            .catch(error => {
+                alert('An error occurred while saving role.');
+            });
         }
     </script>
 </body>

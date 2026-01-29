@@ -30963,7 +30963,8 @@ class GameCollectionManager {
                 document.getElementById('discordBotToken').value = discordConfig.bot_token || '';
                 document.getElementById('discordAutoCreate').checked = discordConfig.auto_create?.enabled || false;
                 document.getElementById('discordGuildId').value = discordConfig.auto_create?.guild_id || '';
-                document.getElementById('discordRoleName').value = discordConfig.auto_create?.role_name || '';
+                document.getElementById('discordAdminRoleName').value = discordConfig.auto_create?.admin_role_name || '';
+                document.getElementById('discordUserRoleName').value = discordConfig.auto_create?.user_role_name || '';
                 
             } else {
             }
@@ -31027,7 +31028,8 @@ class GameCollectionManager {
                 auto_create: {
                     enabled: document.getElementById('discordAutoCreate').checked,
                     guild_id: document.getElementById('discordGuildId').value,
-                    role_name: document.getElementById('discordRoleName').value
+                    admin_role_name: document.getElementById('discordAdminRoleName').value.trim(),
+                    user_role_name: document.getElementById('discordUserRoleName').value.trim()
                 }
             };
 

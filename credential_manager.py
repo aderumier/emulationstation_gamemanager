@@ -79,7 +79,13 @@ class CredentialManager:
                 with open(self.credentials_file, 'r') as f:
                     credentials = json.load(f)
                     if 'discord' in credentials:
-                        return credentials['discord']
+                        discord = credentials['discord'].copy()
+                        ac = discord.get('auto_create') or {}
+                        # Support role_names (list); backward compat: role_name -> role_names
+                        if 'role_names' not in ac and 'role_name' in ac:
+                            ac = {**ac, 'role_names': [ac['role_name']] if ac.get('role_name') else []}
+                        discord['auto_create'] = ac
+                        return discord
             except Exception as e:
                 print(f"Error loading Discord credentials: {e}")
         
@@ -93,7 +99,8 @@ class CredentialManager:
             'auto_create': {
                 'enabled': False,
                 'guild_id': '',
-                'role_name': ''
+                'admin_role_name': '',
+                'user_role_name': ''
             }
         }
     
