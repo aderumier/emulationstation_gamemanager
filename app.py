@@ -4728,8 +4728,8 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             return
         
         # Set up paths
-        source_dir = os.path.join('roms', system_name, 'media', 'import', source_directory)
-        target_dir = os.path.join('roms', system_name, 'media', media_fields[target_field]['directory'])
+        source_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'import', source_directory)
+        target_dir = os.path.join(ROMS_FOLDER, system_name, 'media', media_fields[target_field]['directory'])
         
         if not os.path.exists(source_dir):
             task.complete(False, f"Source directory does not exist: {source_dir}")
@@ -11649,12 +11649,12 @@ def check_move_medias_conflicts():
                     current_path = current_path[2:]  # Remove './' prefix
                 
                 filename = os.path.basename(current_path)
-                target_path = os.path.join('roms', system_name, target_dir, filename)
+                target_path = os.path.join(ROMS_FOLDER, system_name, target_dir, filename)
                 
                 # Check if target file exists and is different from source
                 if os.path.exists(target_path):
                     # Get full path to current file for comparison
-                    full_current_path = os.path.join('roms', system_name, current_path)
+                    full_current_path = os.path.join(ROMS_FOLDER, system_name, current_path)
                     
                     # Only consider it a conflict if it's a different file
                     if not os.path.samefile(full_current_path, target_path):
@@ -11721,7 +11721,7 @@ def dry_run_move_medias():
             return jsonify({'error': 'No games found in gamelist'}), 400
         
         # Create target directory path for checking
-        full_target_dir = os.path.join('roms', system_name, target_dir)
+        full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
         print(f"🔧 DEBUG: DRY RUN - Full target directory: {full_target_dir}")
         
         # Process each game and create dry-run report
@@ -11742,7 +11742,7 @@ def dry_run_move_medias():
                     current_path = current_path[2:]  # Remove './' prefix
                 
                 # Construct the full source path exactly as specified in gamelist.xml
-                full_source_path = os.path.join('roms', system_name, current_path)
+                full_source_path = os.path.join(ROMS_FOLDER, system_name, current_path)
                 filename = os.path.basename(current_path)
                 target_path = os.path.join(full_target_dir, filename)
                 
@@ -11850,7 +11850,7 @@ def validate_move_medias():
             return jsonify({'error': 'No games found in gamelist'}), 400
         
         # Create target directory if it doesn't exist
-        full_target_dir = os.path.join('roms', system_name, target_dir)
+        full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
         print(f"🔧 DEBUG: Full target directory: {full_target_dir}")
         os.makedirs(full_target_dir, exist_ok=True)
         
@@ -11872,7 +11872,7 @@ def validate_move_medias():
                     current_path = current_path[2:]  # Remove './' prefix
                 
                 # Construct the full source path exactly as specified in gamelist.xml
-                full_source_path = os.path.join('roms', system_name, current_path)
+                full_source_path = os.path.join(ROMS_FOLDER, system_name, current_path)
                 filename = os.path.basename(current_path)
                 target_path = os.path.join(full_target_dir, filename)
                 
@@ -12037,7 +12037,7 @@ def move_image():
             current_path = current_path[2:]  # Remove './' prefix
         
         # Construct the full source path
-        full_source_path = os.path.join('roms', system_name, current_path)
+        full_source_path = os.path.join(ROMS_FOLDER, system_name, current_path)
         
         # Check if source file exists
         if not os.path.exists(full_source_path):
@@ -12047,7 +12047,7 @@ def move_image():
         filename = os.path.basename(current_path)
         
         # Create target directory if it doesn't exist
-        full_target_dir = os.path.join('roms', system_name, target_dir)
+        full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
         os.makedirs(full_target_dir, exist_ok=True)
         
         # Construct target path
@@ -12061,7 +12061,7 @@ def move_image():
                 existing_target_path = existing_target_path[2:]  # Remove './' prefix
             
             # Construct the full path to existing target media
-            full_existing_target_path = os.path.join('roms', system_name, existing_target_path)
+            full_existing_target_path = os.path.join(ROMS_FOLDER, system_name, existing_target_path)
             
             # Delete existing target media file if it exists
             if os.path.exists(full_existing_target_path):
@@ -12214,7 +12214,7 @@ def get_import_source_directories(system_name):
     if resp:
         return resp
     try:
-        import_dir = os.path.join('roms', system_name, 'media', 'import')
+        import_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'import')
         
         if not os.path.exists(import_dir):
             return jsonify({'directories': []})
@@ -12240,7 +12240,7 @@ def get_import_roms_source_directories(system_name):
     if resp:
         return resp
     try:
-        import_dir = os.path.join('roms', system_name, 'media', 'import')
+        import_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'import')
         
         if not os.path.exists(import_dir):
             return jsonify({'directories': []})
@@ -12276,7 +12276,7 @@ def import_medias_endpoint():
             return jsonify({'error': 'System name, source directory, and target field are required'}), 400
         
         # Validate source directory exists
-        import_dir = os.path.join('roms', system_name, 'media', 'import', source_directory)
+        import_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'import', source_directory)
         if not os.path.exists(import_dir):
             return jsonify({'error': f'Source directory does not exist: {import_dir}'}), 400
         
@@ -12314,7 +12314,7 @@ def import_roms_endpoint():
             return jsonify({'error': 'System name and source directory are required'}), 400
         
         # Validate source directory exists
-        import_dir = os.path.join('roms', system_name, 'media', 'import', source_directory)
+        import_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'import', source_directory)
         if not os.path.exists(import_dir):
             return jsonify({'error': f'Source directory does not exist: {import_dir}'}), 400
         
@@ -12967,7 +12967,7 @@ def download_multiscraper_media_endpoint():
                 normalized_local_path = normalized_local_path[1:]
             print(f"🔧 DEBUG: Using local media file: {normalized_local_path}")
             local_absolute_path = os.path.abspath(normalized_local_path)
-            roms_root = os.path.abspath('roms')
+            roms_root = os.path.abspath(ROMS_FOLDER)
             if not local_absolute_path.startswith(roms_root):
                 return jsonify({'error': 'Invalid local media path'}), 400
             if not os.path.exists(local_absolute_path):
@@ -12993,7 +12993,7 @@ def download_multiscraper_media_endpoint():
             if not source_extension:
                 source_extension = '.pdf' if media_type in ('manual', 'map', 'magazine') else '.png'
 
-            full_target_dir = os.path.join('roms', system_name, target_dir)
+            full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
             os.makedirs(full_target_dir, exist_ok=True)
 
             media_filename = create_media_filename(game.get('path', ''), source_extension)
@@ -13201,7 +13201,7 @@ def download_multiscraper_media_endpoint():
                     target_dir = f'media/{target_dir}'
                 
                 # Create target directory
-                full_target_dir = os.path.join('roms', system_name, target_dir)
+                full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
                 os.makedirs(full_target_dir, exist_ok=True)
                 
                 # Generate filename
@@ -13279,7 +13279,7 @@ def download_multiscraper_media_endpoint():
                     target_dir = f'media/{target_dir}'
                 
                 # Create target directory
-                full_target_dir = os.path.join('roms', system_name, target_dir)
+                full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
                 os.makedirs(full_target_dir, exist_ok=True)
                 
                 # Generate filename with .pdf extension
@@ -13337,7 +13337,7 @@ def download_multiscraper_media_endpoint():
                 if not target_dir.startswith('media/'):
                     target_dir = f'media/{target_dir}'
                 
-                full_target_dir = os.path.join('roms', system_name, target_dir)
+                full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
                 os.makedirs(full_target_dir, exist_ok=True)
                 
                 target_filename = create_media_filename(game.get('path', ''), target_ext)
@@ -13394,7 +13394,7 @@ def download_multiscraper_media_endpoint():
                 if not target_dir.startswith('media/'):
                     target_dir = f'media/{target_dir}'
                 
-                full_target_dir = os.path.join('roms', system_name, target_dir)
+                full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
                 os.makedirs(full_target_dir, exist_ok=True)
                 
                 target_filename = create_media_filename(game.get('path', ''), target_ext)
@@ -13449,7 +13449,7 @@ def download_multiscraper_media_endpoint():
                 if not target_dir.startswith('media/'):
                     target_dir = f'media/{target_dir}'
                 
-                full_target_dir = os.path.join('roms', system_name, target_dir)
+                full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
                 os.makedirs(full_target_dir, exist_ok=True)
                 
                 target_filename = create_media_filename(game.get('path', ''), target_ext)
@@ -13473,7 +13473,7 @@ def download_multiscraper_media_endpoint():
                 if not target_dir.startswith('media/'):
                     target_dir = f'media/{target_dir}'
                 
-                full_target_dir = os.path.join('roms', system_name, target_dir)
+                full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
                 os.makedirs(full_target_dir, exist_ok=True)
                 
                 target_filename = create_media_filename(game.get('path', ''), target_ext)
@@ -14690,7 +14690,7 @@ def download_and_save_media(media_url, game, media_type, system_name):
             target_dir = f'media/{target_dir}'
         
         # Create target directory
-        full_target_dir = os.path.join('roms', system_name, target_dir)
+        full_target_dir = os.path.join(ROMS_FOLDER, system_name, target_dir)
         print(f"🔧 DEBUG: Creating target directory: {full_target_dir}")
         os.makedirs(full_target_dir, exist_ok=True)
         
@@ -28183,7 +28183,7 @@ def serve_cbz_file(system_name, cbz_path):
         cbz_path = cbz_path.replace('..', '').lstrip('/').lstrip('./')
         
         # Construct full CBZ path
-        full_cbz_path = os.path.join('roms', system_name, cbz_path)
+        full_cbz_path = os.path.join(ROMS_FOLDER, system_name, cbz_path)
         
         # Normalize path
         full_cbz_path = os.path.normpath(full_cbz_path)
@@ -28409,7 +28409,7 @@ def get_cbz_preview(system_name, cbz_path):
         cbz_path = cbz_path.replace('..', '').lstrip('/').lstrip('./')
         
         # Construct full CBZ path
-        full_cbz_path = os.path.join('roms', system_name, cbz_path)
+        full_cbz_path = os.path.join(ROMS_FOLDER, system_name, cbz_path)
         
         # Normalize path
         full_cbz_path = os.path.normpath(full_cbz_path)
@@ -28491,7 +28491,7 @@ def get_pdf_preview(system_name, pdf_path):
         pdf_path = pdf_path.replace('..', '').lstrip('/').lstrip('./')
         
         # Construct full PDF path
-        full_pdf_path = os.path.join('roms', system_name, pdf_path)
+        full_pdf_path = os.path.join(ROMS_FOLDER, system_name, pdf_path)
         
         # Normalize path to handle any path separators
         full_pdf_path = os.path.normpath(full_pdf_path)
