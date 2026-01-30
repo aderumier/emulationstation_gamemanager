@@ -829,7 +829,7 @@ def load_screenscraper_media_types():
             return []
         
         # Debug: Log the credentials being used
-        print(f"🔧 DEBUG: Using ScreenScraper credentials - devid: {screenscraper_credentials.get('devid')}, ssid: {screenscraper_credentials.get('ssid')}")
+
         
         # Make API request to ScreenScraper
         url = "https://api.screenscraper.fr/api2/mediasJeuListe.php"
@@ -859,7 +859,7 @@ def load_screenscraper_media_types():
         if 'response' in data and 'medias' in data['response']:
             media_types = []
             medias = data['response']['medias']
-            print(f"🔧 DEBUG: Found {len(medias)} media types")
+
             
             # medias is a dictionary with numeric keys, not a list
             for media_id, media in medias.items():
@@ -868,7 +868,7 @@ def load_screenscraper_media_types():
                 if nomcourt and nom:
                     # Store as tuple: (short_name, full_name)
                     media_types.append((nomcourt, nom))
-                    print(f"🔧 DEBUG: Added media type: {nomcourt} -> {nom}")
+
             
             # Sort by short name for consistency
             media_types.sort(key=lambda x: x[0])
@@ -1446,8 +1446,9 @@ os.makedirs('var/db/launchbox', exist_ok=True)
 os.makedirs('var/db/igdb', exist_ok=True)
 os.makedirs('var/db/emumovies', exist_ok=True)
 os.makedirs('var/sessions', exist_ok=True)
+os.makedirs('var/cache', exist_ok=True)
 
-LOCAL_IMAGE_CACHE_PATH = '/var/cache/local_image.pkl'
+LOCAL_IMAGE_CACHE_PATH = 'var/cache/local_image.pkl'
 LOCAL_IMAGE_CACHE_TTL_SECONDS = 24 * 60 * 60
 _local_image_cache = None
 _local_image_cache_loaded = False
@@ -1490,9 +1491,8 @@ def load_local_image_cache():
         if os.path.exists(LOCAL_IMAGE_CACHE_PATH):
             with open(LOCAL_IMAGE_CACHE_PATH, 'rb') as cache_file:
                 cache_data = pickle.load(cache_file)
-                print(f"🔧 DEBUG: Loaded local image cache with {len(cache_data)} entries")
-    except Exception as e:
-        print(f"🔧 DEBUG: Failed to load local image cache: {e}")
+
+    except Exception:
         cache_data = {}
 
     _local_image_cache = cache_data
@@ -1509,10 +1509,9 @@ def save_local_image_cache():
             os.makedirs(cache_dir, exist_ok=True)
         with open(LOCAL_IMAGE_CACHE_PATH, 'wb') as cache_file:
             pickle.dump(_local_image_cache or {}, cache_file)
-        print(f"🔧 DEBUG: Saved local image cache with {len((_local_image_cache or {}))} entries")
-    except Exception as e:
-        print(f"🔧 DEBUG: Failed to save local image cache: {e}")
 
+    except Exception:
+        pass
 
 def is_local_image_cache_valid(cache_entry):
     """Check if a cache entry is still valid (within TTL)."""
@@ -1523,8 +1522,6 @@ def is_local_image_cache_valid(cache_entry):
         return False
     age = time.time() - timestamp
     is_valid = age < LOCAL_IMAGE_CACHE_TTL_SECONDS
-    if not is_valid:
-        print(f"🔧 DEBUG: Local image cache entry expired (age: {age:.1f}s)")
     return is_valid
 
 
@@ -7001,7 +6998,6 @@ def parse_gamelist_xml(file_path):
             
             games.append(game_data)
         
-        print(f"Successfully parsed {len(games)} games from {file_path}")
         return games
         
     except ET.ParseError as e:
@@ -12799,11 +12795,6 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
             grouped_entries = cache_entry.get('data', {})
             print(f"🔧 DEBUG: Using cached local images index for media_type={media_type} with {len(grouped_entries)} entries")
         else:
-            if cache_entry:
-                print(f"🔧 DEBUG: Local image cache invalid or expired for media_type={media_type}, rebuilding index")
-            else:
-                print(f"🔧 DEBUG: No local image cache found for media_type={media_type}, building index")
-
             # Check if gamelists directory exists
             if not os.path.isdir(GAMELISTS_FOLDER):
                 print(f"🔧 DEBUG: Gamelists directory not found: {GAMELISTS_FOLDER}")
@@ -12815,14 +12806,9 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
             for system_dir in os.listdir(GAMELISTS_FOLDER):
                 system_gamelist_path = os.path.join(GAMELISTS_FOLDER, system_dir, 'gamelist.xml')
                 if not os.path.exists(system_gamelist_path):
-                    print(f"🔧 DEBUG: Gamelist not found for system '{system_dir}' at {system_gamelist_path}")
                     continue
-                
-                print(f"🔧 DEBUG: Parsing gamelist for system '{system_dir}' to build {media_type} index")
-                
                 # Parse the gamelist.xml file
                 games = parse_gamelist_xml(system_gamelist_path)
-                print(f"🔧 DEBUG: Found {len(games)} games in system '{system_dir}'")
                 
                 # Process each game
                 for game in games:
@@ -12865,7 +12851,7 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
                 'data': grouped_entries
             }
             save_local_image_cache()
-            print(f"🔧 DEBUG: Cached local images index for media_type={media_type} with {len(grouped_entries)} entries")
+
 
         if not grouped_entries:
             return results
@@ -14581,7 +14567,7 @@ def marquee_search_endpoint():
         if scraper in ('all', 'local_images'):
             try:
                 local_results = search_media_by_scraper('local_images', None, game_name, system_name, direct_match, 'marquee')
-                print(f"🔧 DEBUG: Found {len(local_results)} local marquee results")
+
                 all_marquee_results.extend(local_results)
             except Exception as e:
                 print(f"🔧 DEBUG: Error searching local images for marquee: {e}")

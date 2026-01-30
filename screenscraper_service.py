@@ -566,7 +566,7 @@ class ScreenScraperService:
         Returns:
             The ScreenScraper system ID if found, None otherwise
         """
-        print(f"Looking up system ID for: '{system_name}'")
+
         
         # Get the ScreenScraper system ID from the main systems config
         main_systems_config = self.systems_config
@@ -581,7 +581,6 @@ class ScreenScraperService:
         if isinstance(screenscraper_system_id, int):
             screenscraper_system_id = str(screenscraper_system_id)
         
-        print(f"Found ScreenScraper system ID {screenscraper_system_id} for {system_name}")
         return screenscraper_system_id
     
     async def search_games_by_name(self, game_name: str, system_name: str, limit: int = 10, search_all_systems: bool = False) -> List[Dict]:
@@ -597,7 +596,7 @@ class ScreenScraperService:
         Returns:
             List of dictionaries with game data
         """
-        print(f"Searching ScreenScraper for game name: {game_name}, System: {system_name}, All systems: {search_all_systems}")
+
         
         if not all([self.devid, self.devpassword, self.ssid, self.sspassword]):
             print("ScreenScraper credentials not configured")
@@ -614,7 +613,7 @@ class ScreenScraperService:
         # Clean the game name by removing text between parentheses (including parentheses)
         import re
         cleaned_game_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
-        print(f"Original game name: '{game_name}' -> Cleaned: '{cleaned_game_name}'")
+
         
         # Use the jeuRecherche.php endpoint for searching by game name
         search_api_url = 'https://api.screenscraper.fr/api2/jeuRecherche.php'
@@ -636,14 +635,13 @@ class ScreenScraperService:
         # Only try once - no retries
         for attempt in range(1):
             try:
-                print(f"🔍 Searching ScreenScraper for '{cleaned_game_name}' (attempt {attempt + 1})")
-                print(f"🌐 API URL: {search_api_url}")
+
                 
                 # Build the full URL for logging with obfuscated credentials
                 from urllib.parse import urlencode
                 full_url = f"{search_api_url}?{urlencode(params)}"
                 obfuscated_url = full_url.replace(f"devid={self.devid}", "devid=***").replace(f"devpassword={self.devpassword}", "devpassword=***").replace(f"ssid={self.ssid}", "ssid=***").replace(f"sspassword={self.sspassword}", "sspassword=***")
-                print(f"🔗 Full URL: {obfuscated_url}")
+
                 
                 # Use asyncio.wait_for to ensure request times out even if httpx timeout doesn't work
                 async def make_request():
@@ -660,7 +658,7 @@ class ScreenScraperService:
                     print(f"⏱️ ScreenScraper API request timed out: {e}")
                     return []
                 
-                print(f"📡 ScreenScraper API Response: {response.status_code}")
+
                 
                 if response.status_code == 200:
                     # Parse JSON response
@@ -787,7 +785,7 @@ class ScreenScraperService:
                     
                     # Limit results
                     result = games[:limit]
-                    print(f"Found {len(result)} ScreenScraper games for '{cleaned_game_name}'")
+
                     return result
                     
                 elif response.status_code == 429:
@@ -852,9 +850,7 @@ class ScreenScraperService:
         Returns:
             Dictionary with 'jeu_id' and 'game_data' if found, None otherwise
         """
-        print(f"Searching ScreenScraper for ROM: {rom_filename}, System: {system_name}")
-        if md5:
-            print(f"Using MD5 hash: {md5}")
+
         
         if not all([self.devid, self.devpassword, self.ssid, self.sspassword]):
             print("ScreenScraper credentials not configured")
@@ -885,15 +881,13 @@ class ScreenScraperService:
         
         for attempt in range(self.retry_attempts):
             try:
-                print(f"🔍 Searching ScreenScraper for '{rom_name}' (attempt {attempt + 1}/{self.retry_attempts})")
-                print(f"🌐 API URL: {self.api_url}")
-                print(f"⏱️ Timeout: {self.timeout}s")
+
                 
                 # Log full URL with obfuscated credentials
                 from urllib.parse import urlencode
                 full_url = f"{self.api_url}?{urlencode(params)}"
                 obfuscated_url = full_url.replace(f"devid={self.devid}", "devid=***").replace(f"devpassword={self.devpassword}", "devpassword=***").replace(f"ssid={self.ssid}", "ssid=***").replace(f"sspassword={self.sspassword}", "sspassword=***")
-                print(f"🔗 Full URL: {obfuscated_url}")
+
                 
                 import time
                 start_time = time.time()
@@ -932,17 +926,11 @@ class ScreenScraperService:
                                 # Take the first result
                                 jeu_data = jeu[0]
                                 jeu_id = jeu_data.get('id')
-
-                                print(f"🎯 Extracted jeu_id: {jeu_id}")
                                 if jeu_id:
-                                    print(f"✅ Found ScreenScraper ID {jeu_id} for '{rom_name}'")
                                     return {'jeu_id': str(jeu_id), 'game_data': jeu_data}
                             elif isinstance(jeu, dict) and 'id' in jeu:
                                 jeu_id = jeu['id']
-
-                                print(f"🎯 Extracted jeu_id: {jeu_id}")
                                 if jeu_id:
-                                    print(f"✅ Found ScreenScraper ID {jeu_id} for '{rom_name}'")
                                     return {'jeu_id': str(jeu_id), 'game_data': jeu}
                             
                             print(f"❌ No ScreenScraper ID found for '{rom_name}'")
@@ -1070,7 +1058,7 @@ class ScreenScraperService:
                 print(f"⏱️ ScreenScraper API request timed out: {e}")
                 return None
             
-            print(f"📡 ScreenScraper API Response: {response.status_code}")
+
             
             if response.status_code == 200:
                 try:
