@@ -922,7 +922,7 @@ class ScreenScraperService:
                 if response.status_code == 200:
                     try:
                         data = response.json()
-                        print(f"✅ JSON parsed successfully")
+
                         print(f"📄 Response keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
                         
                         if 'response' in data and 'jeu' in data['response']:
@@ -1215,8 +1215,6 @@ class ScreenScraperService:
                 if response.status_code == 200:
                     try:
                         data = response.json()
-                        print(f"✅ JSON parsed successfully")
-                        print(f"📄 ID fetch response: {data}")
                         
                         if 'response' in data and 'jeu' in data['response']:
                             jeu = data['response']['jeu']
