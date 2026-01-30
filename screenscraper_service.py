@@ -915,33 +915,31 @@ class ScreenScraperService:
                 
                 request_duration = time.time() - start_time
                 
-                print(f"📡 Response received in {request_duration:.2f}s")
-                print(f"📊 Status Code: {response.status_code}")
-                print(f"📏 Response Size: {len(response.content)} bytes")
+
                 
                 if response.status_code == 200:
                     try:
                         data = response.json()
 
-                        print(f"📄 Response keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+
                         
                         if 'response' in data and 'jeu' in data['response']:
                             jeu = data['response']['jeu']
-                            print(f"🎮 Found jeu data: {type(jeu)}")
-                            print(f"📝 Jeu data: {jeu}")
+
+
                             
                             if isinstance(jeu, list) and len(jeu) > 0:
                                 # Take the first result
                                 jeu_data = jeu[0]
                                 jeu_id = jeu_data.get('id')
-                                print(f"📋 List jeu[0]: {jeu_data}")
+
                                 print(f"🎯 Extracted jeu_id: {jeu_id}")
                                 if jeu_id:
                                     print(f"✅ Found ScreenScraper ID {jeu_id} for '{rom_name}'")
                                     return {'jeu_id': str(jeu_id), 'game_data': jeu_data}
                             elif isinstance(jeu, dict) and 'id' in jeu:
                                 jeu_id = jeu['id']
-                                print(f"📋 Dict jeu: {jeu}")
+
                                 print(f"🎯 Extracted jeu_id: {jeu_id}")
                                 if jeu_id:
                                     print(f"✅ Found ScreenScraper ID {jeu_id} for '{rom_name}'")
@@ -1208,9 +1206,7 @@ class ScreenScraperService:
                 
                 request_duration = time.time() - start_time
                 
-                print(f"📡 Response received in {request_duration:.2f}s")
-                print(f"📊 Status Code: {response.status_code}")
-                print(f"📏 Response Size: {len(response.content)} bytes")
+
                 
                 if response.status_code == 200:
                     try:
@@ -1218,15 +1214,15 @@ class ScreenScraperService:
                         
                         if 'response' in data and 'jeu' in data['response']:
                             jeu = data['response']['jeu']
-                            print(f"🎮 Found jeu data by ID: {type(jeu)}")
+
                             
                             # API may return a dict or list; normalize to dict
                             if isinstance(jeu, list) and len(jeu) > 0:
                                 jeu = jeu[0]
-                                print(f"📝 Normalized from list to dict")
+
                                 return jeu
                             if isinstance(jeu, dict):
-                                print(f"📝 Already a dict")
+
                                 return jeu
                             print(f"❌ Unexpected jeu format: {type(jeu)}")
                             return None

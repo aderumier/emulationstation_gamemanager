@@ -13573,7 +13573,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                     first_char = normalized_name[0].lower()
                     if first_char in platform_data:
                         partition_games = platform_data[first_char]
-                        print(f"🔧 DEBUG: IGDB platform {platform_id}, first_char '{first_char}', partition_games keys: {list(partition_games.keys())[:5]}...")
+
                         if normalized_name in partition_games:
                             game_id = partition_games[normalized_name]
                             print(f"🔧 DEBUG: IGDB found game_id {game_id} for normalized name '{normalized_name}' on platform {platform_id}")
