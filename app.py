@@ -13507,7 +13507,7 @@ def download_multiscraper_media_endpoint():
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 
-def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, media_type):
+def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, media_type, cancel_event=None):
     """Common helper to search media by scraper for a given media_type (e.g., 'fanart', 'marquee', 'boxart', etc.).
     
     Supported scrapers: igdb, steam, steamgriddb, screenscraper, launchbox, mobygames, custom, emumovies, local_images
@@ -13827,6 +13827,12 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                     if gid: candidates.append((gid, g, similarity_score))
                 
                 if candidates:
+                    # Check for cancellation before expensive batch request
+                    if cancel_event and cancel_event.is_set():
+                        print(f"🛑 Search cancelled before SteamGridDB batch request")
+                        return results
+
+                    import asyncio
                     async def fetch_all_media(can_list, key, key_arg):
                         limits = httpx.Limits(max_connections=50, max_keepalive_connections=50)
                         async with httpx.AsyncClient(limits=limits, http2=True, timeout=30.0) as client:
@@ -13865,6 +13871,9 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 if gid:
                     to_fetch.append((gid, g))
             if to_fetch:
+                if cancel_event and cancel_event.is_set():
+                    return results
+                
                 import asyncio
                 async def fetch_all():
                     tasks = [ss_service.get_game_by_id(gid, system_name) for gid, _ in to_fetch]
@@ -13915,6 +13924,10 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 if not global_metadata_cache_loaded or not global_metadata_cache:
                     return results
             for platform_name in partition_index.keys():
+                # Check for cancellation
+                if cancel_event and cancel_event.is_set():
+                    return results
+
                 try:
                     if direct_match:
                         launchboxid = None
@@ -14453,7 +14466,7 @@ def marquee_search_stream_endpoint():
                     print(f"🔧 DEBUG: Searching {scraper_name} for marquee...")
                     yield f"data: {json.dumps({'type': 'scraper_start', 'scraper': scraper_name})}\n\n"
                     
-                    results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, 'marquee')
+                    results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, 'marquee', cancel_event)
                     all_results.extend(results)
                     
                     # Stream results from this scraper
