@@ -13940,10 +13940,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                         if normalized_with_parens and platform_name in partition_index:
                             launchboxid = partition_index[platform_name].get(normalized_with_parens)
                         
-                        # If not found in partitioned index, the indexes might be outdated
-                        if not launchboxid:
-                            print(f"🔧 DEBUG: Not found in partitioned index for '{normalized_with_parens}' on platform '{platform_name}'")
-                            print(f"🔧 DEBUG: This might indicate the partitioned indexes need regeneration")
+
                         
                         if launchboxid:
                             launchboxid_str = str(launchboxid)
