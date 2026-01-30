@@ -45,6 +45,7 @@ cp mobygames_service.py debian/opt/gamemanager/mobygames_service.py
 cp igdb_service.py debian/opt/gamemanager/igdb_service.py
 cp emumovies_service.py debian/opt/gamemanager/emumovies_service.py
 cp custom_scraper_service.py debian/opt/gamemanager/custom_scraper_service.py
+cp datscrapper_service.py debian/opt/gamemanager/datscrapper_service.py
 cp requirements.txt debian/opt/gamemanager/requirements.txt
 
 # Static files
@@ -234,6 +235,11 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/custom_scraper_service.py" ]; then
     echo "❌ ERROR: custom_scraper_service.py not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/datscrapper_service.py" ]; then
+    echo "❌ ERROR: datscrapper_service.py not found in package!"
     exit 1
 fi
 
