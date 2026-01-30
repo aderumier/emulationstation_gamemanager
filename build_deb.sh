@@ -29,8 +29,18 @@ echo "📦 Package: $PACKAGE_NAME"
 echo "🧹 Cleaning previous build..."
 rm -f "$PACKAGE_NAME"
 
+# Clean previous build artifacts
+echo "🧹 Cleaning previous build directory..."
+rm -rf debian/opt/gamemanager/*
+
 # Sync latest source files to Debian package directory
 echo "📋 Syncing latest source files..."
+
+# Ensure directories exist
+mkdir -p debian/opt/gamemanager
+mkdir -p debian/opt/gamemanager/static
+mkdir -p debian/opt/gamemanager/templates
+mkdir -p debian/opt/gamemanager/var/config
 
 # Core application files
 cp app.py debian/opt/gamemanager/app.py
@@ -46,6 +56,7 @@ cp igdb_service.py debian/opt/gamemanager/igdb_service.py
 cp emumovies_service.py debian/opt/gamemanager/emumovies_service.py
 cp custom_scraper_service.py debian/opt/gamemanager/custom_scraper_service.py
 cp datscrapper_service.py debian/opt/gamemanager/datscrapper_service.py
+cp launchbox_service.py debian/opt/gamemanager/launchbox_service.py
 cp requirements.txt debian/opt/gamemanager/requirements.txt
 
 # Static files
@@ -240,6 +251,11 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/datscrapper_service.py" ]; then
     echo "❌ ERROR: datscrapper_service.py not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/launchbox_service.py" ]; then
+    echo "❌ ERROR: launchbox_service.py not found in package!"
     exit 1
 fi
 
