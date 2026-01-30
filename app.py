@@ -1209,6 +1209,11 @@ def configure_logging(config):
     
     # Suppress verbose debug logs from third-party libraries
     logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    logging.getLogger('httpcore').setLevel(logging.WARNING)
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('hpack').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('PIL.PngImagePlugin').setLevel(logging.WARNING)
     logging.getLogger('PIL').setLevel(logging.WARNING)
 
