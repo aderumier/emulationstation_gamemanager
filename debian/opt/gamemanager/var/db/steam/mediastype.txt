@@ -1,4 +1,0 @@
-capsule
-logo
-hero
-screenshot
