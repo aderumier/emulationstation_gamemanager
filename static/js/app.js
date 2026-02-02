@@ -23141,69 +23141,7 @@ class GameCollectionManager {
         this.loadLaunchboxFieldSettings();
     }
 
-    async loadIgdbCredentialsStatus() {
-        try {
-            const response = await fetch('/api/igdb-credentials');
-            if (response.ok) {
-                const data = await response.json();
-                this.updateIgdbCredentialsStatus(data);
-            } else {
-            }
-        } catch (error) {
-        }
-    }
 
-    updateIgdbCredentialsStatus(data) {
-        const statusElement = document.getElementById('igdbCredentialsStatus');
-        if (statusElement) {
-            if (data.has_client_id && data.has_client_secret) {
-                statusElement.innerHTML = '<i class="bi bi-check-circle text-success me-1"></i>Credentials configured';
-                statusElement.className = 'text-success';
-            } else {
-                statusElement.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Credentials not configured';
-                statusElement.className = 'text-warning';
-            }
-        }
-    }
-
-    async saveIgdbCredentials() {
-        const clientId = document.getElementById('igdbClientId').value.trim();
-        const clientSecret = document.getElementById('igdbClientSecret').value.trim();
-
-        if (!clientId || !clientSecret) {
-            alert('Please enter both Client ID and Client Secret');
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/igdb-credentials', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    client_id: clientId,
-                    client_secret: clientSecret
-                })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                alert('IGDB credentials saved successfully!');
-
-                // Reload the credential values to show the saved values
-                await this.loadIgdbCredentialsValues();
-
-                // Update status
-                await this.loadIgdbCredentialsStatus();
-            } else {
-                const error = await response.json();
-                alert(`Failed to save credentials: ${error.error}`);
-            }
-        } catch (error) {
-            alert('Error saving credentials. Please try again.');
-        }
-    }
 
     // Steam Configuration Functions
     openSteamScrapPreferencesModal() {
@@ -24018,23 +23956,7 @@ class GameCollectionManager {
         }
     }
 
-    async loadIgdbCredentialsValues() {
-        try {
-            const response = await fetch('/api/igdb-credentials-values');
-            if (response.ok) {
-                const data = await response.json();
-                // Populate the form fields with current values
-                if (data.client_id) {
-                    document.getElementById('igdbClientId').value = data.client_id;
-                }
-                if (data.client_secret) {
-                    document.getElementById('igdbClientSecret').value = data.client_secret;
-                }
-            } else {
-            }
-        } catch (error) {
-        }
-    }
+
 
     updateScreenscraperCredentialsStatus(data) {
         const statusElement = document.getElementById('screenscraperCredentialsStatus');
@@ -39627,48 +39549,7 @@ class GameCollectionManager {
         }
     }
 
-    async testIgdbConnection() {
-        const clientId = document.getElementById('igdbClientId').value.trim();
-        const clientSecret = document.getElementById('igdbClientSecret').value.trim();
 
-        if (!clientId || !clientSecret) {
-            this.showAlert('Please enter both Client ID and Client Secret', 'warning');
-            return;
-        }
-
-        // Disable button and show loading state
-        const testBtn = document.getElementById('testIgdbConnectionBtn');
-        const originalText = testBtn.innerHTML;
-        testBtn.disabled = true;
-        testBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Testing...';
-
-        try {
-            const response = await fetch('/api/test-igdb-connection', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    client_id: clientId,
-                    client_secret: clientSecret
-                })
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-                this.showAlert('IGDB connection test successful!', 'success');
-            } else {
-                this.showAlert(`IGDB connection test failed: ${data.error || 'Unknown error'}`, 'danger');
-            }
-        } catch (error) {
-            this.showAlert(`IGDB connection test failed: ${error.message}`, 'danger');
-        } finally {
-            // Restore button state
-            testBtn.disabled = false;
-            testBtn.innerHTML = originalText;
-        }
-    }
 
     async testScreenscraperConnection() {
         const ssId = document.getElementById('screenscraperSsId').value.trim();
