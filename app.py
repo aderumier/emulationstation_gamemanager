@@ -21648,6 +21648,9 @@ def download_task_log(task_id):
     if not log_file_path or not os.path.exists(log_file_path):
         return jsonify({'error': 'Log file not found'}), 404
     
+    # Convert to absolute path for Windows compatibility
+    log_file_path = os.path.abspath(log_file_path)
+    
     # Get task details for filename
     task_type = getattr(task, 'type', 'unknown')
     task_start_time = getattr(task, 'start_time', None)

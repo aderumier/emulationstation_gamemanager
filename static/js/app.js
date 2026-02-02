@@ -2124,7 +2124,7 @@ class GameCollectionManager {
 
         // Task log modal download button
         document.addEventListener('click', (e) => {
-            if (e.target.id === 'downloadTaskLogBtn') {
+            if (e.target.id === 'downloadTaskLogBtn' || e.target.closest('#downloadTaskLogBtn')) {
                 this.downloadTaskLog();
             }
         });
