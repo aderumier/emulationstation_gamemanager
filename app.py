@@ -39245,16 +39245,27 @@ def test_screenscraper_connection():
         if not ss_id or not ss_password:
             return jsonify({'success': False, 'error': 'SS ID and SS Password are required'}), 400
         
+        # Load developer credentials using CredentialManager
+        from credential_manager import credential_manager
+        ss_creds = credential_manager.get_screenscraper_credentials()
+        devid = ss_creds.get('devid')
+        devpassword = ss_creds.get('devpassword')
+
+        if not devid or not devpassword:
+            return jsonify({'success': False, 'error': 'Application developer credentials not found'}), 500
+
         # Test the connection by making a simple API call
         import requests
         
         # Test API call to ScreenScraper
         api_url = 'https://api.screenscraper.fr/api2/jeuInfos.php'
         params = {
-            'devid': ss_id,
-            'devpassword': ss_password,
+            'devid': devid,
+            'devpassword': devpassword,
             'softname': 'GameManager',
             'output': 'json',
+            'ssid': ss_id,
+            'sspassword': ss_password,
             'gameid': '1'  # Test with a simple game ID
         }
         
