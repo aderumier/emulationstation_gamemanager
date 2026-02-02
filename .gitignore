@@ -140,9 +140,6 @@ roms/
 # Debian build directories (generated during build process)
 debian/opt/
 debian/usr/
-!debian/opt/gamemanager/var/db/mobygames/
-!debian/opt/gamemanager/var/db/mobygames/*.json
-!debian/opt/gamemanager/launchbox_service.py
 
 # Configuration files with sensitive data (optional)
 # config.json
