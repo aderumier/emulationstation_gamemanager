@@ -25,6 +25,7 @@ import os
 import tempfile
 import subprocess
 import logging
+import shutil
 
 def _imagemagick_cmd(subcommand):
     """ImageMagick argv prefix (convert/identify/composite). IM 7 uses magick.exe on Windows."""
@@ -518,9 +519,11 @@ class BoxGenerator:
                 ]
             else:
                 # No gradient, just copy
-                cmd = _imagemagick_cmd('convert') + ['temp_bg.jpg', 'temp_with_gradient.jpg']
+                shutil.copy2('temp_bg.jpg', 'temp_with_gradient.jpg')
+                cmd = None
             
-            subprocess.run(cmd, check=True)
+            if cmd:
+                subprocess.run(cmd, check=True)
             temp_files.append('temp_with_gradient.jpg')
             
             # Step 4: Process logos (exactly like bash script)
