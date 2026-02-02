@@ -24717,7 +24717,7 @@ def run_rom_scan_task(system_name):
                 task.update_progress(f"{gamelist_path} not found, copying from {roms_gamelist_path}")
                 try:
                     # Copy the gamelist from roms to var/gamelists
-                    import shutil
+                    # import shutil
                     os.makedirs(os.path.dirname(gamelist_path), exist_ok=True)
                     shutil.copy2(roms_gamelist_path, gamelist_path)
                     existing_games = parse_gamelist_xml(gamelist_path)
