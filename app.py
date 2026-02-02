@@ -33706,11 +33706,6 @@ def _run_igdb_scraper_thread(system_name, task_id, selected_games, cancel_map, o
             
             # Get IGDB configuration
             igdb_config = get_igdb_config()
-            if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
-                t = get_task(task_id)
-                if t:
-                    t.complete(False, "IGDB integration is disabled")
-                return
             
             # Add overwrite settings to IGDB config
             igdb_config['overwrite_text_fields'] = overwrite_text_fields
