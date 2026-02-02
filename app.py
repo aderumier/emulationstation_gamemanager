@@ -10616,7 +10616,7 @@ def rom_system_gamelist(system_name):
                     existing_games_basename_map.setdefault(basename_key, existing_game)
                 
                 allowed_dirs = [
-                    os.path.abspath(os.path.join(app.root_path, 'roms')),
+                    os.path.abspath(ROMS_FOLDER),
                     os.path.abspath(os.path.join(app.root_path, 'media'))
                 ]
                 
@@ -17323,7 +17323,7 @@ def delete_file():
         
         # Security check: ensure the file path is within the allowed directories
         allowed_dirs = [
-            os.path.abspath(os.path.join(app.root_path, 'roms')),
+            os.path.abspath(ROMS_FOLDER),
             os.path.abspath(os.path.join(app.root_path, 'media'))
         ]
         
@@ -17373,7 +17373,7 @@ def delete_files_batch():
         
         # Security check: ensure all file paths are within allowed directories
         allowed_dirs = [
-            os.path.abspath(os.path.join(app.root_path, 'roms')),
+            os.path.abspath(ROMS_FOLDER),
             os.path.abspath(os.path.join(app.root_path, 'media'))
         ]
         
@@ -28175,7 +28175,7 @@ def serve_cbz_file(system_name, cbz_path):
         full_cbz_path = os.path.normpath(full_cbz_path)
         
         # Security check
-        abs_roms = os.path.abspath('roms')
+        abs_roms = os.path.abspath(ROMS_FOLDER)
         abs_cbz = os.path.abspath(full_cbz_path)
         if not abs_cbz.startswith(abs_roms):
             return jsonify({'error': 'Invalid CBZ path'}), 400
@@ -28401,7 +28401,7 @@ def get_cbz_preview(system_name, cbz_path):
         full_cbz_path = os.path.normpath(full_cbz_path)
         
         # Security check
-        abs_roms = os.path.abspath('roms')
+        abs_roms = os.path.abspath(ROMS_FOLDER)
         abs_cbz = os.path.abspath(full_cbz_path)
         if not abs_cbz.startswith(abs_roms):
             return jsonify({'error': 'Invalid CBZ path'}), 400
@@ -28484,7 +28484,7 @@ def get_pdf_preview(system_name, pdf_path):
         
         # Additional security check - ensure path doesn't escape roms directory
         # Convert to absolute path for comparison
-        abs_roms = os.path.abspath('roms')
+        abs_roms = os.path.abspath(ROMS_FOLDER)
         abs_pdf = os.path.abspath(full_pdf_path)
         if not abs_pdf.startswith(abs_roms):
             return jsonify({'error': 'Invalid PDF path'}), 400
@@ -29312,24 +29312,24 @@ def process_background_image():
         system_name = request.form.get('system_name')
         if not os.path.isabs(image_path):
             if image_path.startswith('roms/'):
-                # Already has roms/ prefix
-                image_path = os.path.join(os.getcwd(), image_path)
+                # Already has roms/ prefix - strip it and join with ROMS_FOLDER
+                image_path = os.path.join(ROMS_FOLDER, image_path[5:])
             elif '/' in image_path:
                 # Relative path with subdirectories
                 if image_path.startswith('./'):
                     image_path = image_path[2:]
                 # Try relative to roms root first
-                potential_path = os.path.join(os.getcwd(), 'roms', image_path)
+                potential_path = os.path.join(ROMS_FOLDER, image_path)
                 if os.path.exists(potential_path):
                     image_path = potential_path
                 elif system_name:
                     # Try with system name
-                    potential_path = os.path.join(os.getcwd(), 'roms', system_name, image_path)
+                    potential_path = os.path.join(ROMS_FOLDER, system_name, image_path)
                     if os.path.exists(potential_path):
                         image_path = potential_path
                     else:
                         # Try in media subdirectory
-                        potential_path = os.path.join(os.getcwd(), 'roms', system_name, 'media', image_path)
+                        potential_path = os.path.join(ROMS_FOLDER, system_name, 'media', image_path)
                         if os.path.exists(potential_path):
                             image_path = potential_path
                 else:
@@ -29338,7 +29338,7 @@ def process_background_image():
                 # Just filename, need system name
                 if system_name:
                     # Try in system directory and media subdirectories
-                    roms_dir = os.path.join(os.getcwd(), 'roms', system_name)
+                    roms_dir = os.path.join(ROMS_FOLDER, system_name)
                     found_path = None
                     if os.path.exists(roms_dir):
                         # Try root of system directory
@@ -29362,7 +29362,7 @@ def process_background_image():
                         return jsonify({'error': f'Image file not found: {image_path} (system: {system_name})'}), 404
                 else:
                     # No system name, search all systems
-                    roms_dir = os.path.join(os.getcwd(), 'roms')
+                    roms_dir = ROMS_FOLDER
                     found_path = None
                     if os.path.exists(roms_dir):
                         for system_dir in os.listdir(roms_dir):

@@ -1353,13 +1353,18 @@ class ScreenScraperService:
                     else:
                         relative_path = game_path
                     
+                    # Get ROMs root directory from config
+                    roms_root_dir = self.config.get('roms_root_directory', 'roms')
+                    
                     # If path doesn't start with 'roms/', it's relative to the system directory
                     if not relative_path.startswith('roms/'):
                         # Path is relative to roms/<system_name>/, e.g., "manny.zip" -> "roms/vsmile/manny.zip"
-                        rom_full_path = os.path.join('roms', system_name, relative_path)
+                        rom_full_path = os.path.join(roms_root_dir, system_name, relative_path)
                     else:
-                        # Path already includes roms/, use as-is
-                        rom_full_path = relative_path
+                        # Path starts with 'roms/', replace logical prefix with actual root
+                        # remove 'roms/' which is 5 chars
+                        actual_rel = relative_path[5:]
+                        rom_full_path = os.path.join(roms_root_dir, actual_rel)
                     
                     # Ensure path is absolute
                     if not os.path.isabs(rom_full_path):
