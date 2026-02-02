@@ -518,7 +518,7 @@ class BoxGenerator:
                 ]
             else:
                 # No gradient, just copy
-                cmd = ['cp', 'temp_bg.jpg', 'temp_with_gradient.jpg']
+                cmd = _imagemagick_cmd('convert') + ['temp_bg.jpg', 'temp_with_gradient.jpg']
             
             subprocess.run(cmd, check=True)
             temp_files.append('temp_with_gradient.jpg')

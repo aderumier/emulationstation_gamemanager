@@ -337,8 +337,7 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
             output_path = base_path + '.tmp' + current_extension
         
         # Build ImageMagick convert command
-        convert_cmd = find_tool('convert', 'convert.exe')
-        cmd = [convert_cmd, file_path]
+        cmd = get_imagemagick_cmd('convert') + [file_path]
         
         # Handle transparency for JPEG conversion
         if needs_conversion and target_extension and target_extension.lower() in ['.jpg', '.jpeg']:

@@ -27037,8 +27037,8 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                             
                             try:
                                 # Process image: resize with stretch and blur
-                                cmd = [
-                                    'convert', current_background_path,
+                                cmd = get_imagemagick_cmd('convert') + [
+                                    current_background_path,
                                     '-resize', '600x900^',
                                     '-gravity', 'center',
                                     '-extent', '600x900',
@@ -29396,8 +29396,8 @@ def process_background_image():
         
         try:
             # Process image with stretch and blur (same as 2D box generator)
-            cmd = [
-                'convert', image_path,
+            cmd = get_imagemagick_cmd('convert') + [
+                image_path,
                 '-resize', f'{width}x{height}^',  # ^ means fill, maintaining aspect ratio
                 '-gravity', 'center',
                 '-extent', f'{width}x{height}',  # Crop to exact size
