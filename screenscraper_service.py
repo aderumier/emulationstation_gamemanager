@@ -1345,30 +1345,14 @@ class ScreenScraperService:
                 # Compute MD5 only if the md5 field is empty (to store it in gamelist)
                 if not existing_md5:
                     # Construct full ROM path
-                    # game_path is typically like "./manny.zip" or "./roms/nes/Mega Man (USA).nes" or "roms/nes/Mega Man (USA).nes"
-                    # ROM files are stored in roms/<system_name>/ directory
-                    if game_path.startswith('./'):
-                        # Remove leading ./ to get relative path
-                        relative_path = game_path[2:]
-                    else:
-                        relative_path = game_path
-                    
-                    # Get ROMs root directory from config
+                    # game_path is always relative to roms_root_dir/<system_name>/, e.g., "./romname.zip"
                     roms_root_dir = self.config.get('roms_root_directory', 'roms')
                     
-                    # If path doesn't start with 'roms/', it's relative to the system directory
-                    if not relative_path.startswith('roms/'):
-                        # Path is relative to roms/<system_name>/, e.g., "manny.zip" -> "roms/vsmile/manny.zip"
-                        rom_full_path = os.path.join(roms_root_dir, system_name, relative_path)
-                    else:
-                        # Path starts with 'roms/', replace logical prefix with actual root
-                        # remove 'roms/' which is 5 chars
-                        actual_rel = relative_path[5:]
-                        rom_full_path = os.path.join(roms_root_dir, actual_rel)
+                    # Strip leading "./" if present
+                    relative_path = game_path[2:] if game_path.startswith('./') else game_path
                     
-                    # Ensure path is absolute
-                    if not os.path.isabs(rom_full_path):
-                        rom_full_path = os.path.abspath(rom_full_path)
+                    # Build absolute path: roms_root_dir/system_name/relative_path
+                    rom_full_path = os.path.abspath(os.path.join(roms_root_dir, system_name, relative_path))
                     
                     # Compute MD5
                     rom_md5 = self.compute_rom_md5(rom_full_path)
