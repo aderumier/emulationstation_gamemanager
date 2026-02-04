@@ -8605,6 +8605,10 @@ class GameCollectionManager {
             // Use all fields from the game object
             const gameData = { ...game };
 
+            // Optimistically update the grid row immediately for better responsiveness
+            // This ensures the UI reflects changes instantly before the network request completes
+            this.updateSingleGridRow(game);
+
             // Use optimized single-game update API instead of sending all games
             const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`, {
                 method: 'PUT',
@@ -8701,8 +8705,7 @@ class GameCollectionManager {
                     this.showAlert('Changes saved directly to gamelist.xml!', 'success');
 
                     // Refresh the grid to show updated values, respecting current filters
-                    // Update just the single row instead of full grid refresh
-                    this.updateSingleGridRow(game);
+                    // Grid optimization: Row already updated optimistically above
 
                     // Move focus away from modal before hiding it
                     const safeElement = document.querySelector('#gamesCount') || document.body;
@@ -8717,8 +8720,7 @@ class GameCollectionManager {
                     // Store the current editingGamePath before refresh
                     const currentPath = this.editingGamePath;
                     // Set a flag to prevent modal repopulation during navigation
-                    // Update just the single row instead of full grid refresh
-                    this.updateSingleGridRow(game);
+                    // Grid optimization: Row already updated optimistically above
                     // Restore editingGamePath after refresh (it might have been cleared)
                     this.editingGamePath = currentPath;
                     // Clear the flag after a short delay to allow editGame to complete
