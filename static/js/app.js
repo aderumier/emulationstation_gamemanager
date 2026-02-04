@@ -3856,8 +3856,8 @@ class GameCollectionManager {
             // Check if right panel is enabled
             const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
             if (rightPanelEnabled) {
-                // Open game in right panel
-                await this.editGameInPanel(event.data);
+                // Open game in right panel (fire-and-forget to avoid blocking UI)
+                this.editGameInPanel(event.data);
             }
 
             // Show media preview if enabled
@@ -31919,10 +31919,12 @@ class GameCollectionManager {
 
     async editGameInPanel(game) {
         // Check if we're switching to a different game
-        if (this.editingGamePath && this.editingGamePath !== game.path) {
-            // Auto-save current game if it has changed
-            await this.autoSavePanelGameIfChanged();
+        // Skip auto-save if we're already handling save from navigation (fire-and-forget)
+        if (this.editingGamePath && this.editingGamePath !== game.path && !this.skipAutoSaveOnEdit) {
+            // Auto-save current game if it has changed (fire-and-forget to not block UI)
+            this.autoSavePanelGameIfChanged().catch(err => console.warn('Auto-save failed:', err));
         }
+        this.skipAutoSaveOnEdit = false; // Reset the flag
 
         this.editingGamePath = game.path;
         this.editingGameIndex = this.games.findIndex(g => g.path === game.path);
@@ -32404,11 +32406,14 @@ class GameCollectionManager {
         if (!targetGame) return;
 
         const targetPath = targetGame.path;
-        await this.saveGameChangesFromPanel(true);
+        // Fire-and-forget save - don't block navigation waiting for save to complete
+        this.saveGameChangesFromPanel(true).catch(err => console.warn('Save during navigation failed:', err));
 
+        // Skip the auto-save check in editGameInPanel since we already handled save above
+        this.skipAutoSaveOnEdit = true;
         const refreshedTargetGame = this.games.find(g => g.path === targetPath);
         if (refreshedTargetGame) {
-            await this.editGameInPanel(refreshedTargetGame);
+            this.editGameInPanel(refreshedTargetGame);
         }
     }
 
@@ -32422,11 +32427,14 @@ class GameCollectionManager {
         if (!targetGame) return;
 
         const targetPath = targetGame.path;
-        await this.saveGameChangesFromPanel(true);
+        // Fire-and-forget save - don't block navigation waiting for save to complete
+        this.saveGameChangesFromPanel(true).catch(err => console.warn('Save during navigation failed:', err));
 
+        // Skip the auto-save check in editGameInPanel since we already handled save above
+        this.skipAutoSaveOnEdit = true;
         const refreshedTargetGame = this.games.find(g => g.path === targetPath);
         if (refreshedTargetGame) {
-            await this.editGameInPanel(refreshedTargetGame);
+            this.editGameInPanel(refreshedTargetGame);
         }
     }
 
@@ -34428,9 +34436,8 @@ class GameCollectionManager {
             if (rightPanelEnabled) {
                 const rightPanel = document.getElementById('rightPanel');
                 if (rightPanel && rightPanel.style.display !== 'none') {
-                    // Auto-save current game if it has changed before loading new game
-                    await this.autoSavePanelGameIfChanged();
-                    await this.editGameInPanel(node.data);
+                    // Auto-save handled internally by editGameInPanel (fire-and-forget)
+                    this.editGameInPanel(node.data);
                 }
             }
 
