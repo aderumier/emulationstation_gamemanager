@@ -1,5 +1,5 @@
 {
-    "roms_root_directory": "/home/aderumier/cursorscraper/roms",
+    "roms_root_directory": "/home/aderumier/cursorscraper/roms2",
     "task_logs_directory": "var/task_logs",
     "max_tasks_to_keep": 30,
     "server": {
