@@ -7152,6 +7152,15 @@ def get_config():
         full_config.update(current_scrappers_config)
         full_config['systems'] = load_systems_config()
         
+        # Check if roms_root_directory was explicitly set by the user in config.json
+        # This is used to prompt users to configure the roms directory on first login
+        try:
+            user_config = load_json_with_comments('var/config/config.json')
+            roms_dir = user_config.get('roms_root_directory', '')
+            full_config['roms_directory_user_configured'] = bool(roms_dir and roms_dir.strip())
+        except Exception:
+            full_config['roms_directory_user_configured'] = False
+        
         # Scrub sensitive data for non-admin users
         if not is_admin_user(current_user):
             sensitive_keys = ['youtube_api_key', 'discord_bot_token', 'secret_key', 'admin_password']

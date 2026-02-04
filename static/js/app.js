@@ -225,6 +225,9 @@ class GameCollectionManager {
         // Clean up any stale room memberships on page load
         this.cleanupStaleRooms();
 
+        // Check if roms directory is configured, prompt user to configure if not
+        this.checkRomsDirectoryConfiguration();
+
     }
 
     cleanupStaleRooms() {
@@ -232,6 +235,29 @@ class GameCollectionManager {
         // This helps prevent cross-system contamination
         if (this.socket && this.currentSystem) {
             // The WebSocket will handle the actual cleanup when it connects
+        }
+    }
+
+    async checkRomsDirectoryConfiguration() {
+        // Check if roms directory is configured, if not, prompt user with configuration modal
+        try {
+            const response = await fetch('/api/config', {
+                credentials: 'same-origin'
+            });
+            if (response.ok) {
+                const config = await response.json();
+
+                // Check if user has explicitly configured the roms directory
+                if (config.roms_directory_user_configured === false) {
+                    // Delay a bit to ensure the page is fully loaded
+                    setTimeout(() => {
+                        this.showToast('⚠️ ROMs directory is not configured. Please configure it to start using GameManager.', 'warning');
+                        this.openAppConfigurationModal();
+                    }, 500);
+                }
+            }
+        } catch (error) {
+            console.error('Error checking roms directory configuration:', error);
         }
     }
 
