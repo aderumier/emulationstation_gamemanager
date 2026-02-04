@@ -362,11 +362,7 @@ def get_user_by_id(user_id):
     users = load_users()
     user_data = users.get(user_id)
     if user_data:
-        role = user_data.get('role')
-        if not role and user_data.get('is_validated'):
-            role = 'admin'  # backward compat: validated users were admins
-        elif not role:
-            role = 'user'
+        role = user_data.get('role', 'user')
         return User(
             user_id=user_id,
             username=user_data['username'],
@@ -386,7 +382,7 @@ def get_user_by_username(username):
     users = load_users()
     for user_id, user_data in users.items():
         if user_data['username'] == username:
-            role = user_data.get('role') or ('admin' if user_data.get('is_validated') else 'user')
+            role = user_data.get('role', 'user')
             return User(
                 user_id=user_id,
                 username=user_data['username'],
@@ -406,7 +402,7 @@ def get_user_by_discord_id(discord_id):
     users = load_users()
     for user_id, user_data in users.items():
         if user_data.get('discord_id') == discord_id:
-            role = user_data.get('role') or ('admin' if user_data.get('is_validated') else 'user')
+            role = user_data.get('role', 'user')
             return User(
                 user_id=user_id,
                 username=user_data['username'],
