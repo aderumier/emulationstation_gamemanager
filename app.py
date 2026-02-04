@@ -10918,12 +10918,13 @@ def normalize_igdb_url(image_id: str, media_type: str = 'default') -> str:
         return ""
     
     # Use different templates for different media types
+    # Always use original quality for best results
     if media_type == 'cover':
-        template = 't_cover_big'
+        template = 't_original'
     elif media_type == 'artwork':
-        template = 't_1080p'
+        template = 't_original'
     else:
-        template = 't_720p'
+        template = 't_original'
     
     # Construct IGDB image URL using local image ID - always use .png
     return f"https://images.igdb.com/igdb/image/upload/{template}/{image_id}.png"
@@ -31846,10 +31847,10 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         elif not image_url.startswith('http'):
             image_url = f"https://images.igdb.com{image_url}"
         
-        # Replace thumb size with 720p for better quality
+        # Replace thumb size with original for best quality
         if '/t_thumb/' in image_url:
-            image_url = image_url.replace('/t_thumb/', '/t_720p/')
-            print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_720p/ for better quality")
+            image_url = image_url.replace('/t_thumb/', '/t_original/')
+            print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_original/ for best quality")
         
         # Replace file extension with .png
         if not image_url.endswith('.png'):
