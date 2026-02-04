@@ -330,6 +330,8 @@ class GameCollectionManager {
                 mediaPreviewContent.innerHTML = '';
             }
 
+            // Immediately refresh tasks when switching to this tab
+            this.refreshTasks();
         }
     }
 
@@ -341,6 +343,16 @@ class GameCollectionManager {
             mediaPreviewTab.classList.contains('active') &&
             mediaPreviewContent.classList.contains('show') &&
             mediaPreviewContent.classList.contains('active');
+    }
+
+    isTaskManagementTabActive() {
+        const taskManagementTab = document.getElementById('task-management-tab');
+        const taskManagementContent = document.getElementById('task-management-content');
+
+        return taskManagementTab && taskManagementContent &&
+            taskManagementTab.classList.contains('active') &&
+            taskManagementContent.classList.contains('show') &&
+            taskManagementContent.classList.contains('active');
     }
 
     async checkTaskQueue() {
@@ -398,6 +410,11 @@ class GameCollectionManager {
     }
 
     async refreshTasks() {
+        // Skip API call if task management tab is not visible
+        if (!this.isTaskManagementTabActive()) {
+            return;
+        }
+
         // Prevent overlapping calls - if a refresh is already in progress, skip this call
         if (this.isRefreshingTasks) {
             this.refreshSkipCount++;
