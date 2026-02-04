@@ -6774,59 +6774,126 @@ def get_cache_statistics():
         'total_games': len(global_metadata_cache),
         'memory_usage_mb': memory_usage_mb
     }
-def count_all_games_batch(systems_list):
-    """Count games for all systems at once using fast XML parsing with iterparse.
+
+# Global cache for game counts per system - avoids parsing XML on each systems list request
+_game_count_cache = {}
+
+def invalidate_game_count_cache(system_name=None):
+    """Invalidate game count cache for a specific system or all systems.
     
-    This uses lxml.etree.iterparse for memory-efficient streaming XML parsing,
-    which is faster and more reliable than grep-based string matching.
+    Args:
+        system_name: If provided, only invalidate cache for this system.
+                    If None, invalidate entire cache.
     """
-    system_counts = {}
+    global _game_count_cache
+    if system_name:
+        if system_name in _game_count_cache:
+            del _game_count_cache[system_name]
+            print(f"🗑️ Invalidated game count cache for system: {system_name}")
+    else:
+        _game_count_cache.clear()
+        print("🗑️ Invalidated entire game count cache")
+
+def update_game_count_cache(system_name, count):
+    """Update the game count cache for a specific system.
+    
+    Args:
+        system_name: The system to update.
+        count: The new game count.
+    """
+    global _game_count_cache
+    _game_count_cache[system_name] = count
+    print(f"📊 Updated game count cache for {system_name}: {count} games")
+
+def get_cached_game_count(system_name):
+    """Get cached game count for a system, or None if not cached.
+    
+    Args:
+        system_name: The system to look up.
+        
+    Returns:
+        The cached count, or None if not in cache.
+    """
+    return _game_count_cache.get(system_name)
+
+def _count_games_for_system(system_name):
+    """Count visible (non-hidden) games for a single system using XML parsing.
+    
+    Args:
+        system_name: The system to count games for.
+        
+    Returns:
+        The number of visible games.
+    """
+    gamelist_path = get_gamelist_path(system_name)
+    
+    if not os.path.exists(gamelist_path):
+        return 0
     
     try:
-        # Process each system's gamelist.xml file using fast XML parsing
-        for system_name in systems_list:
-            gamelist_path = get_gamelist_path(system_name)
-            
-            if not os.path.exists(gamelist_path):
-                system_counts[system_name] = 0
-                continue
-            
-            try:
-                # Use iterparse for fast, memory-efficient XML parsing
-                game_count = 0
-                hidden_count = 0
-                
-                # Parse XML using iterparse (streaming parser - very fast)
-                context = ET.iterparse(gamelist_path, events=('start', 'end'))
-                context = iter(context)
-                event, root = next(context)
-                
-                for event, elem in context:
-                    if event == 'start' and elem.tag == 'game':
-                        game_count += 1
-                    elif event == 'end' and elem.tag == 'game':
-                        # Check if this game is hidden
-                        hidden_elem = elem.find('hidden')
-                        if hidden_elem is not None and hidden_elem.text and hidden_elem.text.strip().lower() == 'true':
-                            hidden_count += 1
-                        # Clear element to free memory during streaming
-                        elem.clear()
-                
-                # Calculate visible games (total - hidden)
-                visible_count = max(0, game_count - hidden_count)
-                system_counts[system_name] = visible_count
-                
-            except ET.XMLSyntaxError as e:
-                print(f"XML syntax error in {gamelist_path}: {e}")
-                system_counts[system_name] = 0
-            except Exception as e:
-                print(f"Error parsing {gamelist_path}: {e}")
-                system_counts[system_name] = 0
+        game_count = 0
+        hidden_count = 0
+        
+        # Parse XML using iterparse (streaming parser - very fast)
+        context = ET.iterparse(gamelist_path, events=('start', 'end'))
+        context = iter(context)
+        event, root = next(context)
+        
+        for event, elem in context:
+            if event == 'start' and elem.tag == 'game':
+                game_count += 1
+            elif event == 'end' and elem.tag == 'game':
+                # Check if this game is hidden
+                hidden_elem = elem.find('hidden')
+                if hidden_elem is not None and hidden_elem.text and hidden_elem.text.strip().lower() == 'true':
+                    hidden_count += 1
+                # Clear element to free memory during streaming
+                elem.clear()
+        
+        # Calculate visible games (total - hidden)
+        return max(0, game_count - hidden_count)
+        
+    except ET.XMLSyntaxError as e:
+        print(f"XML syntax error in {gamelist_path}: {e}")
+        return 0
+    except Exception as e:
+        print(f"Error parsing {gamelist_path}: {e}")
+        return 0
+
+def count_all_games_batch(systems_list):
+    """Count games for all systems at once, using cache when available.
+    
+    This function first checks the cache for each system. For systems not in cache,
+    it uses fast XML parsing with iterparse for memory-efficient streaming.
+    """
+    global _game_count_cache
+    system_counts = {}
+    systems_to_parse = []
+    
+    # Check cache first
+    for system_name in systems_list:
+        cached_count = _game_count_cache.get(system_name)
+        if cached_count is not None:
+            system_counts[system_name] = cached_count
+        else:
+            systems_to_parse.append(system_name)
+    
+    if not systems_to_parse:
+        # All systems were cached
+        return system_counts
+    
+    try:
+        # Process each uncached system's gamelist.xml file using fast XML parsing
+        for system_name in systems_to_parse:
+            count = _count_games_for_system(system_name)
+            system_counts[system_name] = count
+            # Update cache
+            _game_count_cache[system_name] = count
     
     except Exception as e:
         print(f"Error in batch game counting: {e}")
         # Set all systems to 0 if batch processing fails
-        for system_name in systems_list:
+        for system_name in systems_to_parse:
             if system_name not in system_counts:
                 system_counts[system_name] = 0
     
@@ -10794,6 +10861,8 @@ def rom_system_gamelist(system_name):
             # Notify all connected clients about the gamelist update
             if delete_rom_paths:
                 print(f"🔔 Notifying about gamelist update with deletions")
+                # Invalidate game count cache for this system since games were deleted
+                invalidate_game_count_cache(system_name)
                 notify_gamelist_updated(system_name, len(games), len(delete_rom_paths), len(changed_games))
                 notify_game_deleted(system_name, deleted_files)
             else:
@@ -10887,6 +10956,9 @@ def force_import_gamelist_endpoint(system_name):
         
         # Verify the copy was successful
         if os.path.exists(dest_path):
+            # Invalidate game count cache for this system since gamelist changed
+            invalidate_game_count_cache(system_name)
+            
             return jsonify({
                 'success': True,
                 'message': f'Successfully imported gamelist.xml from {source_path} to {dest_path}',
@@ -25037,6 +25109,9 @@ def scan_rom_files_confirm(system_name):
         
         # Save updated gamelist
         write_gamelist_xml(valid_games, gamelist_path)
+        
+        # Invalidate game count cache for this system since gamelist changed
+        invalidate_game_count_cache(system_name)
         
         # Notify all connected clients about the gamelist update
         notify_gamelist_updated(system_name, len(valid_games))
@@ -39990,6 +40065,38 @@ if __name__ == '__main__':
     launchbox_indexes_thread = threading.Thread(target=load_launchbox_indexes_background, daemon=True)
     launchbox_indexes_thread.start()
     
+    # Start game count cache pre-population in a separate thread
+    def load_game_count_cache_background():
+        """Pre-populate game count cache for all systems at startup"""
+        print("🔄 Pre-populating game count cache in background...")
+        try:
+            # Scan roms directory for system folders
+            if not os.path.exists(ROMS_FOLDER):
+                print("⚠️ ROMS_FOLDER not found, skipping game count cache pre-population")
+                return
+            
+            # Get all system directories
+            system_names = []
+            for item in os.listdir(ROMS_FOLDER):
+                system_path = os.path.join(ROMS_FOLDER, item)
+                if os.path.isdir(system_path) and not item.startswith('+'):
+                    system_names.append(item)
+            
+            if not system_names:
+                print("ℹ️ No system directories found, game count cache is empty")
+                return
+            
+            # Count games for all systems (this populates the cache)
+            start_time = time.time()
+            count_all_games_batch(system_names)
+            elapsed = time.time() - start_time
+            
+            print(f"✅ Game count cache pre-populated for {len(system_names)} systems in {elapsed:.2f}s")
+        except Exception as e:
+            print(f"❌ Game count cache pre-population failed: {e}")
+    
+    game_count_cache_thread = threading.Thread(target=load_game_count_cache_background, daemon=True)
+    game_count_cache_thread.start()
     
     # Use a more robust approach with proper signal handling
     import sys
