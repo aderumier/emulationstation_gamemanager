@@ -2665,8 +2665,10 @@ class GameCollectionManager {
                 }
                 // For gamelist updates, fetch fresh data to ensure consistency
                 this.refreshGameGridWithData();
-                // Also refresh the system dropdown to update game counts
-                this.loadAvailableSystems();
+                // Only refresh systems when games are added/deleted (count changes)
+                if (updateData.deleted_count > 0) {
+                    this.loadAvailableSystems();
+                }
                 break;
 
             case 'games_deleted':
@@ -2676,9 +2678,8 @@ class GameCollectionManager {
                 break;
 
             case 'game_updated':
-                this.showToast(`Game updated: ${updateData.rom_path}`, 'info');
-                // For game updates, we need to fetch the latest data to sync properly
-                this.syncGameData();
+                // Update single game in-memory for efficiency (no full refetch)
+                this.updateSingleGameFromWebSocket(updateData.rom_path);
                 break;
 
             default:
@@ -2809,6 +2810,77 @@ class GameCollectionManager {
         } catch (error) {
             // Fallback to full refresh if sync fails
             this.refreshGameGrid();
+        }
+    }
+
+    /**
+     * Update a single game from WebSocket notification without full gamelist refetch.
+     * This is called when game_updated event is received, and the game data is already
+     * updated on the server. We just need to refresh the local cache for that game.
+     * @param {string} romPath - The ROM path of the updated game
+     */
+    async updateSingleGameFromWebSocket(romPath) {
+        if (!this.currentSystem || !this.gridApi || !romPath) return;
+
+        // Skip if this is the game currently being edited in the right panel
+        // The user's local changes should take precedence
+        if (this.editingGamePath === romPath) {
+            return;
+        }
+
+        try {
+            // Find the game in our local games array
+            const gameIndex = this.games.findIndex(g => g.path === romPath);
+            if (gameIndex === -1) {
+                return;
+            }
+
+            // Fetch just this single game's updated data from the server
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/game?path=${encodeURIComponent(romPath)}`);
+            if (!response.ok) {
+                // If single-game fetch fails or doesn't exist, fall back to no-op
+                // The data was already saved, grid will sync on next full refresh
+                return;
+            }
+
+            const result = await response.json();
+            if (!result.success || !result.game) {
+                return;
+            }
+
+            // Update the game in our local array
+            this.games[gameIndex] = result.game;
+
+            // Use AG Grid's applyTransaction for efficient single-row update
+            const rowNode = this.gridApi.getRowNode(romPath);
+            if (rowNode) {
+                rowNode.setData(result.game);
+            }
+        } catch (error) {
+            // Silent fail - the save was successful, just the UI update failed
+            // Data will sync on next navigation or refresh
+            console.warn('Failed to update single game from WebSocket:', error);
+        }
+    }
+
+    /**
+     * Update a single row in the grid with the given game data.
+     * This is more efficient than refreshing the entire grid.
+     * @param {Object} game - The game object with updated data
+     */
+    updateSingleGridRow(game) {
+        if (!this.gridApi || !game || !game.path) return;
+
+        // Update the game in our local games array
+        const gameIndex = this.games.findIndex(g => g.path === game.path);
+        if (gameIndex !== -1) {
+            this.games[gameIndex] = game;
+        }
+
+        // Use AG Grid's getRowNode to find and update the specific row
+        const rowNode = this.gridApi.getRowNode(game.path);
+        if (rowNode) {
+            rowNode.setData(game);
         }
     }
 
@@ -8612,7 +8684,8 @@ class GameCollectionManager {
                     this.showAlert('Changes saved directly to gamelist.xml!', 'success');
 
                     // Refresh the grid to show updated values, respecting current filters
-                    await this.refreshGridData();
+                    // Update just the single row instead of full grid refresh
+                    this.updateSingleGridRow(game);
 
                     // Move focus away from modal before hiding it
                     const safeElement = document.querySelector('#gamesCount') || document.body;
@@ -8627,8 +8700,8 @@ class GameCollectionManager {
                     // Store the current editingGamePath before refresh
                     const currentPath = this.editingGamePath;
                     // Set a flag to prevent modal repopulation during navigation
-                    this.navigatingBetweenGames = true;
-                    await this.refreshGridData();
+                    // Update just the single row instead of full grid refresh
+                    this.updateSingleGridRow(game);
                     // Restore editingGamePath after refresh (it might have been cleared)
                     this.editingGamePath = currentPath;
                     // Clear the flag after a short delay to allow editGame to complete

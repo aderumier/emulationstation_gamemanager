@@ -10472,6 +10472,38 @@ def rom_system_gamelist_batch(system_name):
         traceback.print_exc()
         return jsonify({'error': f'Error updating gamelist: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/game', methods=['GET'])
+@login_required
+def rom_system_single_game(system_name):
+    """Get a single game from the gamelist by ROM path"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
+    try:
+        rom_path = request.args.get('path')
+        if not rom_path:
+            return jsonify({'error': 'Missing required parameter: path'}), 400
+        
+        # Get gamelist path from var/gamelists
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        # Parse gamelist and find the specific game
+        games = parse_gamelist_xml(gamelist_path)
+        game = next((g for g in games if g.get('path') == rom_path), None)
+        
+        if not game:
+            return jsonify({'error': f'Game not found: {rom_path}'}), 404
+        
+        return jsonify({
+            'success': True,
+            'game': game
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error fetching game: {str(e)}'}), 500
+
 @app.route('/api/rom-system/<system_name>/gamelist', methods=['GET', 'PUT'])
 @login_required
 def rom_system_gamelist(system_name):
@@ -10540,8 +10572,8 @@ def rom_system_gamelist(system_name):
                 # Write updated gamelist
                 write_gamelist_xml(games, gamelist_path)
                 
-                # Notify about the single game update
-                notify_gamelist_updated(system_name, len(games))
+                # Notify about the single game update (only game_updated, not gamelist_updated)
+                # This avoids redundant full gamelist refetch on the frontend
                 notify_game_updated(system_name, rom_path, list(updated_game.keys()))
                 
                 return jsonify({
