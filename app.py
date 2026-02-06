@@ -2170,6 +2170,12 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
                     should_update = overwrite_text_fields or not old_value
                     print(f"🔧 DEBUG: Field {launchbox_field}->{gamelist_field}: overwrite={overwrite_text_fields} (type: {type(overwrite_text_fields)}), old_value='{old_value}', empty={not old_value}, should_update={should_update}")
                 
+                # Extra safeguard for Name field: never overwrite if game already has a name
+                # and overwrite_text_fields is False (regardless of selected_fields)
+                if launchbox_field == 'Name' and old_value and not overwrite_text_fields:
+                    should_update = False
+                    print(f"🔧 DEBUG: Name field safeguard: skipping update because game already has name='{old_value}' and overwrite_text_fields={overwrite_text_fields}")
+                
                 if should_update and old_value != new_value:
                     game_data[gamelist_field] = new_value
                     updated = True
