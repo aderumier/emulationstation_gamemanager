@@ -191,3 +191,6 @@ tools/deno
 
 # Unused submodule
 google-images-scraper/
+
+# Temporary debian package check directory
+temp_deb_check/
