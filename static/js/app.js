@@ -1859,16 +1859,6 @@ class GameCollectionManager {
         document.getElementById('clearImageCacheBtn').addEventListener('click', () => this.clearImageCache());
         document.getElementById('startImportMediasBtn').addEventListener('click', () => this.startImportMedias());
         document.getElementById('startImportRomsBtn').addEventListener('click', () => this.startImportRoms());
-        const uploadRomFileBtn = document.getElementById('uploadRomFileBtn');
-        if (uploadRomFileBtn) {
-            uploadRomFileBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                this.handleRomUpload();
-            });
-        } else {
-            console.warn('uploadRomFileBtn not found in DOM');
-        }
 
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', async () => {
             await this.ensurePanelGameSavedIfOpen();
@@ -5216,11 +5206,15 @@ class GameCollectionManager {
         // Initialize YouTube preview button for edit modal
         this.initializeEditModalYoutubePreview();
 
+        // Initialize upload ROM button
+        this.initializeUploadRomButton();
+
         // Initialize delete video button
         this.initializeDeleteVideoButton(game);
 
         // Initialize upload video button
         this.initializeUploadVideoButton(game);
+
 
         // Initialize manual crop button
         this.initializeManualCropButton(game);
@@ -20238,6 +20232,23 @@ class GameCollectionManager {
         }
     }
 
+    initializeUploadRomButton() {
+        const uploadRomFileBtn = document.getElementById('uploadRomFileBtn');
+        if (uploadRomFileBtn) {
+            // Remove any existing event listeners by cloning the button
+            const newBtn = uploadRomFileBtn.cloneNode(true);
+            uploadRomFileBtn.parentNode.replaceChild(newBtn, uploadRomFileBtn);
+
+            // Add click event listener
+            newBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleRomUpload();
+            });
+        }
+    }
+
+
     updateDeleteVideoButtonState(game) {
         const deleteVideoBtn = document.getElementById('deleteVideoBtn');
         if (deleteVideoBtn) {
@@ -32305,11 +32316,13 @@ class GameCollectionManager {
         this.initializeEditModalCustomSearch();
         this.initializeEditModalCustom2Search();
         this.initializeEditModalYoutubePreview();
+        this.initializeUploadRomButton();
         this.initializeDeleteVideoButton(game);
         this.initializeUploadVideoButton(game);
         this.initializeManualCropButton(game);
         this.initializeTakeScreenshotButton(game);
     }
+
 
     initializeRightPanelEventListeners() {
         // Re-attach event listeners for buttons in the panel
