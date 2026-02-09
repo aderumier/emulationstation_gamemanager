@@ -166,7 +166,7 @@ cp -r tools/yt-dlp-plugins debian/opt/gamemanager/tools/yt-dlp-plugins
 
 # Fix paths in config.json for production environment
 echo "🔧 Updating paths for production environment..."
-sed -i 's|"roms_root_directory": "/home/aderumier/cursorscraper/roms"|"roms_root_directory": "/opt/gamemanager/roms"|g' debian/opt/gamemanager/var/config/config.json
+sed -i 's|"roms_root_directory": "/home/aderumier/cursorscraper/roms2"|"roms_root_directory": "/opt/gamemanager/roms"|g' debian/opt/gamemanager/var/config/config.json
 
 # Force disable_local_auth to false for fresh installs
 echo "🔧 Forcing disable_local_auth to false for fresh installs..."
