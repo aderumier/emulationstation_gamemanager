@@ -17769,6 +17769,74 @@ def upload_game_rom(system_name):
         file.save(new_rom_full_path)
         print(f"✅ Saved new ROM file: {new_rom_full_path}")
         
+        # Rename all associated media files to match new ROM filename
+        try:
+            # Get media config to find all media fields
+            media_config = load_media_config()
+            media_fields = media_config.get('media_fields', {})
+            
+            # Get old and new ROM basenames (without extension)
+            old_rom_basename = os.path.splitext(os.path.basename(old_rom_path.lstrip('./')))[0]
+            new_rom_basename = os.path.splitext(new_filename)[0]
+            
+            # Only rename if basenames are different
+            if old_rom_basename != new_rom_basename:
+                renamed_media_fields = []
+                
+                for media_field in media_fields.keys():
+                    if media_field in game and game[media_field]:
+                        old_media_rel_path = game[media_field]
+                        # Convert relative path to absolute
+                        old_media_abs_path = os.path.join(system_path, old_media_rel_path.lstrip('./'))
+                        
+                        if os.path.exists(old_media_abs_path):
+                            # Get media directory and extension
+                            media_dir = os.path.dirname(old_media_abs_path)
+                            media_ext = os.path.splitext(old_media_abs_path)[1]
+                            
+                            # Create new media filename
+                            new_media_filename = new_rom_basename + media_ext
+                            new_media_abs_path = os.path.join(media_dir, new_media_filename)
+                            
+                            # Rename the file
+                            try:
+                                # If target file already exists, remove it first
+                                if os.path.exists(new_media_abs_path) and new_media_abs_path != old_media_abs_path:
+                                    try:
+                                        os.remove(new_media_abs_path)
+                                        print(f"🗑️ Removed existing media file: {new_media_filename}")
+                                    except Exception as e:
+                                        print(f"⚠️ Warning: Could not remove existing media file {new_media_abs_path}: {e}")
+                                
+                                # Rename old media file to new name
+                                if old_media_abs_path != new_media_abs_path:
+                                    os.rename(old_media_abs_path, new_media_abs_path)
+                                    
+                                    # Update game object with new relative path
+                                    new_media_rel_path = os.path.relpath(new_media_abs_path, system_path)
+                                    new_media_rel_path = new_media_rel_path.replace('\\', '/')
+                                    if not new_media_rel_path.startswith('./'):
+                                        new_media_rel_path = './' + new_media_rel_path
+                                    game[media_field] = new_media_rel_path
+                                    renamed_media_fields.append(media_field)
+                                    
+                                    print(f"✅ Renamed media file: {media_field} - {os.path.basename(old_media_abs_path)} → {new_media_filename}")
+                            except Exception as e:
+                                print(f"⚠️ Warning: Could not rename media file for {media_field}: {e}")
+                
+                # Log summary
+                if renamed_media_fields:
+                    print(f"✅ Renamed {len(renamed_media_fields)} media file(s) to match new ROM name")
+                else:
+                    print(f"ℹ️ No media files found to rename")
+            else:
+                print(f"ℹ️ ROM basename unchanged, skipping media file renaming")
+        except Exception as e:
+            # Log error but don't fail the upload
+            print(f"⚠️ Warning: Error during media file renaming: {e}")
+            import traceback
+            traceback.print_exc()
+        
         # Calculate new relative path for gamelist.xml
         # Paths in gamelist.xml are relative to the ROMs directory, not the gamelist.xml location
         # So we calculate relative to the system ROMs directory
