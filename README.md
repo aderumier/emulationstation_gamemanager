@@ -94,10 +94,10 @@
 
 ```bash
 # Download the .deb package
-wget https://github.com/aderumier/emulationstation_gamemanager/releases/download/v2.9.3/gamemanager_2.9.3-1_all.deb
+wget https://github.com/aderumier/emulationstation_gamemanager/releases/download/v4.0/gamemanager_4.0-1_all.deb
 
 # Install
-sudo dpkg -i gamemanager_2.9.3-1_all.deb
+sudo dpkg -i gamemanager_4.0-1_all.deb
 
 # Fix dependencies if needed
 sudo apt-get install -f
