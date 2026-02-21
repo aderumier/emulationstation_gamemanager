@@ -7039,6 +7039,8 @@ def parse_gamelist_xml(file_path):
                 elif tag == 'kidgame':
                     # Handle boolean field - convert string to boolean
                     game_data['kidgame'] = text.lower() == 'true' if text else False
+                elif tag == 'sortname':
+                    game_data['sortname'] = text
                 else:
                     # Handle unknown tags by storing them as text
                     game_data[tag] = text
@@ -10525,7 +10527,26 @@ def rom_system_gamelist_batch(system_name):
             rom_path = game.get('path')
             if rom_path in updated_games_map:
                 # Update the game in place
-                games[i].update(updated_games_map[rom_path])
+                updated_game_data = updated_games_map[rom_path]
+                
+                # Auto-fill sortname if name is updated and sortname is empty
+                if 'name' in updated_game_data:
+                    current_name = updated_game_data.get('name', '')
+                    current_sortname = updated_game_data.get('sortname', '')
+                    
+                    if current_name and not current_sortname:
+                        # Remove articles from the beginning of the name for sortname
+                        # Case insensitive check for specific articles
+                        sortname_val = current_name
+                        lower_name = sortname_val.lower()
+                        articles = ["the ", "a ", "de ", "die ", "das", "l' "]
+                        for article in articles:
+                            if lower_name.startswith(article):
+                                sortname_val = sortname_val[len(article):].strip()
+                                break
+                        updated_game_data['sortname'] = sortname_val
+
+                games[i].update(updated_game_data)
                 updated_count += 1
                 updated_paths.append(rom_path)
         
@@ -10639,6 +10660,21 @@ def rom_system_gamelist(system_name):
                 game_found = False
                 for i, game in enumerate(games):
                     if game.get('path') == rom_path:
+                        # Auto-fill sortname if name is updated and sortname is empty
+                        if 'name' in updated_game:
+                            current_name = updated_game.get('name', '')
+                            current_sortname = updated_game.get('sortname', '')
+                            
+                            if current_name and not current_sortname:
+                                sortname_val = current_name
+                                lower_name = sortname_val.lower()
+                                articles = ["the ", "a ", "de ", "die ", "das", "l' "]
+                                for article in articles:
+                                    if lower_name.startswith(article):
+                                        sortname_val = sortname_val[len(article):].strip()
+                                        break
+                                updated_game['sortname'] = sortname_val
+
                         # Update the game in place
                         games[i].update(updated_game)
                         game_found = True
@@ -10667,6 +10703,22 @@ def rom_system_gamelist(system_name):
             print(f"🔔 PUT request received for system: {system_name}")
             
             games = data['games']
+            
+            # Auto-fill sortnames for all games if applicable
+            for game in games:
+                if 'name' in game:
+                    current_name = game.get('name', '')
+                    current_sortname = game.get('sortname', '')
+                    
+                    if current_name and not current_sortname:
+                        sortname_val = current_name
+                        lower_name = sortname_val.lower()
+                        articles = ["the ", "a ", "de ", "die ", "das", "l' "]
+                        for article in articles:
+                            if lower_name.startswith(article):
+                                sortname_val = sortname_val[len(article):].strip()
+                                break
+                        game['sortname'] = sortname_val
             delete_rom_paths = data.get('delete_rom_paths', [])
             
             def normalize_gamelist_path(path_value):
@@ -19621,6 +19673,91 @@ def move_roms_bulk(system_name):
     except Exception as e:
         print(f"Error in move_roms_bulk: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/rom-system/<system_name>/games/fill-sortname', methods=['POST'])
+@login_required
+def fill_sortname_games(system_name):
+    """Auto-fill sortname for multiple games based on their name, removing articles"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
+        
+    try:
+        data = request.get_json()
+        if not data or 'rom_paths' not in data:
+            return jsonify({'error': 'No ROM paths provided'}), 400
+            
+        rom_paths = data['rom_paths']
+        if not isinstance(rom_paths, list):
+            return jsonify({'error': 'ROM paths must be a list'}), 400
+            
+        if not rom_paths:
+            return jsonify({'error': 'ROM paths list is empty'}), 400
+            
+        # Get gamelist path from new dynamic path generator
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+            
+        # Load existing gamelist
+        base_dir = app.config.get('BASE_DIR', os.path.dirname(os.path.abspath(__file__)))
+        games = parse_gamelist_xml(gamelist_path)
+        rom_paths_set = set(p.lower().replace('\\', '/') for p in rom_paths)
+        
+        updated_count = 0
+        changed_games = []
+        articles = ["the ", "a ", "de ", "die ", "das", "l' "]
+        
+        for game in games:
+            game_path = game.get('path', '')
+            if game_path and game_path.lower().replace('\\', '/') in rom_paths_set:
+                current_name = game.get('name', '')
+                if current_name:
+                    sortname_val = current_name
+                    lower_name = sortname_val.lower()
+                    
+                    for article in articles:
+                        if lower_name.startswith(article):
+                            sortname_val = sortname_val[len(article):].strip()
+                            break
+                            
+                    if game.get('sortname') != sortname_val:
+                        game['sortname'] = sortname_val
+                        updated_count += 1
+                        
+                        changed_games.append({
+                            'rom_path': game_path,
+                            'game_name': current_name,
+                            'changed_fields': ['sortname']
+                        })
+                        
+        if updated_count > 0:
+            # Save using the XML writer utility
+            write_gamelist_xml(games, gamelist_path)
+            
+            # Sync to actual roms folder 
+            save_gamelist_to_roms(system_name)
+            
+            # Use real-time synchronization like other batch endpoints
+            notify_gamelist_updated(system_name, len(games), 0, updated_count)
+            
+            for changed_game in changed_games:
+                notify_game_updated(system_name, changed_game['rom_path'], changed_game['changed_fields'])
+                
+            return jsonify({
+                'success': True,
+                'message': f'Successfully generated sortname for {updated_count} game(s)'
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'message': 'No changes made. Sortnames were already correctly filled.'
+            })
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to fill sortnames: {str(e)}'}), 500
 
 @app.route('/api/rom-system/<system_name>/games/update-hidden', methods=['POST'])
 @login_required
