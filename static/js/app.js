@@ -3330,6 +3330,33 @@ class GameCollectionManager {
 
             },
             {
+                field: 'sortname',
+                headerName: 'SortName ✏️',
+                editable: true,
+                sortable: true,
+                filter: true,
+                resizable: true,
+                initialWidth: 150,
+                minWidth: 100,
+                wrapHeaderText: wrapHeaderText,
+                autoHeaderHeight: true,
+                cellStyle: {
+                    fontStyle: 'italic',
+                    color: '#555'
+                },
+                cellRenderer: (params) => {
+                    if (params.data && this.modifiedGames.has(params.data.id)) {
+                        return `<span style="color: #28a745;">✏️ ${params.value || ''}</span>`;
+                    }
+                    return params.value || '';
+                },
+                headerTooltip: 'Sort Name. Edit inline. Auto-filled if left empty while updating Name.',
+                cellEditor: 'agTextCellEditor',
+                cellEditorParams: {
+                    maxLength: 1000
+                },
+            },
+            {
                 field: 'launchboxid',
                 headerName: 'Launch',
                 editable: false,
@@ -3903,6 +3930,7 @@ class GameCollectionManager {
                         // Update the corresponding form field in the panel
                         const fieldMapping = {
                             'name': 'editName',
+                            'sortname': 'editSortname',
                             'desc': 'editDescription',
                             'note': 'editNote',
                             'genre': 'editGenre',
@@ -4253,6 +4281,9 @@ class GameCollectionManager {
                 <a class="dropdown-item" href="#" onclick="gameManager.toggleGameHidden(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Unhidden' : 'Hide'} Game
                 </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.fillSortnameForSingleGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                    <i class="bi bi-sort-alpha-down"></i> Fill SortName
+                </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item text-danger" href="#" data-action="delete-game" data-game='${JSON.stringify(game)}'>
                     <i class="bi bi-trash"></i> Delete
@@ -4275,6 +4306,9 @@ class GameCollectionManager {
                 </a>
                 <a class="dropdown-item" href="#" onclick="gameManager.showSelectedGames()">
                     <i class="bi bi-eye"></i> Unhide Selected
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#" onclick="gameManager.fillSortnameForSelected()">
+                    <i class="bi bi-sort-alpha-down"></i> Fill SortName
                 </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" data-action="delete-selected-games">
@@ -4521,6 +4555,60 @@ class GameCollectionManager {
 
         const romPaths = selectedGames.map(game => game.path);
         await this.updateGamesHidden(romPaths, false);
+    }
+
+    async fillSortnameForSingleGame(game) {
+        if (!game || !game.path) return;
+        await this.updateSortnameForGames([game.path]);
+    }
+
+    async fillSortnameForSelected() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        if (selectedGames.length === 0) {
+            this.showAlert('No games selected', 'warning');
+            return;
+        }
+
+        const romPaths = selectedGames.map(game => game.path);
+        await this.updateSortnameForGames(romPaths);
+    }
+
+    async updateSortnameForGames(romPaths) {
+        if (!romPaths || romPaths.length === 0) return;
+
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/games/fill-sortname`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ rom_paths: romPaths })
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                this.showAlert(result.message || `Successfully updated sortname for ${romPaths.length} game(s)`, 'success');
+
+                // Reload the gamelist from the server to get updated sortnames
+                const gamelistResponse = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`);
+                if (gamelistResponse.ok) {
+                    const gamelistData = await gamelistResponse.json();
+                    if (gamelistData.games) {
+                        this.games = gamelistData.games;
+                        const currentFilterModel = this.gridApi.getFilterModel();
+                        this.setGridDataPreservingSort([...this.games]);
+                        if (currentFilterModel && Object.keys(currentFilterModel).length > 0) {
+                            this.gridApi.setFilterModel(currentFilterModel);
+                        }
+                    }
+                }
+            } else {
+                this.showAlert(result.error || 'Failed to update sortnames', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating sortnames:', error);
+            this.showAlert('An error occurred while communicating with the server.', 'error');
+        }
     }
 
     async updateGamesHidden(romPaths, hiddenValue) {
@@ -5036,6 +5124,7 @@ class GameCollectionManager {
             }
         };
         clearField('editName');
+        clearField('editSortname');
         clearField('editPath');
         clearField('editDescription');
         clearField('editNote');
@@ -5086,6 +5175,7 @@ class GameCollectionManager {
 
         // Now populate with game data
         setField('editName', game.name);
+        setField('editSortname', game.sortname);
         setField('editPath', game.path);
         setField('editDescription', game.desc);
         setField('editNote', game.note);
@@ -8531,6 +8621,7 @@ class GameCollectionManager {
 
         // Update the game object with form values, using original values as fallback
         game.name = getFieldValue('editName', originalGame.name || '').trim();
+        game.sortname = getFieldValue('editSortname', originalGame.sortname || '').trim();
         game.desc = getFieldValue('editDescription', originalGame.desc || '');
         game.note = getFieldValue('editNote', originalGame.note || '');
         game.genre = getFieldValue('editGenre', originalGame.genre || '');
@@ -31744,6 +31835,7 @@ class GameCollectionManager {
 
         // Get current form values
         const currentName = getFieldValue('editName');
+        const currentSortname = getFieldValue('editSortname');
         const currentDesc = getFieldValue('editDescription');
         const currentNote = getFieldValue('editNote');
         const currentGenre = getFieldValue('editGenre');
@@ -31804,6 +31896,7 @@ class GameCollectionManager {
 
         // Compare values with normalization
         if (normalize(original.name) !== normalize(currentName)) return true;
+        if (normalize(original.sortname) !== normalize(currentSortname)) return true;
         if (normalize(original.desc) !== normalize(currentDesc)) return true;
         if (normalize(original.note) !== normalize(currentNote)) return true;
         if (normalize(original.genre) !== normalize(currentGenre)) return true;
@@ -31872,6 +31965,7 @@ class GameCollectionManager {
 
         // Get current form values
         const currentName = getFieldValue('editName');
+        const currentSortname = getFieldValue('editSortname');
         const currentDesc = getFieldValue('editDescription');
         const currentNote = getFieldValue('editNote');
         const currentGenre = getFieldValue('editGenre');
@@ -31918,6 +32012,7 @@ class GameCollectionManager {
 
         // Compare values with normalization
         if (normalize(original.name) !== normalize(currentName)) return true;
+        if (normalize(original.sortname) !== normalize(currentSortname)) return true;
         if (normalize(original.desc) !== normalize(currentDesc)) return true;
         if (normalize(original.note) !== normalize(currentNote)) return true;
         if (normalize(original.genre) !== normalize(currentGenre)) return true;
@@ -32163,6 +32258,7 @@ class GameCollectionManager {
             if (el) el.value = '';
         };
         clearField('editName');
+        clearField('editSortname');
         clearField('editPath');
         clearField('editDescription');
         clearField('editNote');
@@ -32191,6 +32287,7 @@ class GameCollectionManager {
         };
 
         setField('editName', game.name);
+        setField('editSortname', game.sortname);
         setField('editPath', game.path);
         setField('editDescription', game.desc);
         setField('editNote', game.note);
@@ -35522,6 +35619,19 @@ class GameCollectionManager {
                 initialWidth: 220,
                 cellStyle: {
                     fontWeight: 'bold'
+                }
+            },
+            {
+                field: 'sortname',
+                headerName: 'SortName',
+                editable: true,
+                sortable: true,
+                filter: true,
+                resizable: true,
+                initialWidth: 150,
+                cellStyle: {
+                    fontStyle: 'italic',
+                    color: '#555'
                 }
             }
         ];
