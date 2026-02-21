@@ -10489,7 +10489,7 @@ def flush_launchbox_caches():
     
     print("✅ All LaunchBox-related caches flushed successfully")
 
-ARTICLES_TO_STRIP = ["the ", "a ", "de ", "die ", "das ", "l' "]
+ARTICLES_TO_STRIP = ["the ", "a ", "de ", "die ", "das ", "l' ", "la ", "le "]
 
 def auto_fill_sortname(game_data, overwrite=False):
     """Auto-fill sortname from name by stripping leading articles.

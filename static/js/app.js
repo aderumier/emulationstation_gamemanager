@@ -8692,6 +8692,7 @@ class GameCollectionManager {
         // Detect which fields changed
         const changedFields = [];
         if (originalGame.name !== game.name) changedFields.push('name');
+        if (originalGame.sortname !== game.sortname) changedFields.push('sortname');
         if (originalGame.desc !== game.desc) changedFields.push('desc');
         if (originalGame.genre !== game.genre) changedFields.push('genre');
         if (originalGame.developer !== game.developer) changedFields.push('developer');
@@ -8752,6 +8753,7 @@ class GameCollectionManager {
 
                         this.rightPanelOriginalGame = {
                             name: String(savedGame.name || '').trim(),
+                            sortname: String(savedGame.sortname || '').trim(),
                             desc: String(savedGame.desc || '').trim(),
                             note: String(savedGame.note || '').trim(),
                             genre: String(savedGame.genre || '').trim(),
@@ -8789,6 +8791,7 @@ class GameCollectionManager {
 
                         this.modalOriginalGame = {
                             name: String(savedGame.name || '').trim(),
+                            sortname: String(savedGame.sortname || '').trim(),
                             desc: String(savedGame.desc || '').trim(),
                             note: String(savedGame.note || '').trim(),
                             genre: String(savedGame.genre || '').trim(),
@@ -8815,9 +8818,6 @@ class GameCollectionManager {
                 if (!skipModalHide) {
                     this.showAlert('Changes saved directly to gamelist.xml!', 'success');
 
-                    // Refresh the grid to show updated values, respecting current filters
-                    // Grid optimization: Row already updated optimistically above
-
                     // Move focus away from modal before hiding it
                     const safeElement = document.querySelector('#gamesCount') || document.body;
                     if (safeElement) {
@@ -8826,6 +8826,17 @@ class GameCollectionManager {
 
                     const modal = bootstrap.Modal.getInstance(document.getElementById('editGameModal'));
                     modal.hide();
+
+                    // Re-fetch the saved game from the server to sync any backend transformations
+                    // (e.g. auto-filled sortname) into the grid row, bypassing the WS guard.
+                    const savedPath = game.path;
+                    const syncResponse = await fetch(`/api/rom-system/${this.currentSystem}/game?path=${encodeURIComponent(savedPath)}`);
+                    if (syncResponse.ok) {
+                        const syncResult = await syncResponse.json();
+                        if (syncResult.success && syncResult.game) {
+                            this.updateSingleGridRow(syncResult.game);
+                        }
+                    }
                 } else {
                     // When navigating, refresh grid but don't hide modal or show alert
                     // Store the current editingGamePath before refresh
