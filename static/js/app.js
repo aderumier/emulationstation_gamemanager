@@ -31116,6 +31116,7 @@ class GameCollectionManager {
                 document.getElementById('serverDebug').checked = config.server?.debug || false;
 
                 document.getElementById('maxTasksToKeep').value = config.max_tasks_to_keep || 30;
+                document.getElementById('scraperTeam').value = config.scraper_team || '';
 
                 // Authentication settings
                 document.getElementById('disableLocalAuth').checked = config.authentication?.disable_local_auth || false;
@@ -31175,6 +31176,7 @@ class GameCollectionManager {
                     debug: document.getElementById('serverDebug').checked
                 },
                 max_tasks_to_keep: parseInt(document.getElementById('maxTasksToKeep').value),
+                scraper_team: document.getElementById('scraperTeam').value,
                 authentication: {
                     disable_local_auth: document.getElementById('disableLocalAuth').checked,
                     allow_registration: document.getElementById('allowRegistration').checked

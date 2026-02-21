@@ -712,6 +712,7 @@ def load_config():
         'roms_root_directory': DEFAULT_ROMS_DIRECTORY,
         'task_logs_directory': 'var/task_logs',
         'max_tasks_to_keep': 30,
+        'scraper_team': '',
         'server': {
             'host': '0.0.0.0',
             'port': 5000,
@@ -1710,34 +1711,64 @@ def compare_gamelist_files(system_name):
     except Exception as e:
         return {'success': False, 'error': f'Error comparing gamelist files: {str(e)}'}
 
+def build_provider_element(system_name):
+    """Build the <provider> XML element with gamelist metadata."""
+    from datetime import date
+    provider = ET.Element('provider')
+    ET.SubElement(provider, 'system').text = system_name
+    ET.SubElement(provider, 'software').text = 'Emulationstation Game Manager'
+    ET.SubElement(provider, 'web').text = 'https://github.com/aderumier/emulationstation_gamemanager'
+    ET.SubElement(provider, 'scraped_by').text = config.get('scraper_team', '')
+    ET.SubElement(provider, 'version').text = f"Updated on {date.today().strftime('%d/%m/%Y')}"
+    return provider
+
+
 def save_gamelist_to_roms(system_name, delete_orphan_medias=False):
-    """Copy gamelist from var/gamelists to roms/ directory"""
+    """Copy gamelist from var/gamelists to roms/ directory, injecting <provider> metadata."""
     gamelist_path = get_gamelist_path(system_name)
     roms_gamelist_path = os.path.join(ROMS_FOLDER, system_name, 'gamelist.xml')
-    
+
     if not os.path.exists(gamelist_path):
         return {'success': False, 'error': f'Gamelist not found in var/gamelists/{system_name}/gamelist.xml'}
-    
+
     try:
         # Ensure the roms directory exists
         os.makedirs(os.path.dirname(roms_gamelist_path), exist_ok=True)
-        
-        # Copy the gamelist
-        shutil.copy2(gamelist_path, roms_gamelist_path)
-        print(f"Copied gamelist from {gamelist_path} to {roms_gamelist_path}")
-        
-        # Format release dates in the copied gamelist
-        format_releasedates_in_gamelist(roms_gamelist_path)
-        
+
+        # Parse the source gamelist
+        tree = ET.parse(gamelist_path)
+        root = tree.getroot()
+
+        # Remove any existing <provider> children
+        for existing_provider in root.findall('provider'):
+            root.remove(existing_provider)
+
+        # Inject fresh <provider> as first child
+        root.insert(0, build_provider_element(system_name))
+
+        # Format release dates in-memory (same logic as format_releasedates_in_gamelist)
+        for game in root.findall('game'):
+            releasedate_elem = game.find('releasedate')
+            if releasedate_elem is not None and releasedate_elem.text:
+                original_date = releasedate_elem.text.strip()
+                if original_date:
+                    formatted_date = format_releasedate_to_iso8601(original_date)
+                    if formatted_date:
+                        releasedate_elem.text = formatted_date
+
+        # Write to the roms gamelist path
+        save_formatted_gamelist_xml(tree, roms_gamelist_path)
+        print(f"Saved gamelist with provider metadata from {gamelist_path} to {roms_gamelist_path}")
+
         # Delete orphan medias if requested
         deleted_files = []
         if delete_orphan_medias:
             deleted_files = delete_orphan_media_files(system_name)
-        
+
         message = f'Gamelist saved to roms/{system_name}/gamelist.xml'
         if deleted_files:
             message += f' and {len(deleted_files)} orphan media files deleted'
-        
+
         return {'success': True, 'message': message, 'deleted_files': deleted_files}
     except Exception as e:
         return {'success': False, 'error': f'Error saving gamelist: {str(e)}'}
