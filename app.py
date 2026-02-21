@@ -1746,6 +1746,10 @@ def save_gamelist_to_roms(system_name, delete_orphan_medias=False):
         # Inject fresh <provider> as first child
         root.insert(0, build_provider_element(system_name))
 
+        # Normalise whitespace/indentation for the whole tree so the injected
+        # <provider> element is properly formatted alongside existing <game> nodes.
+        ET.indent(tree, space='  ')
+
         # Format release dates in-memory (same logic as format_releasedates_in_gamelist)
         for game in root.findall('game'):
             releasedate_elem = game.find('releasedate')
