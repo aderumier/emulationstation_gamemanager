@@ -10489,6 +10489,29 @@ def flush_launchbox_caches():
     
     print("✅ All LaunchBox-related caches flushed successfully")
 
+ARTICLES_TO_STRIP = ["the ", "a ", "de ", "die ", "das ", "l' "]
+
+def auto_fill_sortname(game_data, overwrite=False):
+    """Auto-fill sortname from name by stripping leading articles.
+
+    Args:
+        game_data: dict with at least a 'name' key.
+        overwrite: if True, always overwrite sortname even when already set.
+    """
+    current_name = game_data.get('name', '')
+    if not current_name:
+        return
+    current_sortname = game_data.get('sortname', '')
+    if current_sortname and not overwrite:
+        return
+    sortname_val = current_name
+    lower_name = sortname_val.lower()
+    for article in ARTICLES_TO_STRIP:
+        if lower_name.startswith(article):
+            sortname_val = sortname_val[len(article):].strip()
+            break
+    game_data['sortname'] = sortname_val
+
 @app.route('/api/rom-system/<system_name>/gamelist/batch', methods=['PUT'])
 @login_required
 def rom_system_gamelist_batch(system_name):
@@ -10531,20 +10554,7 @@ def rom_system_gamelist_batch(system_name):
                 
                 # Auto-fill sortname if name is updated and sortname is empty
                 if 'name' in updated_game_data:
-                    current_name = updated_game_data.get('name', '')
-                    current_sortname = updated_game_data.get('sortname', '')
-                    
-                    if current_name and not current_sortname:
-                        # Remove articles from the beginning of the name for sortname
-                        # Case insensitive check for specific articles
-                        sortname_val = current_name
-                        lower_name = sortname_val.lower()
-                        articles = ["the ", "a ", "de ", "die ", "das", "l' "]
-                        for article in articles:
-                            if lower_name.startswith(article):
-                                sortname_val = sortname_val[len(article):].strip()
-                                break
-                        updated_game_data['sortname'] = sortname_val
+                    auto_fill_sortname(updated_game_data)
 
                 games[i].update(updated_game_data)
                 updated_count += 1
@@ -10662,18 +10672,7 @@ def rom_system_gamelist(system_name):
                     if game.get('path') == rom_path:
                         # Auto-fill sortname if name is updated and sortname is empty
                         if 'name' in updated_game:
-                            current_name = updated_game.get('name', '')
-                            current_sortname = updated_game.get('sortname', '')
-                            
-                            if current_name and not current_sortname:
-                                sortname_val = current_name
-                                lower_name = sortname_val.lower()
-                                articles = ["the ", "a ", "de ", "die ", "das", "l' "]
-                                for article in articles:
-                                    if lower_name.startswith(article):
-                                        sortname_val = sortname_val[len(article):].strip()
-                                        break
-                                updated_game['sortname'] = sortname_val
+                            auto_fill_sortname(updated_game)
 
                         # Update the game in place
                         games[i].update(updated_game)
@@ -10707,18 +10706,7 @@ def rom_system_gamelist(system_name):
             # Auto-fill sortnames for all games if applicable
             for game in games:
                 if 'name' in game:
-                    current_name = game.get('name', '')
-                    current_sortname = game.get('sortname', '')
-                    
-                    if current_name and not current_sortname:
-                        sortname_val = current_name
-                        lower_name = sortname_val.lower()
-                        articles = ["the ", "a ", "de ", "die ", "das", "l' "]
-                        for article in articles:
-                            if lower_name.startswith(article):
-                                sortname_val = sortname_val[len(article):].strip()
-                                break
-                        game['sortname'] = sortname_val
+                    auto_fill_sortname(game)
             delete_rom_paths = data.get('delete_rom_paths', [])
             
             def normalize_gamelist_path(path_value):
@@ -19700,36 +19688,24 @@ def fill_sortname_games(system_name):
             return jsonify({'error': 'Gamelist not found'}), 404
             
         # Load existing gamelist
-        base_dir = app.config.get('BASE_DIR', os.path.dirname(os.path.abspath(__file__)))
         games = parse_gamelist_xml(gamelist_path)
         rom_paths_set = set(p.lower().replace('\\', '/') for p in rom_paths)
         
         updated_count = 0
         changed_games = []
-        articles = ["the ", "a ", "de ", "die ", "das", "l' "]
         
         for game in games:
             game_path = game.get('path', '')
             if game_path and game_path.lower().replace('\\', '/') in rom_paths_set:
-                current_name = game.get('name', '')
-                if current_name:
-                    sortname_val = current_name
-                    lower_name = sortname_val.lower()
-                    
-                    for article in articles:
-                        if lower_name.startswith(article):
-                            sortname_val = sortname_val[len(article):].strip()
-                            break
-                            
-                    if game.get('sortname') != sortname_val:
-                        game['sortname'] = sortname_val
-                        updated_count += 1
-                        
-                        changed_games.append({
-                            'rom_path': game_path,
-                            'game_name': current_name,
-                            'changed_fields': ['sortname']
-                        })
+                old_sortname = game.get('sortname', '')
+                auto_fill_sortname(game, overwrite=True)
+                if game.get('sortname') != old_sortname:
+                    updated_count += 1
+                    changed_games.append({
+                        'rom_path': game_path,
+                        'game_name': game.get('name', ''),
+                        'changed_fields': ['sortname']
+                    })
                         
         if updated_count > 0:
             # Save using the XML writer utility
