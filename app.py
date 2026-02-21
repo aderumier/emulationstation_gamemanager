@@ -1715,22 +1715,11 @@ def build_provider_element(system_name):
     """Build the <provider> XML element with gamelist metadata."""
     from datetime import date
     provider = ET.Element('provider')
-    provider.text = '\n        '          # indent before first child
-
-    fields = [
-        ('system',     system_name),
-        ('software',   'Emulationstation Game Manager'),
-        ('web',        'https://github.com/aderumier/emulationstation_gamemanager'),
-        ('scraped_by', config.get('scraper_team', '')),
-        ('version',    f"Updated on {date.today().strftime('%d/%m/%Y')}"),
-    ]
-    for i, (tag, text) in enumerate(fields):
-        child = ET.SubElement(provider, tag)
-        child.text = text
-        # tail = newline + indent, last child gets newline + parent-level indent
-        child.tail = '\n        ' if i < len(fields) - 1 else '\n    '
-
-    provider.tail = '\n    '             # tail after </provider> before first <game>
+    ET.SubElement(provider, 'system').text = system_name
+    ET.SubElement(provider, 'software').text = 'Emulationstation Game Manager'
+    ET.SubElement(provider, 'web').text = 'https://github.com/aderumier/emulationstation_gamemanager'
+    ET.SubElement(provider, 'scraped_by').text = config.get('scraper_team', '')
+    ET.SubElement(provider, 'version').text = f"Updated on {date.today().strftime('%d/%m/%Y')}"
     return provider
 
 
