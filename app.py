@@ -19749,11 +19749,10 @@ def fill_sortname_games(system_name):
             # Sync to actual roms folder 
             save_gamelist_to_roms(system_name)
             
-            # Use real-time synchronization like other batch endpoints
+            # Use real-time synchronization like other batch endpoints.
+            # A single gamelist_updated event triggers one full grid refresh on the client,
+            # avoiding N sequential game fetches that would hang the UI for large systems.
             notify_gamelist_updated(system_name, len(games), 0, updated_count)
-            
-            for changed_game in changed_games:
-                notify_game_updated(system_name, changed_game['rom_path'], changed_game['changed_fields'])
                 
             return jsonify({
                 'success': True,
