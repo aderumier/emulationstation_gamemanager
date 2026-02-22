@@ -18476,7 +18476,7 @@ def rotate_game_media(system_name):
             return jsonify({'error': 'File is not a supported image format'}), 400
         
         # Calculate rotation angle
-        rotation_angle = -90 if direction == 'left' else 90
+        rotation_angle = 90 if direction == 'left' else -90
         
         # Rotate the image using PIL
         from PIL import Image
