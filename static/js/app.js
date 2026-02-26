@@ -4274,6 +4274,9 @@ class GameCollectionManager {
                 <a class="dropdown-item" href="#" onclick="gameManager.moveRom(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-folder2-open"></i> Move ROM
                 </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.openRenameRomModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                    <i class="bi bi-input-cursor-text"></i> Rename ROM
+                </a>
                 <a class="dropdown-item" href="#" onclick="gameManager.createM3uForSelected(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-list-ul"></i> Create .m3u
                 </a>
@@ -4710,6 +4713,105 @@ class GameCollectionManager {
         this.movingGame = game;
         this.movingGames = [game]; // Single game in array for consistency
         await this.showDirectoryExplorer();
+    }
+
+    openRenameRomModal(game) {
+        this.renamingGame = game;
+
+        // Show info in modal
+        document.getElementById('renamingGameName').textContent = game.name || 'Unknown Game';
+
+        // Extract filename and extension
+        const fullPath = game.path || '';
+        const filename = fullPath.split('/').pop() || '';
+        document.getElementById('renamingOriginalFile').textContent = filename;
+
+        // Find extension
+        const lastDotIndex = filename.lastIndexOf('.');
+        let extension = '';
+        let baseName = filename;
+        if (lastDotIndex > 0) {
+            extension = filename.substring(lastDotIndex);
+            baseName = filename.substring(0, lastDotIndex);
+        }
+
+        document.getElementById('renameRomExtension').textContent = extension;
+        document.getElementById('renameRomNewName').value = baseName;
+
+        // Clear error
+        const errorDiv = document.getElementById('renameRomError');
+        errorDiv.style.display = 'none';
+
+        // Show modal
+        const modalElement = document.getElementById('renameRomModal');
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
+
+    async renameRom() {
+        if (!this.renamingGame) return;
+
+        const newNameInput = document.getElementById('renameRomNewName').value.trim();
+        const errorDiv = document.getElementById('renameRomError');
+        const extension = document.getElementById('renameRomExtension').textContent;
+        const btn = document.getElementById('validateRenameRomBtn');
+
+        if (!newNameInput) {
+            errorDiv.textContent = 'Please provide a valid new filename.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        // Create full new filename
+        const newFilename = `${newNameInput}${extension}`;
+
+        errorDiv.style.display = 'none';
+
+        try {
+            // Disable button during requests
+            const originalBtnHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Renaming...';
+            btn.disabled = true;
+
+            const response = await fetch('/api/rename_rom', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    game_id: this.renamingGame.id,
+                    system: this.currentSystem,
+                    new_name: newFilename
+                })
+            });
+            const result = await response.json();
+
+            btn.innerHTML = originalBtnHtml;
+            btn.disabled = false;
+
+            if (result.success) {
+                // Hide modal
+                const modalElement = document.getElementById('renameRomModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+
+                this.showToast(`Successfully renamed ROM to ${newFilename}`, 'success');
+
+                // Refresh grid data to get updated paths
+                await this.refreshGridData();
+                this.renamingGame = null;
+            } else {
+                errorDiv.textContent = result.error || 'Failed to rename ROM.';
+                errorDiv.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error renaming ROM:', error);
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Rename';
+            btn.disabled = false;
+
+            errorDiv.textContent = 'Network or server error occurred.';
+            errorDiv.style.display = 'block';
+        }
     }
 
     async moveSelectedGames() {
@@ -8446,52 +8548,79 @@ class GameCollectionManager {
                 }
 
                 try {
-                    // Create FormData for file upload
-                    const formData = new FormData();
-                    formData.append('rom_file', file);
-                    formData.append('old_rom_path', currentRomPath);
+                    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
+                    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                    const fileId = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
-                    // Show loading state
                     const fileSize = (file.size / (1024 * 1024)).toFixed(2);
-                    this.showAlert(`Uploading ROM file (${fileSize} MB)... Please wait...`, 'info');
+                    this.showAlert(`Starting ROM upload (${fileSize} MB) in ${totalChunks} chunks... Please wait...`, 'info');
 
-                    // Upload the file
-                    const response = await fetch(`/api/rom-system/${this.currentSystem}/game/upload-rom`, {
-                        method: 'POST',
-                        body: formData
-                    });
+                    let result = null;
 
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result.success) {
-                            // Update the game object with new ROM path
-                            game.path = result.new_rom_path;
-                            this.editingGamePath = result.new_rom_path;
+                    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                        const start = chunkIndex * CHUNK_SIZE;
+                        const end = Math.min(start + CHUNK_SIZE, file.size);
+                        const chunk = file.slice(start, end);
 
-                            // Update the path field in the form
-                            const pathInput = document.getElementById('editPath');
-                            if (pathInput) {
-                                pathInput.value = result.new_rom_path;
-                            }
+                        const formData = new FormData();
+                        formData.append('rom_file', chunk);
+                        formData.append('old_rom_path', currentRomPath);
+                        formData.append('original_filename', file.name);
 
-                            // Also update in panel if it's open
-                            const panelPathInput = document.querySelector('#rightPanelContent #editPath');
-                            if (panelPathInput) {
-                                panelPathInput.value = result.new_rom_path;
-                            }
+                        // Update progress
+                        const progress = Math.round((chunkIndex / totalChunks) * 100);
+                        this.showAlert(`Uploading ROM... ${progress}% (${chunkIndex + 1}/${totalChunks} chunks)`, 'info');
 
-                            this.markGameAsModified(game);
+                        const response = await fetch(`/api/rom-system/${this.currentSystem}/game/upload-rom`, {
+                            method: 'POST',
+                            headers: {
+                                'X-Chunk-Index': chunkIndex.toString(),
+                                'X-Total-Chunks': totalChunks.toString(),
+                                'X-File-Identifier': fileId
+                            },
+                            body: formData
+                        });
 
-                            // Refresh the main grid to show updated path
-                            this.gridApi.refreshCells();
-
-                            this.showAlert(`ROM file uploaded successfully! (${fileSize} MB)`, 'success');
-                        } else {
-                            this.showAlert(`Failed to upload ROM: ${result.error}`, 'error');
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                            throw new Error(errorData.error || `HTTP error ${response.status}`);
                         }
+
+                        const currentResult = await response.json();
+
+                        // If the backend returns success and it's the final chunk
+                        if (currentResult.success && chunkIndex === totalChunks - 1) {
+                            result = currentResult;
+                        } else if (!currentResult.success && currentResult.error) {
+                            throw new Error(currentResult.error);
+                        }
+                    }
+
+                    if (result && result.success) {
+                        // Update the game object with new ROM path
+                        game.path = result.new_rom_path;
+                        this.editingGamePath = result.new_rom_path;
+
+                        // Update the path field in the form
+                        const pathInput = document.getElementById('editPath');
+                        if (pathInput) {
+                            pathInput.value = result.new_rom_path;
+                        }
+
+                        // Also update in panel if it's open
+                        const panelPathInput = document.querySelector('#rightPanelContent #editPath');
+                        if (panelPathInput) {
+                            panelPathInput.value = result.new_rom_path;
+                        }
+
+                        this.markGameAsModified(game);
+
+                        // Refresh the main grid to show updated path
+                        this.gridApi.refreshCells();
+
+                        this.showAlert(`ROM file uploaded successfully! (${fileSize} MB)`, 'success');
                     } else {
-                        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-                        this.showAlert(`Failed to upload ROM: ${errorData.error || 'Unknown error'}`, 'error');
+                        throw new Error('Upload completed but backend did not confirm success.');
                     }
                 } catch (error) {
                     console.error('Error uploading ROM:', error);

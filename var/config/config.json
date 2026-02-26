@@ -2,6 +2,7 @@
     "roms_root_directory": "/home/aderumier/cursorscraper/roms2",
     "task_logs_directory": "var/task_logs",
     "max_tasks_to_keep": 30,
+    "scraper_team": "Team Pixel Nostalgia",
     "server": {
         "host": "0.0.0.0",
         "port": 5000,

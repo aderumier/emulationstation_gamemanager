@@ -17827,9 +17827,36 @@ def upload_game_rom(system_name):
         # Ensure directory exists
         os.makedirs(old_rom_dir, exist_ok=True)
         
-        # Get the new filename (keep original filename from upload)
-        new_filename = file.filename
+        # Handle chunked uploading
+        chunk_index = int(request.headers.get('X-Chunk-Index', 0))
+        total_chunks = int(request.headers.get('X-Total-Chunks', 1))
+        file_id = request.headers.get('X-File-Identifier', 'unknown')
+        
+        # Get original filename if provided, otherwise fallback to chunk's filename
+        original_filename = request.form.get('original_filename') or file.filename
+        
+        # New base paths
+        new_filename = original_filename
         new_rom_full_path = os.path.join(old_rom_dir, new_filename)
+        
+        # Use a temporary file during the chunked upload process
+        temp_upload_path = os.path.join(old_rom_dir, f"{file_id}.part")
+
+        # Create or append to the temp file
+        mode = 'ab' if chunk_index > 0 else 'wb'
+        with open(temp_upload_path, mode) as f:
+            f.write(file.read())
+            
+        print(f"📦 Received chunk {chunk_index + 1}/{total_chunks} for {file_id}")
+        
+        # If this isn't the last chunk, return success early without running the rest of the logic
+        if chunk_index < total_chunks - 1:
+            return jsonify({
+                'success': True,
+                'message': f'Chunk {chunk_index + 1}/{total_chunks} uploaded successfully'
+            })
+            
+        # If it is the last chunk, rename the temp file to the final destination and proceed
         
         # Remove old ROM file if it exists and is different from new file
         old_rom_filename = os.path.basename(old_rom_full_path)
@@ -17839,10 +17866,17 @@ def upload_game_rom(system_name):
                 print(f"🗑️ Removed old ROM file: {old_rom_filename}")
             except Exception as e:
                 print(f"⚠️ Warning: Could not remove old ROM file {old_rom_full_path}: {e}")
-        
-        # Save the uploaded file
-        file.save(new_rom_full_path)
-        print(f"✅ Saved new ROM file: {new_rom_full_path}")
+                
+        # If target file exists and has the same name as the new one, remove it so we can overwrite
+        if os.path.exists(new_rom_full_path):
+            try:
+                os.remove(new_rom_full_path)
+            except Exception as e:
+                pass
+                
+        # Rename assembled temp file to final file
+        os.rename(temp_upload_path, new_rom_full_path)
+        print(f"✅ Saved new ROM file (reconstructed from {total_chunks} chunks): {new_rom_full_path}")
         
         # Rename all associated media files to match new ROM filename
         try:
@@ -19267,6 +19301,154 @@ def explore_directory(system_name):
         
     except Exception as e:
         print(f"Error in explore_directory: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/rename_rom', methods=['POST'])
+@login_required
+def rename_rom():
+    """Rename a ROM and its associated media files"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_id = data.get('game_id')
+        system_name = data.get('system')
+        new_name = data.get('new_name')
+        
+        if not game_id or not system_name or not new_name:
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        resp = require_system_access(system_name)
+        if resp:
+            return resp
+            
+        system_rom_dir = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_rom_dir):
+            return jsonify({'error': f'System ROM directory not found: {system_rom_dir}'}), 404
+            
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+            
+        games = parse_gamelist_xml(gamelist_path)
+        
+        target_game = None
+        for game in games:
+            if game.get('id') == game_id:
+                target_game = game
+                break
+                
+        if not target_game:
+            return jsonify({'error': 'Game not found in gamelist'}), 404
+            
+        old_path = target_game.get('path', '')
+        if not old_path:
+            return jsonify({'error': 'Game has no path defined'}), 400
+            
+        # Normalize the old path
+        normalized_old_path = old_path.strip()
+        while normalized_old_path.startswith('./'):
+            normalized_old_path = normalized_old_path[2:]
+        normalized_old_path = normalized_old_path.replace('\\', '/')
+        normalized_old_path = normalized_old_path.lstrip('/')
+        
+        full_old_path = os.path.join(system_rom_dir, normalized_old_path)
+        if not os.path.exists(full_old_path):
+            return jsonify({'error': 'Original ROM file not found on disk'}), 404
+            
+        # Determine new path
+        old_dir = os.path.dirname(normalized_old_path)
+        new_rel_path = os.path.join(old_dir, new_name).replace('\\', '/')
+        if new_rel_path.startswith('/'):
+            new_rel_path = new_rel_path[1:]
+        full_new_path = os.path.join(system_rom_dir, new_rel_path)
+        
+        if os.path.exists(full_new_path) and full_new_path != full_old_path:
+            return jsonify({'error': 'A file with the new name already exists'}), 400
+            
+        # Security check
+        if not os.path.abspath(full_new_path).startswith(os.path.abspath(system_rom_dir)):
+            return jsonify({'error': 'Access denied: destination path outside system directory'}), 403
+            
+        # Actually rename the ROM
+        if full_old_path != full_new_path:
+            print(f"Renaming ROM from {full_old_path} to {full_new_path}")
+            shutil.move(full_old_path, full_new_path)
+        
+        # Update path in gamelist
+        new_gamelist_path = new_rel_path
+        if not new_gamelist_path.startswith('./'):
+            new_gamelist_path = './' + new_gamelist_path
+        target_game['path'] = new_gamelist_path
+        
+        # Rename media files
+        base_name_without_ext = os.path.splitext(new_name)[0]
+        old_rom_basename = os.path.splitext(os.path.basename(normalized_old_path))[0]
+        
+        config = load_config()
+        media_fields = list(config.get('media_fields', {}).keys())
+        if not media_fields:
+            media_fields = ['image', 'thumbnail', 'video', 'marquee', 'manual', 'boxart', 'boxback', 'boxside', 'cartridge', 'wheel', 'bezel', 'fanart', 'extra1', 'screenshot', 'titlescreen']
+        
+        media_renamed = 0
+        for field in media_fields:
+            old_media_path = target_game.get(field, '')
+            if old_media_path:
+                normalized_media_path = old_media_path.strip()
+                while normalized_media_path.startswith('./'):
+                    normalized_media_path = normalized_media_path[2:]
+                normalized_media_path = normalized_media_path.replace('\\', '/').lstrip('/')
+                
+                full_old_media = os.path.join(system_rom_dir, normalized_media_path)
+                
+                if os.path.exists(full_old_media):
+                    old_media_dir = os.path.dirname(normalized_media_path)
+                    old_media_basename = os.path.basename(normalized_media_path)
+                    
+                    if old_rom_basename and old_rom_basename in old_media_basename:
+                        new_media_basename = old_media_basename.replace(old_rom_basename, base_name_without_ext, 1)
+                    else:
+                        old_media_ext = os.path.splitext(old_media_basename)[1]
+                        new_media_basename = f"{base_name_without_ext}{old_media_ext}"
+                        
+                    new_media_rel_path = os.path.join(old_media_dir, new_media_basename).replace('\\', '/')
+                    full_new_media = os.path.join(system_rom_dir, new_media_rel_path)
+                    
+                    if full_new_media != full_old_media:
+                        # Prevent collision
+                        counter = 1
+                        orig_new_media_basename = new_media_basename
+                        orig_new_media_ext = os.path.splitext(new_media_basename)[1]
+                        orig_new_media_no_ext = os.path.splitext(new_media_basename)[0]
+                        while os.path.exists(full_new_media) and full_new_media != full_old_media:
+                            new_media_basename = f"{orig_new_media_no_ext}_{counter}{orig_new_media_ext}"
+                            new_media_rel_path = os.path.join(old_media_dir, new_media_basename).replace('\\', '/')
+                            full_new_media = os.path.join(system_rom_dir, new_media_rel_path)
+                            counter += 1
+                                
+                        print(f"Renaming media {field} from {full_old_media} to {full_new_media}")
+                        shutil.move(full_old_media, full_new_media)
+                        media_renamed += 1
+                        
+                        target_game[field] = './' + new_media_rel_path
+        
+        # Rewrite XML
+        write_gamelist_xml(games, gamelist_path)
+        
+        # Sync to ROMs dir
+        save_gamelist_to_roms(system_name)
+        notify_gamelist_updated(system_name, len(games))
+        
+        return jsonify({
+            'success': True,
+            'message': f'ROM and {media_renamed} media files renamed successfully.'
+        })
+
+    except Exception as e:
+        print(f"Error in rename_rom: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/rom-system/<system_name>/create-directory', methods=['POST'])

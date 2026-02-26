@@ -463,7 +463,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <img src="{{ url_for('static', filename='images/pixel-nostalgia-logo.png') }}" alt="Pixel Nostalgia"
                     class="navbar-logo">
                 <span class="navbar-subtitle">gamelist manager <span style="font-size: 0.75em; margin-left: 0.5em;">v
-                        <version></span></span>
+                        <version>
+                    </span></span>
             </div>
 
 
@@ -1046,7 +1047,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <div class="modal-body">
                     <p><strong>Warning:</strong> The current working database will be overwritten!</p>
                     <p>This will copy <code>roms/<span id="forceImportSystemName">system</span>/gamelist.xml</code> to
-                        <code>var/gamelists/<span id="forceImportSystemName2">system</span>/gamelist.xml</code></p>
+                        <code>var/gamelists/<span id="forceImportSystemName2">system</span>/gamelist.xml</code>
+                    </p>
                     <p class="text-muted small">This action will replace your current working database with the ROMs
                         directory version.</p>
                 </div>
@@ -3740,7 +3742,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 placeholder="e.g. MyTeam">
                                             <div class="form-text">Written to <code>&lt;scraped_by&gt;</code> in the
                                                 <code>&lt;provider&gt;</code> block when saving a gamelist to the ROM
-                                                directory.</div>
+                                                directory.
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -4227,9 +4230,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <div class="mb-3">
                         <p class="mb-2"><strong>System:</strong> <span id="gamelistSaveSystemName"></span></p>
                         <p class="mb-2"><strong>Source:</strong>
-                            <code>var/gamelists/<span id="gamelistSaveSourcePath"></span>/gamelist.xml</code></p>
+                            <code>var/gamelists/<span id="gamelistSaveSourcePath"></span>/gamelist.xml</code>
+                        </p>
                         <p class="mb-2"><strong>Destination:</strong>
-                            <code>roms/<span id="gamelistSaveDestPath"></span>/gamelist.xml</code></p>
+                            <code>roms/<span id="gamelistSaveDestPath"></span>/gamelist.xml</code>
+                        </p>
                     </div>
 
                     <div id="gamelistSaveLoading" class="text-center py-4">
@@ -6359,6 +6364,47 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename ROM Modal -->
+    <div class="modal fade" id="renameRomModal" tabindex="-1" aria-labelledby="renameRomModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="renameRomModalLabel">
+                        <i class="bi bi-input-cursor-text me-2"></i>Rename ROM
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Renaming:</strong> <span id="renamingGameName">-</span><br>
+                        <strong>Original File:</strong> <code><span id="renamingOriginalFile">-</span></code>
+                    </div>
+                    <form id="renameRomForm">
+                        <div class="mb-3">
+                            <label for="renameRomNewName" class="form-label">New Filename (Without Extension)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="renameRomNewName" required>
+                                <span class="input-group-text" id="renameRomExtension">.zip</span>
+                            </div>
+                            <div class="form-text">
+                                This will rename the ROM file, all associated media files, and update the gamelist.xml.
+                            </div>
+                        </div>
+                    </form>
+                    <div id="renameRomError" class="alert alert-danger" style="display: none;" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="validateRenameRomBtn"
+                        onclick="gameManager.renameRom()">
+                        <i class="bi bi-check-lg me-1"></i>Rename
+                    </button>
                 </div>
             </div>
         </div>
