@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+import os
+import sys
+import argparse
+import subprocess
+import json
+import shutil
+import glob
+import re
+
+def get_yt_dlp_path():
+    is_windows = os.name == 'nt'
+    exe_name = "yt-dlp.exe" if is_windows else "yt-dlp"
+    
+    tools_dir = os.path.dirname(os.path.abspath(__file__))
+    local_path = os.path.join(tools_dir, exe_name)
+    if os.path.exists(local_path):
+        return local_path
+        
+    local_windows_path = os.path.join(tools_dir, 'windows', exe_name)
+    if os.path.exists(local_windows_path):
+        return local_windows_path
+
+    return exe_name
+
+def get_deno_js_runtime_args():
+    """Get the --js-runtime arguments for yt-dlp using local tools/deno"""
+    is_windows = os.name == 'nt'
+    deno_exe = "deno.exe" if is_windows else "deno"
+    tools_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    bundled = os.path.join(tools_dir, 'windows', deno_exe) if is_windows else ""
+    if is_windows and not os.path.exists(bundled):
+        bundled = os.path.join(tools_dir, deno_exe)
+    elif not is_windows:
+        bundled = os.path.join(tools_dir, deno_exe)
+        
+    path = bundled if os.path.exists(bundled) else deno_exe
+    return ['--js-runtime', f'deno:{path}']
+
+def main():
+    parser = argparse.ArgumentParser(description="Download 30s clips from a YouTube playlist or video.")
+    parser.add_argument("url", help="YouTube Playlist or Video URL")
+    parser.add_argument("-p", "--percentage", type=int, default=50, help="Percentage of the video length where to begin (default: 50)")
+    parser.add_argument("-d", "--duration", type=int, default=30, help="Duration of the clip in seconds (default: 30)")
+    parser.add_argument("--resolution", type=int, help="Optional resolution height (e.g. 720). Default: keep original")
+    parser.add_argument("--fade", type=int, help="Optional fade in/out duration in seconds. Default: no fade")
+    parser.add_argument("-o", "--output", type=str, help="Output directory path")
+    args = parser.parse_args()
+
+    if args.output and not os.path.exists(args.output):
+        os.makedirs(args.output, exist_ok=True)
+
+    # Get tool paths
+    yt_dlp = get_yt_dlp_path()
+    ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+
+    print(f"Using yt-dlp: {yt_dlp}")
+    print(f"Using ffmpeg: {ffmpeg}")
+
+    # Check if tools exist
+    try:
+        subprocess.run([yt_dlp, "--version"], capture_output=True, check=True)
+    except Exception as e:
+        print(f"Error: yt-dlp not found or not executable. Path: {yt_dlp}\n{e}")
+        return 1
+
+    try:
+        subprocess.run([ffmpeg, "-version"], capture_output=True, check=True)
+    except Exception as e:
+        print(f"Error: ffmpeg not found or not executable. Path: {ffmpeg}\n{e}")
+        return 1
+
+    print(f"Fetching info for {args.url}...\n")
+    cmd_info = [
+        yt_dlp,
+        *get_deno_js_runtime_args(),
+        "--dump-json",
+        "--flat-playlist",
+        args.url
+    ]
+    
+    result = subprocess.run(cmd_info, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error fetching playlist info: {result.stderr}")
+        return 1
+
+    entries = []
+    for line in result.stdout.strip().split('\n'):
+        if not line:
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+
+    print(f"Found {len(entries)} entries to process.\n")
+
+    for idx, entry in enumerate(entries, 1):
+        video_id = entry.get('id')
+        if not video_id:
+            video_url = entry.get('url')
+            video_id = "unknown"
+        else:
+            video_url = entry.get('url') or f"https://www.youtube.com/watch?v={video_id}"
+            
+        title = entry.get('title', video_id)
+        
+        # Ensure title is safe for filenames
+        safe_title = re.sub(r'[^\w\s-]', '', title).strip().replace(' ', '_')
+        if len(entries) > 1:
+            output_name = f"{idx:03d}_{safe_title}.mp4"
+        else:
+            output_name = f"{safe_title}.mp4"
+            
+        if args.output:
+            output_name = os.path.join(args.output, output_name)
+            
+        if os.path.exists(output_name):
+            print(f"[{idx}/{len(entries)}] Skipping {output_name} (already exists)")
+            continue
+
+        print(f"[{idx}/{len(entries)}] Processing {title} ({video_url})...")
+        
+        cmd_detail = [
+            yt_dlp,
+            *get_deno_js_runtime_args(),
+            "--dump-json",
+            "--no-download",
+            video_url
+        ]
+        detail_res = subprocess.run(cmd_detail, capture_output=True, text=True)
+        if detail_res.returncode != 0:
+            print(f"  Error fetching video duration: {detail_res.stderr}")
+            continue
+            
+        try:
+            video_info = json.loads(detail_res.stdout.strip().split('\n')[-1])
+            duration = video_info.get('duration')
+        except Exception as e:
+            print(f"  Error parsing video info: {e}")
+            continue
+
+        if not duration:
+            print("  Could not determine duration, skipping.")
+            continue
+
+        start_time = int(duration * args.percentage / 100)
+        end_time = start_time + args.duration
+        
+        if start_time >= duration:
+            start_time = max(0, int(duration) - args.duration)
+            end_time = start_time + args.duration
+
+        print(f"  Duration: {duration}s. Downloading section {start_time}s to {end_time}s...")
+
+        temp_template = f"temp_{video_id}_%(ext)s"
+        if args.output:
+            temp_template = os.path.join(args.output, temp_template)
+            
+        # Optional resolution for yt-dlp format selection
+        if args.resolution:
+            fmt = f"bestvideo[height<={args.resolution}]+bestaudio/best[height<={args.resolution}]/best"
+        else:
+            fmt = "bestvideo[height<=720]+bestaudio/bestvideo+bestaudio/best"
+        
+        cmd_download = [
+            yt_dlp,
+            *get_deno_js_runtime_args(),
+            "--ffmpeg-location", ffmpeg,
+            "-f", fmt,
+            "--merge-output-format", "mp4",
+            "--download-sections", f"*{start_time}-{end_time}",
+            "--force-keyframes-at-cuts",
+            "-o", temp_template,
+            video_url
+        ]
+        
+        dl_res = subprocess.run(cmd_download)
+        if dl_res.returncode != 0:
+            print(f"  Failed to download section.")
+            temp_pattern = os.path.join(args.output, f"temp_{video_id}_*") if args.output else f"temp_{video_id}_*"
+            for f in glob.glob(temp_pattern):
+                try:
+                    os.remove(f)
+                except:
+                    pass
+            continue
+            
+        # Find the actual downloaded temp file (might be .webm, .mkv, .mp4)
+        actual_temp = None
+        temp_pattern = os.path.join(args.output, f"temp_{video_id}_*") if args.output else f"temp_{video_id}_*"
+        matches = [m for m in glob.glob(temp_pattern) if not m.endswith('.part') and not m.endswith('.ytdl')]
+        
+        if matches:
+            actual_temp = matches[0]
+        else:
+            print("  Temp file not found after download.")
+            continue
+
+        if not args.resolution and not args.fade:
+            # Direct rename since we merged to mp4 directly in yt-dlp
+            print(f"  No re-encoding required, saving as {output_name}...")
+            if os.path.exists(actual_temp):
+                try:
+                    shutil.move(actual_temp, output_name)
+                    file_size = os.path.getsize(output_name) / (1024 * 1024)
+                    print(f"  ✅ Successfully saved {output_name} ({file_size:.2f} MB)")
+                except Exception as e:
+                    print(f"  ❌ Failed to move {actual_temp} to {output_name}: {e}")
+            continue
+
+        print(f"  Applying required video filters and re-encoding to mp4...")
+        
+        vf_opts_list = []
+        af_opts_list = []
+        
+        if args.resolution:
+            vf_opts_list.append(f"scale=-2:{args.resolution}")
+            
+        if args.fade:
+            fade_d = args.fade
+            fade_out_start = args.duration - fade_d
+            vf_opts_list.append(f"fade=t=in:st=0:d={fade_d},fade=t=out:st={fade_out_start}:d={fade_d}")
+            af_opts_list.append(f"afade=t=in:st=0:d={fade_d},afade=t=out:st={fade_out_start}:d={fade_d}")
+            
+        vf_opts = ",".join(vf_opts_list) if vf_opts_list else None
+        af_opts = ",".join(af_opts_list) if af_opts_list else None
+        
+        cmd_ffmpeg = [
+            ffmpeg,
+            "-y",
+            "-v", "warning",
+            "-i", actual_temp,
+            "-t", str(args.duration)
+        ]
+        
+        if vf_opts:
+            cmd_ffmpeg.extend(["-vf", vf_opts])
+        if af_opts:
+            cmd_ffmpeg.extend(["-af", af_opts])
+            
+        cmd_ffmpeg.extend([
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            "-pix_fmt", "yuv420p",
+            output_name
+        ])
+        
+        ff_res = subprocess.run(cmd_ffmpeg, stdout=sys.stdout, stderr=subprocess.STDOUT)
+        if ff_res.returncode == 0:
+             if os.path.exists(output_name):
+                 file_size = os.path.getsize(output_name) / (1024 * 1024)
+                 print(f"  ✅ Successfully saved {output_name} ({file_size:.2f} MB)")
+             else:
+                 print(f"  ❌ File not found after ffmpeg encoding: {output_name}")
+        else:
+            print(f"  ❌ Failed to encode {output_name}")
+            
+        # Clean up
+        if os.path.exists(actual_temp):
+            try:
+                os.remove(actual_temp)
+            except:
+                pass
+                
+    print("\nFinished processing!")
+
+if __name__ == "__main__":
+    sys.exit(main())
