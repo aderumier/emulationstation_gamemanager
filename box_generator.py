@@ -331,12 +331,12 @@ class BoxGenerator:
                     '-resize', f'{additional_width}x{additional_height}>',
                     '-bordercolor', self.title_border_color,
                     '-border', f'{self.title_border_size}x{self.title_border_size}',
-                    'temp_additional_screenshot.jpg'
+                    'temp_additional_screenshot.png'
                 ]
                 subprocess.run(cmd, check=True)
-                temp_files.append('temp_additional_screenshot.jpg')
+                temp_files.append('temp_additional_screenshot.png')
                 # Get actual height for positioning calculations
-                identify_cmd = _imagemagick_cmd('identify') + ['-format', '%h', 'temp_additional_screenshot.jpg']
+                identify_cmd = _imagemagick_cmd('identify') + ['-format', '%h', 'temp_additional_screenshot.png']
                 dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                 if dim_result.returncode == 0:
                     additional_screenshot_height = int(dim_result.stdout.strip())
@@ -364,11 +364,11 @@ class BoxGenerator:
                     '-gravity', 'center',
                     '-extent', f'{self.width}x{self.height}',
                     '-blur', f'0x{self.blur_intensity}',
-                    'temp_blurred_bg.jpg'
+                    'temp_blurred_bg.png'
                 ]
                 subprocess.run(cmd, check=True)
-                temp_files.append('temp_blurred_bg.jpg')
-                base_bg = 'temp_blurred_bg.jpg'
+                temp_files.append('temp_blurred_bg.png')
+                base_bg = 'temp_blurred_bg.png'
             else:
                 # Original mode with solid background
                 base_bg = None  # Will create it below
@@ -388,27 +388,27 @@ class BoxGenerator:
                 if self.use_blurred_bg:
                     cmd = _imagemagick_cmd('convert') + [
                         base_bg,
-                        'temp_additional_screenshot.jpg',
+                        'temp_additional_screenshot.png',
                         '-gravity', 'center',
                         '-geometry', additional_geometry,
-                        '-composite', 'temp_bg_with_additional.jpg'
+                        '-composite', 'temp_bg_with_additional.png'
                     ]
                     subprocess.run(cmd, check=True)
-                    temp_files.append('temp_bg_with_additional.jpg')
-                    base_bg = 'temp_bg_with_additional.jpg'
+                    temp_files.append('temp_bg_with_additional.png')
+                    base_bg = 'temp_bg_with_additional.png'
                 else:
                     # Create solid background and add additional screenshot
                     cmd = _imagemagick_cmd('convert') + [
                         '-size', f'{self.width}x{self.height}',
                         f'xc:{self.background_color}',
-                        'temp_additional_screenshot.jpg',
+                        'temp_additional_screenshot.png',
                         '-gravity', 'center',
                         '-geometry', additional_geometry,
-                        '-composite', 'temp_bg_with_additional.jpg'
+                        '-composite', 'temp_bg_with_additional.png'
                     ]
                     subprocess.run(cmd, check=True)
-                    temp_files.append('temp_bg_with_additional.jpg')
-                    base_bg = 'temp_bg_with_additional.jpg'
+                    temp_files.append('temp_bg_with_additional.png')
+                    base_bg = 'temp_bg_with_additional.png'
             
             # Prepare gameplay image with border
             # If additional screenshot exists, resize to fit bottom third only
@@ -422,7 +422,7 @@ class BoxGenerator:
                     '-resize', f'{gameplay_width}x{gameplay_height}>',
                     '-bordercolor', self.title_border_color,
                     '-border', f'{self.title_border_size}x{self.title_border_size}',
-                    'temp_main.jpg'
+                    'temp_main.png'
                 ]
             else:
                 # Normal resize (75% width, full height) - resize to fit while maintaining aspect ratio
@@ -432,61 +432,61 @@ class BoxGenerator:
                     '-resize', f'{gameplay_width}x{self.height}',  # Resize to fit, maintain aspect ratio
                     '-bordercolor', self.title_border_color,
                     '-border', f'{self.title_border_size}x{self.title_border_size}',
-                    'temp_main.jpg'
+                    'temp_main.png'
                 ]
             subprocess.run(cmd, check=True)
-            temp_files.append('temp_main.jpg')
+            temp_files.append('temp_main.png')
             
             # Compose gameplay onto background (now includes additional screenshot if present)
             logging.info(f"Composing gameplay at offset: +0+{gameplay_y_offset} (from center)")
             if self.use_blurred_bg:
                 # Use base_bg which may already have additional screenshot
                 cmd = _imagemagick_cmd('convert') + [
-                    base_bg, 'temp_main.jpg',
+                    base_bg, 'temp_main.png',
                     '-gravity', 'center',
                     '-geometry', f'+0+{gameplay_y_offset}',
-                    '-composite', 'temp_bg.jpg'
+                    '-composite', 'temp_bg.png'
                 ]
                 subprocess.run(cmd, check=True)
-                temp_files.append('temp_bg.jpg')
+                temp_files.append('temp_bg.png')
             else:
                 # Create background with gameplay positioned in lower 2/3
                 if base_bg:
                     # base_bg already has additional screenshot, just add gameplay
                     cmd = _imagemagick_cmd('convert') + [
-                        base_bg, 'temp_main.jpg',
+                        base_bg, 'temp_main.png',
                         '-gravity', 'center',
                         '-geometry', f'+0+{gameplay_y_offset}',
-                        '-composite', 'temp_bg.jpg'
+                        '-composite', 'temp_bg.png'
                     ]
                 else:
                     # No additional screenshot, create normal background
                     cmd = _imagemagick_cmd('convert') + [
                         '-size', f'{self.width}x{self.height}',
                         f'xc:{self.background_color}',
-                        'temp_main.jpg',
+                        'temp_main.png',
                         '-gravity', 'center',
                         '-geometry', f'+0+{gameplay_y_offset}',
-                        '-composite', 'temp_bg.jpg'
+                        '-composite', 'temp_bg.png'
                     ]
                 subprocess.run(cmd, check=True)
-                temp_files.append('temp_bg.jpg')
+                temp_files.append('temp_bg.png')
             
             # Apply additional blur if requested
             if self.blur_background:
                 logging.info("   Applying blur...")
-                cmd = _imagemagick_cmd('convert') + ['temp_bg.jpg', '-blur', '0x2', 'temp_bg.jpg']
+                cmd = _imagemagick_cmd('convert') + ['temp_bg.png', '-blur', '0x2', 'temp_bg.png']
                 subprocess.run(cmd, check=True)
             
             # Step 2: Apply vintage effect if requested
             if self.vintage_effect:
                 logging.info("2. Applying vintage effect...")
                 cmd = _imagemagick_cmd('convert') + [
-                    'temp_bg.jpg',
+                    'temp_bg.png',
                     '-modulate', '110,130,100',
                     '-colorize', '10,5,0',
                     '-sigmoidal-contrast', '2,50%',
-                    'temp_bg.jpg'
+                    'temp_bg.png'
                 ]
                 subprocess.run(cmd, check=True)
             
@@ -494,37 +494,37 @@ class BoxGenerator:
             logging.info("3. Adding gradient...")
             if self.logo_position == "north":
                 cmd = _imagemagick_cmd('convert') + [
-                    'temp_bg.jpg',
+                    'temp_bg.png',
                     '(', '-size', f'{self.width}x{self.gradient_height}',
                     'gradient:black-transparent', ')',
                     '-gravity', 'north',
-                    '-composite', 'temp_with_gradient.jpg'
+                    '-composite', 'temp_with_gradient.png'
                 ]
             elif self.logo_position == "south":
                 cmd = _imagemagick_cmd('convert') + [
-                    'temp_bg.jpg',
+                    'temp_bg.png',
                     '(', '-size', f'{self.width}x{self.gradient_height}',
                     'gradient:transparent-black', ')',
                     '-gravity', 'south',
-                    '-composite', 'temp_with_gradient.jpg'
+                    '-composite', 'temp_with_gradient.png'
                 ]
             elif self.logo_position == "center":
                 gradient_height = self.height // 3
                 cmd = _imagemagick_cmd('convert') + [
-                    'temp_bg.jpg',
+                    'temp_bg.png',
                     '(', '-size', f'{self.width}x{gradient_height}',
                     'gradient:transparent-black', ')',
                     '-gravity', 'center',
-                    '-composite', 'temp_with_gradient.jpg'
+                    '-composite', 'temp_with_gradient.png'
                 ]
             else:
                 # No gradient, just copy
-                shutil.copy2('temp_bg.jpg', 'temp_with_gradient.jpg')
+                shutil.copy2('temp_bg.png', 'temp_with_gradient.png')
                 cmd = None
             
             if cmd:
                 subprocess.run(cmd, check=True)
-            temp_files.append('temp_with_gradient.jpg')
+            temp_files.append('temp_with_gradient.png')
             
             # Step 4: Process logos (exactly like bash script)
             logging.info("4. Processing logos...")
@@ -555,16 +555,16 @@ class BoxGenerator:
             
             # Compose main logo
             cmd = _imagemagick_cmd('convert') + [
-                'temp_with_gradient.jpg',
+                'temp_with_gradient.png',
                 'temp_logo.png',
                 '-gravity', self.logo_position,
                 '-geometry', self.logo_offset,
-                '-composite', 'temp_final.jpg'
+                '-composite', 'temp_final.png'
             ]
             subprocess.run(cmd, check=True)
-            temp_files.append('temp_final.jpg')
+            temp_files.append('temp_final.png')
             
-            final_temp = 'temp_final.jpg'
+            final_temp = 'temp_final.png'
             
             # Compose secondary logo if present
             if secondary_logo_path and os.path.exists(secondary_logo_path):
@@ -573,11 +573,11 @@ class BoxGenerator:
                     'temp_secondary_logo.png',
                     '-gravity', self.secondary_position,
                     '-geometry', self.secondary_offset,
-                    '-composite', 'temp_final_with_secondary.jpg'
+                    '-composite', 'temp_final_with_secondary.png'
                 ]
                 subprocess.run(cmd, check=True)
-                temp_files.append('temp_final_with_secondary.jpg')
-                final_temp = 'temp_final_with_secondary.jpg'
+                temp_files.append('temp_final_with_secondary.png')
+                final_temp = 'temp_final_with_secondary.png'
             
             # Step 6: Add border if requested (exactly like bash script)
             if self.border_size > 0:
@@ -637,7 +637,7 @@ class BoxGenerator:
         temp_files = []
         # Use same dir as output for temp files (absolute paths; avoid cwd on Windows)
         temp_dir = os.path.dirname(os.path.abspath(output_path))
-        temp_background = os.path.join(temp_dir, 'temp_background.jpg')
+        temp_background = os.path.join(temp_dir, 'temp_background.png')
         
         try:
             # Validate inputs
