@@ -27551,7 +27551,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                         if os.path.exists(current_background_path):
                             # Create temp file for processed background
                             import tempfile as tf
-                            processed_bg_fd, processed_bg_path = tf.mkstemp(suffix='.jpg', prefix='template_bg_')
+                            processed_bg_fd, processed_bg_path = tf.mkstemp(suffix='.png', prefix='template_bg_')
                             os.close(processed_bg_fd)
                             
                             try:
@@ -29719,7 +29719,7 @@ def save_box_template():
         
         if background_file:
             # New file upload
-            background_filename = f'{safe_name}_background.jpg'
+            background_filename = f'{safe_name}_background.png'
             background_path = os.path.join(templates_dir, background_filename)
             background_file.save(background_path)
         elif background_image_path:
@@ -29755,7 +29755,7 @@ def save_box_template():
             else:
                 # If file doesn't exist, try to find it by template name pattern
                 # Look for files matching the template name pattern
-                potential_filename = f'{safe_name}_background.jpg'
+                potential_filename = f'{safe_name}_background.png'
                 potential_path = os.path.join(templates_dir, potential_filename)
                 if os.path.exists(potential_path):
                     background_filename = potential_filename
@@ -29910,7 +29910,7 @@ def process_background_image():
             return jsonify({'error': f'Image file not found: {image_path}'}), 404
         
         # Create temporary output file
-        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
             output_path = tmp_file.name
         
         try:
@@ -29930,7 +29930,7 @@ def process_background_image():
                 return jsonify({'error': f'ImageMagick processing failed: {result.stderr}'}), 500
             
             # Return the processed image
-            return send_file(output_path, mimetype='image/jpeg')
+            return send_file(output_path, mimetype='image/png')
             
         except Exception as e:
             if os.path.exists(output_path):
@@ -30914,7 +30914,7 @@ def generate_template_box():
         
         # Create temp directory for this task
         temp_dir = tempfile.mkdtemp(prefix='template_box_')
-        background_path = os.path.join(temp_dir, 'background.jpg')
+        background_path = os.path.join(temp_dir, 'background.png')
         
         if background_file:
             # Save uploaded file
@@ -30998,7 +30998,7 @@ def preview_template_box():
         
         # Create temp directory
         temp_dir = tempfile.mkdtemp(prefix='template_preview_')
-        background_path = os.path.join(temp_dir, 'background.jpg')
+        background_path = os.path.join(temp_dir, 'background.png')
         
         if background_file:
             background_file.save(background_path)
@@ -31073,7 +31073,7 @@ def preview_template_box():
         from box_generator import BoxGenerator
         generator = BoxGenerator()
         
-        output_path = os.path.join(temp_dir, 'preview.jpg')
+        output_path = os.path.join(temp_dir, 'preview.png')
         
         generator.generate_template_box(
             background_path=background_path,
@@ -31107,7 +31107,7 @@ def preview_template_box():
         temp_dir = None
         
         from flask import Response
-        return Response(image_data, mimetype='image/jpeg')
+        return Response(image_data, mimetype='image/png')
         
     except Exception as e:
         # Cleanup on error
