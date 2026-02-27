@@ -18244,18 +18244,29 @@ class GameCollectionManager {
             modalHTML += `
                             <hr>
                             <div class="mb-3">
-                                <h6 class="text-success">New ROMs to Add</h6>
-                                <div class="small text-muted">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="text-success mb-0">New ROMs to Add</h6>
+                                    ${new_roms.length > 10 ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="document.getElementById(&quot;newRomsTruncated&quot;).classList.toggle(&quot;d-none&quot;); document.getElementById(&quot;newRomsFull&quot;).classList.toggle(&quot;d-none&quot;); this.innerText = this.innerText === &quot;Show All&quot; ? &quot;Show Less&quot; : &quot;Show All&quot;">Show All</button>' : ''}
+                                </div>
+                                <div id="newRomsTruncated" class="small text-muted">
                                     <div class="row">`;
             new_roms.slice(0, 10).forEach(rom => {
-                modalHTML += `<div class="col-md-6">• ${rom}</div>`;
+                modalHTML += `<div class="col-md-6 text-truncate" title="${rom}">• ${rom}</div>`;
             });
             if (new_roms.length > 10) {
-                modalHTML += `<div class="col-md-6">• ... and ${new_roms.length - 10} more</div>`;
+                modalHTML += `<div class="col-md-6 text-truncate">• ... and ${new_roms.length - 10} more</div>`;
             }
             modalHTML += `
+                                    </div>
                                 </div>
-                            </div>`;
+                                <div id="newRomsFull" class="small text-muted d-none" style="max-height: 200px; overflow-y: auto; overflow-x: hidden;">
+                                    <div class="row">`;
+            new_roms.forEach(rom => {
+                modalHTML += `<div class="col-md-6 text-truncate" title="${rom}">• ${rom}</div>`;
+            });
+            modalHTML += `
+                                    </div>
+                                </div>`;
         }
 
         // Only show detailed game lists if it's not an initial import
@@ -18263,18 +18274,29 @@ class GameCollectionManager {
             modalHTML += `
                             <hr>
                             <div class="mb-3">
-                                <h6 class="text-danger">Games to Remove (Missing ROMs)</h6>
-                                <div class="small text-muted">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="text-danger mb-0">Games to Remove (Missing ROMs)</h6>
+                                    ${missing_roms.length > 10 ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="document.getElementById(&quot;missingRomsTruncated&quot;).classList.toggle(&quot;d-none&quot;); document.getElementById(&quot;missingRomsFull&quot;).classList.toggle(&quot;d-none&quot;); this.innerText = this.innerText === &quot;Show All&quot; ? &quot;Show Less&quot; : &quot;Show All&quot;">Show All</button>' : ''}
+                                </div>
+                                <div id="missingRomsTruncated" class="small text-muted">
                                     <div class="row">`;
             missing_roms.slice(0, 10).forEach(game => {
-                modalHTML += `<div class="col-md-6">• ${game.name} <small class="text-muted">(${game.path})</small></div>`;
+                modalHTML += `<div class="col-md-6 text-truncate" title="${game.name}">• ${game.name} <small class="text-muted">(${game.path})</small></div>`;
             });
             if (missing_roms.length > 10) {
-                modalHTML += `<div class="col-md-6">• ... and ${missing_roms.length - 10} more</div>`;
+                modalHTML += `<div class="col-md-6 text-truncate">• ... and ${missing_roms.length - 10} more</div>`;
             }
             modalHTML += `
+                                    </div>
                                 </div>
-                            </div>`;
+                                <div id="missingRomsFull" class="small text-muted d-none" style="max-height: 200px; overflow-y: auto; overflow-x: hidden;">
+                                    <div class="row">`;
+            missing_roms.forEach(game => {
+                modalHTML += `<div class="col-md-6 text-truncate" title="${game.name}">• ${game.name} <small class="text-muted">(${game.path})</small></div>`;
+            });
+            modalHTML += `
+                                    </div>
+                                </div>`;
         }
 
         // Only show warning about removing games if there are missing ROMs and it's not an initial import
