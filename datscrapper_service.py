@@ -52,6 +52,16 @@ class DATScrapperService:
         os.makedirs(self.dat_path, exist_ok=True)
         
         self.logger.info(f"DAT Scrapper service initialized with {len(self.systems_config)} systems configured")
+
+    def update_configs(self, config: Dict = None, scrappers_config: Dict = None, systems_config: Dict = None):
+        """Update configurations dynamically"""
+        if config is not None:
+            self.config = config
+        if scrappers_config is not None:
+            self.scrappers_config = scrappers_config
+        if systems_config is not None:
+            self.systems_config = systems_config
+            self.logger.info(f"DAT Scrapper service updated with {len(self.systems_config)} systems configured")
     
     def load_dat_file(self, system_name: str) -> Dict[str, DATEntry]:
         """Load DAT file for a specific system"""

@@ -6286,10 +6286,16 @@ def load_custom_scraper_service():
         return None
 
 def load_datscrapper_service():
-    """Load DAT Scrapper service"""
+    """Load or reload the global DAT Scrapper service"""
     global global_datscrapper_service, global_datscrapper_service_loaded
     
-    if global_datscrapper_service_loaded:
+    # Load configurations needed for both initial load and update
+    config = load_config()
+    systems_config = load_systems_config()
+
+    if global_datscrapper_service_loaded and global_datscrapper_service:
+        # Update configs to ensure it has latest systems_config
+        global_datscrapper_service.update_configs(config, load_scrappers_config(), systems_config)
         return global_datscrapper_service
     
     try:
