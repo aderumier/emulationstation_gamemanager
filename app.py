@@ -1653,7 +1653,18 @@ def compare_gamelist_files(system_name):
     
     try:
         # Parse both gamelist files
-        var_games = parse_gamelist_xml(gamelist_path)
+        # Parse both gamelist files
+        var_games_raw = parse_gamelist_xml(gamelist_path)
+        
+        # Filter out games that are in hidden directories (starting with a dot)
+        # to mirror the save_gamelist_to_roms logic so that the confirmation counts match exactly
+        var_games = []
+        for game in var_games_raw:
+            path_text = game.get('path', '').replace('\\', '/')
+            parts = path_text.split('/')[:-1]
+            if not any(p.startswith('.') and p not in ('.', '..') for p in parts):
+                var_games.append(game)
+                
         roms_games = parse_gamelist_xml(roms_gamelist_path) if os.path.exists(roms_gamelist_path) else []
         
         # Create dictionaries for easier comparison (using path as key)
@@ -1751,7 +1762,16 @@ def save_gamelist_to_roms(system_name, delete_orphan_medias=False):
         ET.indent(tree, space='  ')
 
         # Format release dates in-memory (same logic as format_releasedates_in_gamelist)
+        # and remove games that are in hidden directories
         for game in root.findall('game'):
+            path_elem = game.find('path')
+            if path_elem is not None and path_elem.text:
+                path_text = path_elem.text.strip().replace('\\', '/')
+                parts = path_text.split('/')[:-1]
+                if any(p.startswith('.') and p not in ('.', '..') for p in parts):
+                    root.remove(game)
+                    continue
+
             releasedate_elem = game.find('releasedate')
             if releasedate_elem is not None and releasedate_elem.text:
                 original_date = releasedate_elem.text.strip()
@@ -6887,13 +6907,23 @@ def _count_games_for_system(system_name):
         event, root = next(context)
         
         for event, elem in context:
-            if event == 'start' and elem.tag == 'game':
-                game_count += 1
-            elif event == 'end' and elem.tag == 'game':
-                # Check if this game is hidden
-                hidden_elem = elem.find('hidden')
-                if hidden_elem is not None and hidden_elem.text and hidden_elem.text.strip().lower() == 'true':
-                    hidden_count += 1
+            if event == 'end' and elem.tag == 'game':
+                # Check if this game is in a hidden directory
+                path_elem = elem.find('path')
+                is_in_hidden_dir = False
+                if path_elem is not None and path_elem.text:
+                    path_text = path_elem.text.strip().replace('\\', '/')
+                    parts = path_text.split('/')[:-1]
+                    if any(p.startswith('.') and p not in ('.', '..') for p in parts):
+                        is_in_hidden_dir = True
+                        
+                if not is_in_hidden_dir:
+                    game_count += 1
+                    # Check if this game is hidden
+                    hidden_elem = elem.find('hidden')
+                    if hidden_elem is not None and hidden_elem.text and hidden_elem.text.strip().lower() == 'true':
+                        hidden_count += 1
+                
                 # Clear element to free memory during streaming
                 elem.clear()
         
@@ -25093,7 +25123,7 @@ def run_rom_scan_task(system_name):
         # Get scan configuration
         scan_config = config.get('rom_scan', {})
         max_depth = scan_config.get('max_depth', 10)  # Default max depth of 10 levels
-        skip_hidden_dirs = scan_config.get('skip_hidden_dirs', True)
+        skip_hidden_dirs = scan_config.get('skip_hidden_dirs', False)
         
         task.update_progress(f"Scan configuration: max_depth={max_depth}, skip_hidden_dirs={skip_hidden_dirs}")
         

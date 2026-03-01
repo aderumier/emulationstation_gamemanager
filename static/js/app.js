@@ -4937,8 +4937,8 @@ class GameCollectionManager {
 
         // Add directories (filter out directories with file extensions)
         contents.directories.forEach(dir => {
-            // Check if directory name has a file extension
-            const hasExtension = /\.[a-zA-Z0-9]+$/.test(dir.name);
+            // Check if directory name has a file extension, but allow hidden directories starting with a dot
+            const hasExtension = /\.[a-zA-Z0-9]+$/.test(dir.name) && !dir.name.startsWith('.');
 
             if (!hasExtension) {
                 const row = document.createElement('tr');
