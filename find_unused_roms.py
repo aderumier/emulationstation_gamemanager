@@ -22,7 +22,7 @@ def get_rom_paths_from_gamelist(gamelist_path):
             path_elem = game.find('path')
             if path_elem is not None and path_elem.text:
                 # Remove leading './' if present
-                rom_path = path_elem.text.lstrip('./')
+                rom_path = path_elem.text.removeprefix('./')
                 rom_paths.add(rom_path)
     
     except ET.ParseError as e:

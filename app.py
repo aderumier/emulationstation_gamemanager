@@ -4687,7 +4687,7 @@ def run_import_roms_task(system_name, source_directory, task_id):
                         
                         # Also create alternative path formats for comparison
                         rel_rom_path_alt1 = f"./{rel_rom_path}" if not rel_rom_path.startswith('./') else rel_rom_path
-                        rel_rom_path_alt2 = rel_rom_path.lstrip('./')
+                        rel_rom_path_alt2 = rel_rom_path.removeprefix('./')
                         
                         # Check if game entry already exists in gamelist (check multiple path formats)
                         game_exists = False
@@ -17852,7 +17852,7 @@ def upload_game_rom(system_name):
         
         # Get the directory of the old ROM file
         # old_rom_path is relative to gamelist.xml (e.g., "./game.nes" or "./subdir/game.nes")
-        old_rom_path_clean = old_rom_path.lstrip('./')
+        old_rom_path_clean = old_rom_path.removeprefix('./')
         old_rom_full_path = os.path.join(ROMS_FOLDER, system_name, old_rom_path_clean)
         old_rom_dir = os.path.dirname(old_rom_full_path)
         
@@ -17921,7 +17921,7 @@ def upload_game_rom(system_name):
             media_fields = media_config.get('media_fields', {})
             
             # Get old and new ROM basenames (without extension)
-            old_rom_basename = os.path.splitext(os.path.basename(old_rom_path.lstrip('./')))[0]
+            old_rom_basename = os.path.splitext(os.path.basename(old_rom_path.removeprefix('./')))[0]
             new_rom_basename = os.path.splitext(new_filename)[0]
             
             # Only rename if basenames are different
@@ -17932,7 +17932,7 @@ def upload_game_rom(system_name):
                     if media_field in game and game[media_field]:
                         old_media_rel_path = game[media_field]
                         # Convert relative path to absolute
-                        old_media_abs_path = os.path.join(system_path, old_media_rel_path.lstrip('./'))
+                        old_media_abs_path = os.path.join(system_path, old_media_rel_path.removeprefix('./'))
                         
                         if os.path.exists(old_media_abs_path):
                             # Get media directory and extension
@@ -20065,13 +20065,13 @@ def create_m3u_from_games(system_name):
         m3u_path = rom_path_to_m3u_path(rom_paths[0])
 
         # Write .m3u file in the same subdirectory as the first ROM; lines relative to .m3u location
-        m3u_path_norm = m3u_path.lstrip('./').replace('/', os.sep)
+        m3u_path_norm = m3u_path.removeprefix('./').replace('/', os.sep)
         m3u_full_path = os.path.join(system_path, m3u_path_norm)
         m3u_dir = os.path.dirname(m3u_path_norm)  # '' if m3u in system root
         os.makedirs(os.path.dirname(m3u_full_path) or '.', exist_ok=True)
         with open(m3u_full_path, 'w', encoding='utf-8') as f:
             for p in rom_paths:
-                p_norm = p.lstrip('./').replace('/', os.sep)
+                p_norm = p.removeprefix('./').replace('/', os.sep)
                 line = os.path.relpath(p_norm, m3u_dir) if m3u_dir else p_norm
                 f.write(line.replace(os.sep, '/') + '\n')
 
@@ -20088,7 +20088,7 @@ def create_m3u_from_games(system_name):
             if not media_path or not isinstance(media_path, str) or not media_path.strip():
                 new_entry[field_name] = ''
                 continue
-            rel = media_path.strip().lstrip('./').replace('\\', '/')
+            rel = media_path.strip().removeprefix('./').replace('\\', '/')
             full_src = os.path.join(system_path, rel)
             if not os.path.isfile(full_src):
                 new_entry[field_name] = ''
@@ -24394,7 +24394,7 @@ def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_p
             rom_path = missing_game.get('path', '')
             if rom_path:
                 # Normalize path (remove ./ prefix if present)
-                normalized_path = rom_path.lstrip('./')
+                normalized_path = rom_path.removeprefix('./')
                 missing_game_paths.add(normalized_path)
         
         # Filter out games with missing ROMs
@@ -24403,7 +24403,7 @@ def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_p
             rom_path = game.get('path', '')
             if rom_path:
                 # Normalize path (remove ./ prefix if present)
-                normalized_path = rom_path.lstrip('./')
+                normalized_path = rom_path.removeprefix('./')
                 if normalized_path not in missing_game_paths:
                     filtered_games.append(game)
             else:
@@ -24477,7 +24477,7 @@ def run_clean_missing_medias_task(system_name, media_field):
                     continue
                 
                 # Normalize path (remove ./ if present)
-                normalized_path = media_path.lstrip('./')
+                normalized_path = media_path.removeprefix('./')
                 
                 # Check if file exists
                 if normalized_path:
@@ -24600,7 +24600,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
             return
 
         # Normalize source path
-        normalized_source_path = source_media_path.lstrip('./')
+        normalized_source_path = source_media_path.removeprefix('./')
         if normalized_source_path.startswith('media/'):
             source_image_path = os.path.join(system_path, normalized_source_path)
         elif normalized_source_path.startswith(os.sep):
@@ -24645,7 +24645,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
                 continue
 
             # Normalize path
-            normalized_path = media_file_path.lstrip('./')
+            normalized_path = media_file_path.removeprefix('./')
             
             # Build full path
             if normalized_path.startswith('media/'):
@@ -24868,7 +24868,7 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
             return
 
         # Normalize source path
-        normalized_source_path = source_media_path.lstrip('./')
+        normalized_source_path = source_media_path.removeprefix('./')
         if normalized_source_path.startswith('media/'):
             source_image_path = os.path.join(system_path, normalized_source_path)
         elif normalized_source_path.startswith(os.sep):
@@ -24913,7 +24913,7 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
                 continue
 
             # Normalize path
-            normalized_path = media_file_path.lstrip('./')
+            normalized_path = media_file_path.removeprefix('./')
             
             # Build full path
             if normalized_path.startswith('media/'):
@@ -25251,7 +25251,7 @@ def run_rom_scan_task(system_name):
                 # Add referenced ROMs to hidden set
                 for rom_file in referenced_roms:
                     # Normalize the path to match the format used in rom_files
-                    normalized_rom = rom_file.lstrip('./')
+                    normalized_rom = rom_file.removeprefix('./')
                     hidden_roms.add(normalized_rom)
                     task.update_progress(f"Will mark as hidden: {normalized_rom} (referenced in {m3u_file})")
         
@@ -25287,7 +25287,7 @@ def run_rom_scan_task(system_name):
             rom_path = game.get('path', '')
             if rom_path:
                 # Normalize path (remove ./ prefix if present)
-                normalized_path = rom_path.lstrip('./')
+                normalized_path = rom_path.removeprefix('./')
                 # Normalize path separators for consistency
                 normalized_path_clean = normalized_path.replace('\\', '/')
                 # Store with exact case as it appears in gamelist
@@ -25313,7 +25313,7 @@ def run_rom_scan_task(system_name):
             rom_path = game.get('path', '')
             if rom_path:
                 # Normalize path (remove ./ prefix if present)
-                normalized_path = rom_path.lstrip('./')
+                normalized_path = rom_path.removeprefix('./')
                 # Normalize path for Windows/Docker compatibility
                 normalized_path_clean = normalized_path.replace('\\', '/')
                 
@@ -25504,7 +25504,7 @@ def scan_rom_files_confirm(system_name):
                     rom_path = game.get('path', '')
                     if rom_path:
                         # Normalize path (remove ./ prefix if present)
-                        normalized_path = rom_path.lstrip('./')
+                        normalized_path = rom_path.removeprefix('./')
                         # Normalize path for Windows/Docker compatibility
                         normalized_path_clean = normalized_path.replace('\\', '/')
                         rom_file_path = os.path.join(system_path, normalized_path_clean)
@@ -28721,7 +28721,7 @@ def serve_cbz_file(system_name, cbz_path):
         return resp
     try:
         # Sanitize path (remove leading ./ or /)
-        cbz_path = cbz_path.replace('..', '').lstrip('/').lstrip('./')
+        cbz_path = cbz_path.replace('..', '').lstrip('/').removeprefix('./')
         
         # Construct full CBZ path
         full_cbz_path = os.path.join(ROMS_FOLDER, system_name, cbz_path)
@@ -28762,7 +28762,7 @@ def serve_pdf_for_viewer(system_name, pdf_path):
         return resp
     try:
         # Sanitize path (remove leading ./ or /, path traversal)
-        pdf_path = pdf_path.replace('..', '').lstrip('/').lstrip('./')
+        pdf_path = pdf_path.replace('..', '').lstrip('/').removeprefix('./')
         parts = [p for p in pdf_path.replace('\\', '/').split('/') if p]
         
         # Construct full PDF path (use ROMS_FOLDER, not hardcoded 'roms')
@@ -28947,7 +28947,7 @@ def get_cbz_preview(system_name, cbz_path):
         import zipfile
         
         # Sanitize path (remove leading ./ or /)
-        cbz_path = cbz_path.replace('..', '').lstrip('/').lstrip('./')
+        cbz_path = cbz_path.replace('..', '').lstrip('/').removeprefix('./')
         
         # Construct full CBZ path
         full_cbz_path = os.path.join(ROMS_FOLDER, system_name, cbz_path)
@@ -29029,7 +29029,7 @@ def get_pdf_preview(system_name, pdf_path):
         import io
         
         # Sanitize path (remove leading ./ or /)
-        pdf_path = pdf_path.replace('..', '').lstrip('/').lstrip('./')
+        pdf_path = pdf_path.replace('..', '').lstrip('/').removeprefix('./')
         
         # Construct full PDF path
         full_pdf_path = os.path.join(ROMS_FOLDER, system_name, pdf_path)
