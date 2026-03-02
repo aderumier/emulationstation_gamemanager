@@ -39,6 +39,7 @@ class GameCollectionManager {
         this.currentBestMatchIndex = 0;
         this.duplicatesFilterActive = false; // Track duplicates filter state
         this.hiddenFilterActive = false; // Track hidden filter state
+        this.hiddenDirFilterActive = false; // Track hidden directory filter state
         this.currentNavigationIndex = 0; // Track current navigation position
         this.eventSource = null;
         this.logHistory = [];
@@ -2508,6 +2509,9 @@ class GameCollectionManager {
         // Delete selected games button
         document.getElementById('deleteSelectedBtn').addEventListener('click', () => this.showDeleteConfirmation());
 
+        // Show hidden dir button
+        document.getElementById('showHiddenDirBtn').addEventListener('click', () => this.toggleHiddenDirFilter());
+
         // Show hidden button
         document.getElementById('showHiddenBtn').addEventListener('click', () => this.toggleHiddenFilter());
 
@@ -3200,6 +3204,9 @@ class GameCollectionManager {
             if (this.hiddenFilterActive) {
                 await this.resetHiddenFilter();
             }
+            if (this.hiddenDirFilterActive) {
+                await this.resetHiddenDirFilter();
+            }
         }
 
         this.updateSelectionDisplay();
@@ -3250,6 +3257,18 @@ class GameCollectionManager {
                             hiddenBtn.classList.remove('btn-outline-info');
                             hiddenBtn.classList.add('btn-info');
                             hiddenBtn.innerHTML = '<i class="bi bi-eye"></i> Hide Hidden';
+                        }
+                    }
+                    if (this.hiddenDirFilterActive) {
+                        // Hidden dir filter hides games in hidden directories
+                        const nonHiddenDirGames = this.findNonHiddenDirGames();
+                        await this.updateGameGridData(nonHiddenDirGames);
+                        // Update button state
+                        const hiddenDirBtn = document.getElementById('showHiddenDirBtn');
+                        if (hiddenDirBtn) {
+                            hiddenDirBtn.classList.remove('btn-outline-info');
+                            hiddenDirBtn.classList.add('btn-info');
+                            hiddenDirBtn.innerHTML = '<i class="bi bi-folder-symlink"></i> Show Hidden Dir';
                         }
                     }
                 }
@@ -4188,17 +4207,23 @@ class GameCollectionManager {
 
     // Refresh grid data when filters change
     async refreshGridData() {
-        if (this.gridApi) {
-            // Check if duplicates filter is active
-            if (this.duplicatesFilterActive) {
-                // If duplicates filter is active, reapply it
-                const duplicateGames = this.findDuplicateGames();
-                await this.updateGameGridData(duplicateGames);
-            } else {
-                // Normal refresh - use all games
-                await this.updateGameGridData(this.games);
-            }
+        if (!this.gridApi) return;
+
+        let filteredGames = this.games;
+
+        // Apply duplicates filter if active
+        if (this.duplicatesFilterActive) {
+            filteredGames = this.findDuplicateGames();
         }
+
+        // Apply hidden dir filter if active
+        if (this.hiddenDirFilterActive) {
+            filteredGames = filteredGames.filter(game => !this.isInHiddenDir(game));
+        }
+
+        // updateGameGridData will automatically handle the hidden games filter
+        // based on this.hiddenFilterActive state
+        await this.updateGameGridData(filteredGames);
     }
 
     // Clear all active filters from the grid
@@ -4935,7 +4960,7 @@ class GameCollectionManager {
             tbody.appendChild(rootRow);
         }
 
-        // Add directories (filter out directories with file extensions)
+        // Add directories (filter out directories with file extensions, but keep hidden directories)
         contents.directories.forEach(dir => {
             // Check if directory name has a file extension, but allow hidden directories starting with a dot
             const hasExtension = /\.[a-zA-Z0-9]+$/.test(dir.name) && !dir.name.startsWith('.');
@@ -34316,7 +34341,7 @@ class GameCollectionManager {
             hiddenBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Show Hidden';
 
             // Restore original games data with proper filtering
-            await this.updateGameGridData(this.games);
+            await this.refreshGridData();
             this.showToast('Hidden filter disabled - showing all games', 'info');
         } else {
             // Turn on hidden filter - show ALL games (including hidden ones)
@@ -34325,8 +34350,8 @@ class GameCollectionManager {
             hiddenBtn.classList.add('btn-info');
             hiddenBtn.innerHTML = '<i class="bi bi-eye"></i> Hide Hidden';
 
-            // Force complete refresh to show all games (including hidden ones)
-            this.setGridDataPreservingSort([...this.games]);
+            // Force complete refresh to show all games (including hidden ones, adhering to other filters)
+            await this.refreshGridData();
 
             const hiddenGames = this.findHiddenGames();
             if (hiddenGames.length > 0) {
@@ -34348,8 +34373,8 @@ class GameCollectionManager {
             duplicatesBtn.classList.add('btn-outline-warning');
             duplicatesBtn.innerHTML = '<i class="bi bi-dup"></i> Show Duplicates';
 
-            // Restore original games data
-            this.setGridDataPreservingSort(this.games);
+            // Restore games data with proper filtering
+            await this.refreshGridData();
             this.showToast('Duplicates filter disabled - showing all games', 'info');
         } else {
             // Turn on duplicates filter
@@ -34358,9 +34383,8 @@ class GameCollectionManager {
             duplicatesBtn.classList.add('btn-warning');
             duplicatesBtn.innerHTML = '<i class="bi bi-dup"></i> Hide Duplicates';
 
-            // Filter to show only duplicates
-            const duplicateGames = this.findDuplicateGames();
-            await this.updateGameGridData(duplicateGames);
+            // Filter to show duplicates subject to other filters
+            await this.refreshGridData();
 
             if (duplicateGames.length > 0) {
                 this.showToast(`Found ${duplicateGames.length} games with duplicates`, 'warning');
@@ -34526,8 +34550,8 @@ class GameCollectionManager {
             duplicatesBtn.innerHTML = '<i class="bi bi-dup"></i> Show Duplicates';
         }
 
-        // Restore original data efficiently
-        await this.updateGameGridData(this.games);
+        // Restore original data properly
+        await this.refreshGridData();
     }
 
     async resetHiddenFilter() {
@@ -34540,8 +34564,78 @@ class GameCollectionManager {
             hiddenBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Show Hidden';
         }
 
-        // Restore original data efficiently - this will now filter out hidden games
-        await this.updateGameGridData(this.games);
+        // Restore original data efficiently - this will now filter out hidden games properly
+        await this.refreshGridData();
+    }
+
+    /**
+     * Check if a game's path is inside a hidden directory (directory starting with a dot).
+     * For example: ./.wip/game.zip -> true, ./game.zip -> false
+     */
+    isInHiddenDir(game) {
+        if (!game || !game.path) return false;
+        // Normalize path to use forward slashes
+        const normalizedPath = game.path.replace(/\\/g, '/');
+        const parts = normalizedPath.split('/');
+
+        // Skip the last part (filename)
+        // Check if any directory part starts with a dot (excluding the current directory "." and parent directory "..")
+        for (let i = 0; i < parts.length - 1; i++) {
+            const part = parts[i];
+            if (part && part.startsWith('.') && part !== '.' && part !== '..') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    findNonHiddenDirGames() {
+        return this.games.filter(game => !this.isInHiddenDir(game));
+    }
+
+    async toggleHiddenDirFilter() {
+        const hiddenDirBtn = document.getElementById('showHiddenDirBtn');
+        if (!hiddenDirBtn) return;
+
+        if (this.hiddenDirFilterActive) {
+            // Turn off hidden dir filter
+            this.hiddenDirFilterActive = false;
+            hiddenDirBtn.classList.remove('btn-info');
+            hiddenDirBtn.classList.add('btn-outline-info');
+            hiddenDirBtn.innerHTML = '<i class="bi bi-folder-symlink"></i> Hide Hidden Dir';
+
+            // Restore original games data with proper filtering
+            await this.refreshGridData();
+            this.showToast('Hidden dir filter disabled - showing all games', 'info');
+        } else {
+            // Turn on hidden dir filter - hide games in hidden directories
+            this.hiddenDirFilterActive = true;
+            hiddenDirBtn.classList.remove('btn-outline-info');
+            hiddenDirBtn.classList.add('btn-info');
+            hiddenDirBtn.innerHTML = '<i class="bi bi-folder-symlink"></i> Show Hidden Dir';
+
+            await this.refreshGridData();
+
+            // Find games accurately after applying all filters from grid if possible, 
+            // but for toast we can just calculate what we hid based on current grid data
+            const displayedCount = this.gridApi ? this.gridApi.getDisplayedRowCount() : this.games.length;
+            const hiddenCount = this.games.length - displayedCount;
+            this.showToast(`Hidden dir filter active`, 'info');
+        }
+    }
+
+    async resetHiddenDirFilter() {
+        // Reset hidden dir filter state and button appearance
+        this.hiddenDirFilterActive = false;
+        const hiddenDirBtn = document.getElementById('showHiddenDirBtn');
+        if (hiddenDirBtn) {
+            hiddenDirBtn.classList.remove('btn-info');
+            hiddenDirBtn.classList.add('btn-outline-info');
+            hiddenDirBtn.innerHTML = '<i class="bi bi-folder-symlink"></i> Hide Hidden Dir';
+        }
+
+        // Restore data properly
+        await this.refreshGridData();
     }
 
     async deleteGameFiles(game) {
