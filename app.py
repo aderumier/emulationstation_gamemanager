@@ -27681,7 +27681,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                 
                 # Generate output filename
                 game_basename = os.path.splitext(os.path.basename(game_path))[0]
-                output_filename = f"{game_basename}.jpg"
+                output_filename = f"{game_basename}.png"
                 output_path = os.path.join(box2d_dir, output_filename)
                 
                 # Handle logo if configured
