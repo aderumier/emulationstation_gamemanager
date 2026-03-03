@@ -4784,8 +4784,11 @@ class GameCollectionManager {
                     if (gamelistData.games) {
                         this.games = gamelistData.games;
                         this.gridApi.deselectAll();
+                        // Save and restore AG Grid column filter model
                         const currentFilterModel = this.gridApi.getFilterModel();
-                        this.setGridDataPreservingSort([...this.games]);
+                        // Use refreshGridData() to re-apply all active custom filters
+                        // (duplicates, hiddenDir, hidden) alongside the column filter model
+                        await this.refreshGridData();
                         if (currentFilterModel && Object.keys(currentFilterModel).length > 0) {
                             this.gridApi.setFilterModel(currentFilterModel);
                         }
