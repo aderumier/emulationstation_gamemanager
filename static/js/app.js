@@ -4328,6 +4328,9 @@ class GameCollectionManager {
                 <a class="dropdown-item" href="#" onclick="gameManager.createM3uForSelected()">
                     <i class="bi bi-list-ul"></i> Create .m3u
                 </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.openMergeRomsModal()">
+                    <i class="bi bi-shuffle"></i> Merge ROMs
+                </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.hideSelectedGames()">
                     <i class="bi bi-eye-slash"></i> Hide Selected
@@ -4700,6 +4703,100 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error updating games hidden status:', error);
             this.showAlert('Failed to update games', 'error');
+        }
+    }
+
+    openMergeRomsModal() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        if (selectedGames.length < 2) {
+            this.showAlert('Please select at least 2 games to merge.', 'warning');
+            return;
+        }
+
+        const select = document.getElementById('mergeRomsTargetSelect');
+        select.innerHTML = '';
+
+        // Determine media field keys from the grid data
+        const mediaFields = ['image', 'video', 'marquee', 'thumbnail', 'fanart', 'manual',
+            'map', 'bezel', 'cartridge', 'boxback', 'wheel'];
+
+        // Find default: first game with no media
+        let defaultTarget = selectedGames.find(game =>
+            mediaFields.every(field => !game[field] || game[field] === '0' || game[field] === 0)
+        ) || selectedGames[0];
+
+        selectedGames.forEach(game => {
+            const opt = document.createElement('option');
+            opt.value = game.path;
+            opt.textContent = game.name || game.path;
+            if (game.path === defaultTarget.path) {
+                opt.selected = true;
+            }
+            select.appendChild(opt);
+        });
+
+        const modal = new bootstrap.Modal(document.getElementById('mergeRomsModal'));
+        modal.show();
+    }
+
+    async submitMergeRoms() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        const targetRomPath = document.getElementById('mergeRomsTargetSelect').value;
+
+        if (!targetRomPath) {
+            this.showAlert('Please select a target ROM.', 'warning');
+            return;
+        }
+
+        const sourceRomPaths = selectedGames
+            .map(g => g.path)
+            .filter(p => p !== targetRomPath);
+
+        if (sourceRomPaths.length === 0) {
+            this.showAlert('No source ROMs to merge.', 'warning');
+            return;
+        }
+
+        // Close modal
+        const modalEl = document.getElementById('mergeRomsModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/games/merge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    target_rom_path: targetRomPath,
+                    source_rom_paths: sourceRomPaths
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.showAlert(result.message || 'ROMs merged successfully.', 'success');
+
+                // Reload gamelist from server
+                const gamelistResponse = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`);
+                if (gamelistResponse.ok) {
+                    const gamelistData = await gamelistResponse.json();
+                    if (gamelistData.games) {
+                        this.games = gamelistData.games;
+                        this.gridApi.deselectAll();
+                        const currentFilterModel = this.gridApi.getFilterModel();
+                        this.setGridDataPreservingSort([...this.games]);
+                        if (currentFilterModel && Object.keys(currentFilterModel).length > 0) {
+                            this.gridApi.setFilterModel(currentFilterModel);
+                        }
+                    }
+                }
+            } else {
+                this.showAlert(result.error || 'Failed to merge ROMs.', 'error');
+            }
+        } catch (error) {
+            console.error('Error merging ROMs:', error);
+            this.showAlert('An error occurred while merging ROMs.', 'error');
         }
     }
 

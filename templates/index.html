@@ -6469,7 +6469,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 window.dispatchEvent(new CustomEvent('embedpdf-ready'));
             } catch (error) {
                 console.error('Failed to load EmbedPDF:', error);
-                window.EmbedPDF = null;
+                window.Embe = null;
             }
         })();
     </script>
@@ -6700,7 +6700,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 // Wait for gameManager to be initialized
                 if (window.gameManager) {
                     await window.gameManager.openCacheConfigurationModal();
-                }
+            }
             }, 500);
         });
     </script>
@@ -7599,10 +7599,50 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     if (/^#[0-9A-F]{6}$/i.test(this.value)) {
                         logoColorPicker.value = this.value;
                     }
-                });
+            });
             }
-        });
+});
     </script>
+
+    <!-- Merge ROMs Modal -->
+    <div class="modal fade" id="mergeRomsModal" tabindex="-1" aria-labelledby="mergeRomsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mergeRomsModalLabel">
+                        <i class="bi bi-shuffle me-2"></i>Merge ROMs
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Select the <strong>target ROM</strong> to keep. Metadata and media from the other selected ROMs
+                        will be copied to it. Source ROMs will be <strong>deleted</strong>.
+                    </div>
+                    <div class="mb-3">
+                        <label for="mergeRomsTargetSelect" class="form-label">Target ROM</label>
+                        <select class="form-select" id="mergeRomsTargetSelect"></select>
+                        <div class="form-text">The ROM without media is pre-selected by default.</div>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> Source ROMs will be permanently deleted from disk and the gamelist.
+                        This action cannot be undone.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="gameManager.submitMergeRoms()">
+                        <i class="bi bi-shuffle me-1"></i>Merge
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 
 </html>

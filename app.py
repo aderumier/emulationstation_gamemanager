@@ -20138,6 +20138,138 @@ def create_m3u_from_games(system_name):
         traceback.print_exc()
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/games/merge', methods=['POST'])
+@login_required
+def merge_roms(system_name):
+    """Merge multiple ROMs into a single target ROM: copy media/metadata from sources to target,
+    delete source ROM files, and remove source game entries from the gamelist."""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
+    try:
+        data = request.get_json(force=True) or {}
+        target_rom_path = data.get('target_rom_path')
+        source_rom_paths = data.get('source_rom_paths', [])
+
+        if not target_rom_path:
+            return jsonify({'error': 'target_rom_path is required'}), 400
+        if not source_rom_paths or not isinstance(source_rom_paths, list):
+            return jsonify({'error': 'source_rom_paths must be a non-empty list'}), 400
+
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.isdir(system_path):
+            return jsonify({'error': 'System ROMs directory not found'}), 404
+
+        games = parse_gamelist_xml(gamelist_path)
+        path_to_game = {g.get('path'): g for g in games if g.get('path')}
+
+        target_game = path_to_game.get(target_rom_path)
+        if not target_game:
+            return jsonify({'error': f'Target game not found in gamelist: {target_rom_path}'}), 404
+
+        source_games = []
+        for sp in source_rom_paths:
+            sg = path_to_game.get(sp)
+            if not sg:
+                return jsonify({'error': f'Source game not found in gamelist: {sp}'}), 404
+            source_games.append(sg)
+
+        cfg = load_config()
+        media_fields = cfg.get('media_fields', {})
+
+        # Metadata fields to merge (copy from source to target if target field is empty)
+        metadata_fields = ['name', 'desc', 'developer', 'publisher', 'genre', 'releasedate',
+                           'rating', 'players', 'sortname', 'lang', 'region']
+
+        for source_game in source_games:
+            # --- Merge metadata ---
+            for field in metadata_fields:
+                if not target_game.get(field) and source_game.get(field):
+                    target_game[field] = source_game[field]
+
+            # --- Merge media ---
+            for field_name, field_config in media_fields.items():
+                # Skip if target already has a value for this field
+                if target_game.get(field_name):
+                    continue
+                source_media_path = source_game.get(field_name, '')
+                if not source_media_path or not isinstance(source_media_path, str) or not source_media_path.strip():
+                    continue
+
+                # Resolve source media absolute path
+                rel = source_media_path.strip().removeprefix('./').replace('\\', '/')
+                full_src = os.path.join(system_path, rel)
+                if not os.path.isfile(full_src):
+                    continue
+
+                # Build target media path
+                ext = os.path.splitext(full_src)[1]
+                target_filename = create_media_filename(target_rom_path, ext)
+                media_dir = field_config.get('directory', field_name)
+                target_rel = 'media/' + media_dir + '/' + target_filename
+                full_dst = os.path.join(system_path, target_rel.replace('/', os.sep))
+
+                try:
+                    os.makedirs(os.path.dirname(full_dst), exist_ok=True)
+                    if full_dst != full_src:
+                        shutil.copy2(full_src, full_dst)
+                    target_game[field_name] = './' + target_rel.replace('\\', '/')
+                except Exception as e:
+                    print(f"Warning: could not copy media {full_src} -> {full_dst}: {e}")
+
+        # Delete source ROM files from disk
+        deleted_files = []
+        failed_deletions = []
+        for sp in source_rom_paths:
+            normalized = sp.strip()
+            while normalized.startswith('./'):
+                normalized = normalized[2:]
+            normalized = normalized.replace('\\', '/').lstrip('/')
+            rom_abs = os.path.abspath(os.path.join(system_path, normalized))
+            # Security check
+            if not rom_abs.startswith(os.path.abspath(system_path)):
+                failed_deletions.append({'path': sp, 'error': 'Path outside system directory'})
+                continue
+            try:
+                if os.path.isfile(rom_abs):
+                    os.remove(rom_abs)
+                    deleted_files.append(sp)
+                elif os.path.isdir(rom_abs):
+                    shutil.rmtree(rom_abs)
+                    deleted_files.append(sp)
+                else:
+                    # File already gone - still remove from gamelist
+                    deleted_files.append(sp)
+            except Exception as e:
+                print(f"Warning: could not delete ROM {rom_abs}: {e}")
+                failed_deletions.append({'path': sp, 'error': str(e)})
+
+        # Remove source game entries from gamelist
+        source_paths_set = set(source_rom_paths)
+        games = [g for g in games if g.get('path') not in source_paths_set]
+
+        # Save and notify
+        write_gamelist_xml(games, gamelist_path)
+        save_gamelist_to_roms(system_name)
+        notify_gamelist_updated(system_name, len(games), len(deleted_files))
+
+        return jsonify({
+            'success': True,
+            'message': f'Merged {len(source_rom_paths)} ROM(s) into {os.path.basename(target_rom_path)}',
+            'deleted_count': len(deleted_files),
+            'failed_deletions': failed_deletions
+        })
+
+    except Exception as e:
+        print(f"Error in merge_roms: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 @app.route('/api/rom-system/<system_name>/game/manual-scrap/apply', methods=['POST'])
 @login_required
 def apply_manual_scrap(system_name):
