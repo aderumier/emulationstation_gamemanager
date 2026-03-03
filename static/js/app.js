@@ -4757,10 +4757,15 @@ class GameCollectionManager {
             return;
         }
 
-        // Close modal
-        const modalEl = document.getElementById('mergeRomsModal');
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) modal.hide();
+        // Close the merge modal
+        const mergeModalEl = document.getElementById('mergeRomsModal');
+        const mergeModal = bootstrap.Modal.getInstance(mergeModalEl);
+        if (mergeModal) mergeModal.hide();
+
+        // Show waiting modal
+        const waitingModalEl = document.getElementById('mergeRomsWaitingModal');
+        const waitingModal = new bootstrap.Modal(waitingModalEl, { backdrop: 'static', keyboard: false });
+        waitingModal.show();
 
         try {
             const response = await fetch(`/api/rom-system/${this.currentSystem}/games/merge`, {
@@ -4773,6 +4778,8 @@ class GameCollectionManager {
             });
 
             const result = await response.json();
+
+            waitingModal.hide();
 
             if (result.success) {
                 this.showAlert(result.message || 'ROMs merged successfully.', 'success');
@@ -4798,6 +4805,7 @@ class GameCollectionManager {
                 this.showAlert(result.error || 'Failed to merge ROMs.', 'error');
             }
         } catch (error) {
+            waitingModal.hide();
             console.error('Error merging ROMs:', error);
             this.showAlert('An error occurred while merging ROMs.', 'error');
         }
