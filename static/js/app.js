@@ -14410,6 +14410,9 @@ class GameCollectionManager {
             formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
         }
 
+        const foregroundMask = document.getElementById('templateForegroundMask')?.checked ?? false;
+        formData.append('enable_foreground_mask', foregroundMask ? 'true' : 'false');
+
         fetch('/api/save-box-template', {
             method: 'POST',
             body: formData
@@ -14645,6 +14648,12 @@ class GameCollectionManager {
                         if (maxCharsInput) {
                             maxCharsInput.value = data.text_logo_settings.maxCharsPerLine || '';
                         }
+                    }
+
+                    // Restore foreground mask option
+                    const foregroundMaskCheckbox = document.getElementById('templateForegroundMask');
+                    if (foregroundMaskCheckbox) {
+                        foregroundMaskCheckbox.checked = data.enable_foreground_mask === true;
                     }
 
                     // Load background image field if present
@@ -14916,6 +14925,9 @@ class GameCollectionManager {
                 formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
             }
 
+            const foregroundMask = document.getElementById('templateForegroundMask')?.checked ?? false;
+            formData.append('enable_foreground_mask', foregroundMask ? 'true' : 'false');
+
             const response = await fetch('/api/generate-template-box', {
                 method: 'POST',
                 body: formData
@@ -15110,6 +15122,9 @@ class GameCollectionManager {
             if (textLogoSettings) {
                 formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
             }
+
+            const foregroundMask = document.getElementById('templateForegroundMask')?.checked ?? false;
+            formData.append('enable_foreground_mask', foregroundMask ? 'true' : 'false');
 
             const response = await fetch('/api/preview-template-box', {
                 method: 'POST',

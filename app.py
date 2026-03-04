@@ -27553,7 +27553,7 @@ def wrap_text_to_lines(text, max_chars_per_line=15):
     
     return lines if lines else ['']
 
-def run_template_box_generation_task(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source='none', logo_corners=None, text_logo_settings=None, overwrite_existing=True, background_image_field=None):
+def run_template_box_generation_task(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source='none', logo_corners=None, text_logo_settings=None, overwrite_existing=True, background_image_field=None, enable_foreground_mask=False):
     """Run template box generation task in background thread"""
     global current_task_id
     
@@ -27775,7 +27775,8 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                     logo_path=logo_path,
                     logo_corners=logo_corners,
                     text_logo_settings=text_logo_settings,
-                    game_name=game_name
+                    game_name=game_name,
+                    enable_foreground_mask=enable_foreground_mask
                 )
                 
                 # Cleanup processed background temp file if it was created
@@ -29960,6 +29961,8 @@ def save_box_template():
         text_logo_settings_json = request.form.get('text_logo_settings')
         text_logo_settings = json.loads(text_logo_settings_json) if text_logo_settings_json else None
         
+        enable_foreground_mask = request.form.get('enable_foreground_mask', 'false').lower() == 'true'
+        
         # Save template metadata as JSON
         template_data = {
             'name': template_name,
@@ -29967,7 +29970,8 @@ def save_box_template():
             'background_image_field': background_image_field if background_image_field else None,  # Store field name if using field
             'corners_screenshot': corners,
             'corners_logo': logo_corners,
-            'logo_source': logo_source
+            'logo_source': logo_source,
+            'enable_foreground_mask': enable_foreground_mask
         }
         
         if text_logo_settings:
@@ -31063,6 +31067,7 @@ def generate_template_box():
         logo_corners_json = request.form.get('logo_corners')
         text_logo_settings_json = request.form.get('text_logo_settings')
         overwrite_existing = request.form.get('overwrite_existing', 'true').lower() == 'true'
+        enable_foreground_mask = request.form.get('enable_foreground_mask', 'false').lower() == 'true'
         
         if not system_name or not game_paths_json or not target_field or not screenshot_field:
             return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
@@ -31122,7 +31127,8 @@ def generate_template_box():
             'logo_source': logo_source,
             'logo_corners': logo_corners,
             'text_logo_settings': text_logo_settings,
-            'overwrite_existing': overwrite_existing
+            'overwrite_existing': overwrite_existing,
+            'enable_foreground_mask': enable_foreground_mask
         }
         
         task = add_task_to_queue('template_box_generation', task_data)
@@ -31149,6 +31155,7 @@ def preview_template_box():
         logo_source = request.form.get('logo_source', 'none')
         logo_corners_json = request.form.get('logo_corners')
         text_logo_settings_json = request.form.get('text_logo_settings')
+        enable_foreground_mask = request.form.get('enable_foreground_mask', 'false').lower() == 'true'
         
         if not system_name or not game_path or not screenshot_field:
             return jsonify({'error': 'Missing required parameters'}), 400
@@ -31259,7 +31266,8 @@ def preview_template_box():
             logo_path=logo_path,
             logo_corners=logo_corners,
             text_logo_settings=text_logo_settings,
-            game_name=game_name
+            game_name=game_name,
+            enable_foreground_mask=enable_foreground_mask
         )
         
         if not os.path.exists(output_path):

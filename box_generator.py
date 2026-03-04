@@ -616,7 +616,7 @@ class BoxGenerator:
                               corner1_x, corner1_y, corner2_x, corner2_y,
                               corner3_x, corner3_y, corner4_x, corner4_y,
                               logo_source='none', logo_path=None, logo_corners=None, 
-                              text_logo_settings=None, game_name=''):
+                              text_logo_settings=None, game_name='', enable_foreground_mask=False):
         """
         Generate box using a template with background image and screenshot positioned at specific corners
         
@@ -660,6 +660,8 @@ class BoxGenerator:
             dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
             if dim_result.returncode != 0:
                 raise Exception("Failed to get background image dimensions")
+            bg_dims = dim_result.stdout.strip().split('x')
+            bg_width, bg_height = bg_dims[0], bg_dims[1]
             
             # Use background image as base (copy it first)
             cmd = _imagemagick_cmd('convert') + [background_path, temp_background]
@@ -764,12 +766,30 @@ class BoxGenerator:
             # Use composite command with geometry for exact positioning
             # Position at min_x, min_y to align with the corner positions
             logging.info(f"Placing resized screenshot onto background at position ({min_x}, {min_y})")
-            cmd = _imagemagick_cmd('composite') + [
-                '-geometry', f'+{min_x}+{min_y}',
-                temp_resized,  # Use the resized image directly
-                temp_background,
-                output_path
-            ]
+            if enable_foreground_mask:
+                logging.info(f"Using foreground mask: placing background over screenshot")
+                temp_canvas = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                temp_files.append(temp_canvas)
+                
+                canvas_cmd = _imagemagick_cmd('convert') + [
+                    '-size', f"{bg_width}x{bg_height}", 'xc:none',
+                    temp_resized, '-geometry', f'+{min_x}+{min_y}', '-composite',
+                    temp_canvas
+                ]
+                subprocess.run(canvas_cmd, check=True)
+                
+                cmd = _imagemagick_cmd('composite') + [
+                    temp_background,
+                    temp_canvas,
+                    output_path
+                ]
+            else:
+                cmd = _imagemagick_cmd('composite') + [
+                    '-geometry', f'+{min_x}+{min_y}',
+                    temp_resized,  # Use the resized image directly
+                    temp_background,
+                    output_path
+                ]
             subprocess.run(cmd, check=True)
             logging.info(f"✅ Screenshot placed successfully")
             

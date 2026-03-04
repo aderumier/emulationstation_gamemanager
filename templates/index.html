@@ -5223,6 +5223,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     field</div>
                             </div>
 
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="templateForegroundMask">
+                                    <label class="form-check-label" for="templateForegroundMask">
+                                        Enable template foreground mask
+                                    </label>
+                                </div>
+                                <div class="form-text">When enabled, the background image is put over the screenshot
+                                    image, acting as a mask if it has transparency</div>
+                            </div>
+
                             <div class="mb-3" style="display: none;">
                                 <label class="form-label">Screenshot Corner Positions</label>
                                 <div class="row g-2">
@@ -5280,6 +5291,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <div class="mb-3">
                                 <label class="form-label">Logo Configuration</label>
                                 <div class="mb-2">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="templateLogoSource"
+                                            id="templateLogoSourceNone" value="none">
+                                        <label class="form-check-label" for="templateLogoSourceNone">None</label>
+                                    </div>
                                     <div class="form-check form-check-inline">
                                         <input class="form-check-input" type="radio" name="templateLogoSource"
                                             id="templateLogoSourceMarquee" value="marquee" checked>
@@ -6700,7 +6716,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 // Wait for gameManager to be initialized
                 if (window.gameManager) {
                     await window.gameManager.openCacheConfigurationModal();
-            }
+                }
             }, 500);
         });
     </script>
@@ -7599,13 +7615,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     if (/^#[0-9A-F]{6}$/i.test(this.value)) {
                         logoColorPicker.value = this.value;
                     }
-            });
+                });
             }
-});
+        });
     </script>
 
     <!-- Merge ROMs Waiting Modal -->
-    <div class="modal fade" id="mergeRomsWaitingModal" tabindex="-1" aria-labelledby="mergeRomsWaitingModalLabel" aria-hidden="true">
+    <div class="modal fade" id="mergeRomsWaitingModal" tabindex="-1" aria-labelledby="mergeRomsWaitingModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-sm modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-body text-center py-4">
