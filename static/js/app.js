@@ -25862,6 +25862,27 @@ class GameCollectionManager {
                 }
             }
 
+            // Populate target fields
+            const targetFieldEl = document.getElementById('fanartScrapperTargetField');
+            if (targetFieldEl) {
+                targetFieldEl.innerHTML = '<option value="">Select target field...</option>';
+                const response = await fetch('/api/remap-media-fields/target');
+                const data = await response.json();
+
+                if (data.success && data.fields) {
+                    data.fields.forEach(field => {
+                        const option = document.createElement('option');
+                        option.value = field;
+                        option.textContent = field;
+                        // Select fanart by default
+                        if (field === 'fanart') {
+                            option.selected = true;
+                        }
+                        targetFieldEl.appendChild(option);
+                    });
+                }
+            }
+
         } catch (error) {
             console.error('Error opening fanart scrapper modal:', error);
             this.showAlert('Error opening fanart scrapper modal', 'danger');
@@ -26995,6 +27016,10 @@ class GameCollectionManager {
             const sourceSystemsEl = document.getElementById('fanartScrapperSourceSystems');
             const sourceSystems = sourceSystemsEl ? Array.from(sourceSystemsEl.selectedOptions).map(o => o.value) : [];
 
+            // Get selected target field
+            const targetFieldEl = document.getElementById('fanartScrapperTargetField');
+            const targetField = targetFieldEl ? targetFieldEl.value : 'fanart';
+
             // Start the scrapper task
             const response = await fetch('/api/fanart-scrapper', {
                 method: 'POST',
@@ -27005,7 +27030,8 @@ class GameCollectionManager {
                     system_name: this.currentSystem,
                     overwrite_existing: overwriteExisting,
                     selected_games: selectedGamePaths,
-                    source_systems: sourceSystems
+                    source_systems: sourceSystems,
+                    target_field: targetField
                 })
             });
 
