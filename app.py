@@ -1952,6 +1952,7 @@ _mobygames_cancel_maps = {}
 _datscrapper_cancel_maps = {}
 _custom_scrapper_cancel_maps = {}
 _import_medias_cancel_maps = {}
+_fanart_scrapper_cancel_maps = {}
 _import_roms_cancel_maps = {}
 
 # Client tracking for system-specific notifications
@@ -2753,7 +2754,7 @@ class Task:
             print(f"Error writing final status to log file {self.log_file}: {e}")
         
         # Mark that grid refresh is needed for this task type
-        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias', 'import_roms']:
+        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias', 'import_roms', 'fanart_scrapper']:
             self.grid_refresh_needed = True
         
         # Clear current task for this system and start next queued task
@@ -3798,6 +3799,27 @@ def process_next_queued_task():
                 task.start()
             # Start import ROMs in background thread
             thread = threading.Thread(target=run_import_roms_task, args=(system_name, source_directory, task.id))
+            thread.daemon = True
+            thread.start()
+    elif task_type == 'fanart_scrapper':
+        # Start fanart scrapper task
+        system_name = task_data.get('system_name')
+        overwrite_existing = task_data.get('overwrite_existing', False)
+        selected_games = task_data.get('selected_games', [])
+        if system_name:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                set_running_task_for_system(system_name, task.id)
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('fanart_scrapper', task_data)
+                set_running_task_for_system(system_name, task.id)
+                task.start()
+            # Start fanart scrapper in background thread
+            thread = threading.Thread(target=run_fanart_scrapper_task, args=(system_name, overwrite_existing, selected_games, task.id))
             thread.daemon = True
             thread.start()
     elif task_type == 'custom_scrapper' or task_type == 'custom2_scrapper':
@@ -5287,6 +5309,399 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             })
         
         print(f"Error in import medias task: {e}")
+        import traceback
+        traceback.print_exc()
+
+def run_fanart_scrapper_task(system_name, overwrite_existing, selected_games, source_systems, task_id):
+    """Run fanart scrapper task in background thread.
+    Scans all other systems for games with fanart set, builds matching indexes,
+    and copies matching fanart files to the current system's games.
+    """
+    global current_task_id
+
+    from game_utils import normalize_game_name, convert_and_resize_image_replace
+
+    try:
+        if not task_id or task_id not in tasks:
+            print("Error: No active task found")
+            return
+
+        task = tasks[task_id]
+
+        # Add task to cancel map
+        global _fanart_scrapper_cancel_maps
+        _fanart_scrapper_cancel_maps[task_id] = False
+
+        # Load gamelist for current system
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            task.complete(False, f"Gamelist not found: {gamelist_path}")
+            return
+
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
+            task.complete(False, "No games found in gamelist")
+            return
+
+        # Filter to selected games if any were specified
+        if selected_games and len(selected_games) > 0:
+            selected_set = set(selected_games)
+            games = [g for g in all_games if g.get('path') in selected_set]
+            if not games:
+                task.complete(False, "No matching selected games found in gamelist")
+                return
+            task.update_progress(f"🎯 Processing {len(games)} selected games")
+        else:
+            games = all_games
+            task.update_progress(f"🎯 Processing all {len(games)} games")
+
+        # Load config
+        config = load_config()
+        media_fields = config.get('media_fields', {})
+
+        if 'fanart' not in media_fields:
+            task.complete(False, "'fanart' field not found in media configuration")
+            return
+
+        # Target directory for fanart in current system
+        target_dir = os.path.join(ROMS_FOLDER, system_name, 'media', media_fields['fanart']['directory'])
+        os.makedirs(target_dir, exist_ok=True)
+
+        task.update_progress(f"📂 Target fanart directory: {target_dir}")
+
+        # ── Phase 1: Scan all OTHER systems to build a fanart source pool ──
+        task.update_progress("🔍 Phase 1: Scanning other systems for fanart sources...")
+
+        systems_config = load_systems_config()
+        # Build a list of (game_name, rom_filename_no_ext, fanart_abs_path) tuples
+        fanart_sources = []
+
+        for other_system, _sys_conf in systems_config.items():
+            if other_system == system_name:
+                continue  # skip the current system
+                
+            # Skip if source_systems is provided and this system is not in it
+            if source_systems and other_system not in source_systems:
+                continue
+
+            if task_id in _fanart_scrapper_cancel_maps and _fanart_scrapper_cancel_maps[task_id]:
+                task.update_progress("🛑 Fanart scrapper task cancelled by user")
+                task.complete(True, "Fanart scrapper task cancelled by user")
+                return
+
+            other_gamelist = get_gamelist_path(other_system)
+            if not os.path.exists(other_gamelist):
+                continue
+
+            other_games = parse_gamelist_xml(other_gamelist)
+            if not other_games:
+                continue
+
+            count_from_system = 0
+            for og in other_games:
+                fanart_rel = og.get('fanart', '')
+                if not fanart_rel:
+                    continue
+
+                # Resolve the absolute path of the fanart file
+                fanart_abs = os.path.normpath(os.path.join(ROMS_FOLDER, other_system, fanart_rel.lstrip('./')))
+                if not os.path.isfile(fanart_abs):
+                    continue
+
+                og_name = og.get('name', '')
+                og_path = og.get('path', '')
+                og_rom_no_ext = os.path.splitext(os.path.basename(og_path))[0] if og_path else ''
+
+                fanart_sources.append({
+                    'name': og_name,
+                    'rom_no_ext': og_rom_no_ext,
+                    'fanart_abs': fanart_abs,
+                    'system': other_system,
+                })
+                count_from_system += 1
+
+            if count_from_system > 0:
+                task.update_progress(f"   📁 {other_system}: {count_from_system} fanart sources found")
+
+        if not fanart_sources:
+            task.complete(True, "No fanart sources found in any other system")
+            return
+
+        task.update_progress(f"✅ Found {len(fanart_sources)} total fanart sources across all systems")
+
+        # ── Phase 2: Build matching indexes (same approach as import_medias) ──
+        task.update_progress("🔧 Phase 2: Precomputing matching indexes...")
+
+        # For source matching, we build indexes keyed by various normalisations
+        # of the source game name / rom filename.
+
+        # Level 1: rom_no_ext lowercase -> source entry
+        level1_index = {}
+        for src in fanart_sources:
+            key = src['rom_no_ext'].lower()
+            if key and key not in level1_index:
+                level1_index[key] = src
+
+        # Level 2 reuses level1_index (game name match)
+
+        # Level 3: normalized rom_no_ext with parens
+        level3_index = {}
+        for src in fanart_sources:
+            key = normalize_game_name(remove_number_suffix(src['rom_no_ext']), remove_paranthesis=False)
+            if key and key not in level3_index:
+                level3_index[key] = src
+
+        # Level 4: normalized rom_no_ext without parens
+        level4_index = {}
+        for src in fanart_sources:
+            key = normalize_game_name(remove_number_suffix(src['rom_no_ext']), remove_paranthesis=True)
+            if key and key not in level4_index:
+                level4_index[key] = src
+
+        # Level 5 reuses level3 (normalized game name with parens)
+        level5_index = {}
+        for src in fanart_sources:
+            if src['name']:
+                key = normalize_game_name(src['name'], remove_paranthesis=False)
+                if key and key not in level5_index:
+                    level5_index[key] = src
+
+        # Level 6 reuses level4 (normalized game name without parens)
+        level6_index = {}
+        for src in fanart_sources:
+            if src['name']:
+                key = normalize_game_name(src['name'], remove_paranthesis=True)
+                if key and key not in level6_index:
+                    level6_index[key] = src
+
+        # Level 7: normalized without parens and without articles
+        level7_index = {}
+        for src in fanart_sources:
+            if src['name']:
+                key = normalize_game_name(src['name'], remove_paranthesis=True, remove_articles=True)
+                if key and key not in level7_index:
+                    level7_index[key] = src
+
+        # Level 8: first part before separator, normalized without parens and articles
+        level8_index = {}
+        level8_key_counts = {}
+        for src in fanart_sources:
+            base = src['name'] if src['name'] else src['rom_no_ext']
+            first_part = base
+            for sep in ["-", ":", "~"]:
+                if sep in base:
+                    first_part = base.split(sep)[0].strip()
+                    break
+            key = normalize_game_name(first_part, remove_paranthesis=True, remove_articles=True)
+            if key:
+                if key in level8_key_counts:
+                    level8_key_counts[key] += 1
+                else:
+                    level8_key_counts[key] = 1
+                    level8_index[key] = src
+        # Remove ambiguous keys
+        for k in [k for k, c in level8_key_counts.items() if c > 1]:
+            del level8_index[k]
+
+        task.update_progress(
+            f"✅ Indexes built: L1/2={len(level1_index)}, L3={len(level3_index)}, "
+            f"L4={len(level4_index)}, L5={len(level5_index)}, L6={len(level6_index)}, "
+            f"L7={len(level7_index)}, L8={len(level8_index)}"
+        )
+
+        # ── Phase 3: Match & copy ──
+        task.update_progress("🔍 Phase 3: Matching games to fanart sources...")
+
+        matched_count = 0
+        copied_count = 0
+        skipped_count = 0
+        failed_count = 0
+        matched_games = set()
+
+        def _is_cancelled():
+            return task_id in _fanart_scrapper_cancel_maps and _fanart_scrapper_cancel_maps[task_id]
+
+        def _copy_fanart(game, src_entry):
+            """Copy fanart file from source system to current system and update gamelist."""
+            nonlocal copied_count, failed_count
+            try:
+                rom_path = game['path']
+                rom_name_no_ext = os.path.splitext(os.path.basename(rom_path))[0]
+                src_ext = os.path.splitext(src_entry['fanart_abs'])[1]
+                target_filename = f"{rom_name_no_ext}{src_ext}"
+                target_file_path = os.path.join(target_dir, target_filename)
+
+                # Copy file
+                shutil.copy2(src_entry['fanart_abs'], target_file_path)
+
+                # Process the file in place (convert/resize)
+                target_extension = media_fields['fanart'].get('target_extension')
+                target_width = media_fields['fanart'].get('width', 0)
+                target_height = media_fields['fanart'].get('height', 0)
+
+                processed_path, process_status = convert_and_resize_image_replace(
+                    target_file_path, target_extension, target_width, target_height
+                )
+
+                final_path = processed_path if processed_path else target_file_path
+                if not os.path.exists(final_path):
+                    task.update_progress(f"     ❌ Target file not found after processing: '{final_path}'")
+                    failed_count += 1
+                    return False
+
+                final_filename = os.path.basename(final_path)
+                new_media_path = f"./media/{media_fields['fanart']['directory']}/{final_filename}".replace('\\', '/')
+                game['fanart'] = new_media_path
+                copied_count += 1
+                return True
+
+            except Exception as e:
+                task.update_progress(f"     ❌ Error copying fanart: {e}")
+                failed_count += 1
+                return False
+
+        # Helper: run a matching level
+        def _run_level(level_name, index, key_fn, needs_name=False):
+            nonlocal skipped_count
+            if _is_cancelled():
+                return 0
+            task.update_progress(f"🔍 {level_name}...")
+            level_matches = 0
+            for game in games:
+                if _is_cancelled():
+                    return level_matches
+                if not game.get('path') or game['path'] in matched_games:
+                    continue
+                if needs_name and not game.get('name'):
+                    continue
+                # Skip if already has fanart and not overwriting
+                current_value = game.get('fanart', '')
+                if current_value and not overwrite_existing:
+                    skipped_count += 1
+                    continue
+                key = key_fn(game)
+                if key and key in index:
+                    src_entry = index[key]
+                    display = game.get('name', os.path.splitext(os.path.basename(game['path']))[0])
+                    task.update_progress(f"   ✅ {level_name} MATCH: '{display}' <- '{src_entry['name']}' ({src_entry['system']})")
+                    matched_games.add(game['path'])
+                    level_matches += 1
+                    _copy_fanart(game, src_entry)
+            task.update_progress(f"   📊 {level_name} completed: {level_matches} matches")
+            return level_matches
+
+        # Level 1: exact rom filename
+        _run_level("Level 1: Exact ROM filename",
+                   level1_index,
+                   lambda g: os.path.splitext(os.path.basename(g['path']))[0].lower())
+
+        if _is_cancelled():
+            task.update_progress("🛑 Fanart scrapper cancelled"); task.complete(True, "Cancelled"); return
+
+        # Level 2: game name
+        _run_level("Level 2: Game name",
+                   level1_index,
+                   lambda g: g.get('name', '').lower(),
+                   needs_name=True)
+
+        if _is_cancelled():
+            task.update_progress("🛑 Fanart scrapper cancelled"); task.complete(True, "Cancelled"); return
+
+        # Level 3: normalized rom with parens
+        _run_level("Level 3: Normalized ROM with parens",
+                   level3_index,
+                   lambda g: normalize_game_name(remove_number_suffix(os.path.splitext(os.path.basename(g['path']))[0]), remove_paranthesis=False))
+
+        if _is_cancelled():
+            task.update_progress("🛑 Fanart scrapper cancelled"); task.complete(True, "Cancelled"); return
+
+        # Level 4: normalized rom without parens
+        _run_level("Level 4: Normalized ROM without parens",
+                   level4_index,
+                   lambda g: normalize_game_name(remove_number_suffix(os.path.splitext(os.path.basename(g['path']))[0]), remove_paranthesis=True))
+
+        if _is_cancelled():
+            task.update_progress("🛑 Fanart scrapper cancelled"); task.complete(True, "Cancelled"); return
+
+        # Level 5: normalized game name with parens
+        _run_level("Level 5: Normalized game name with parens",
+                   level5_index,
+                   lambda g: normalize_game_name(g.get('name', ''), remove_paranthesis=False),
+                   needs_name=True)
+
+        if _is_cancelled():
+            task.update_progress("🛑 Fanart scrapper cancelled"); task.complete(True, "Cancelled"); return
+
+        # Level 6: normalized game name without parens
+        _run_level("Level 6: Normalized game name without parens",
+                   level6_index,
+                   lambda g: normalize_game_name(g.get('name', ''), remove_paranthesis=True),
+                   needs_name=True)
+
+        if _is_cancelled():
+            task.update_progress("🛑 Fanart scrapper cancelled"); task.complete(True, "Cancelled"); return
+
+        # Level 7: normalized game name without parens and articles
+        _run_level("Level 7: Normalized game name without parens/articles",
+                   level7_index,
+                   lambda g: normalize_game_name(g.get('name', ''), remove_paranthesis=True, remove_articles=True),
+                   needs_name=True)
+
+        if _is_cancelled():
+            task.update_progress("🛑 Fanart scrapper cancelled"); task.complete(True, "Cancelled"); return
+
+        # Level 8: first part before separator
+        def _level8_key(g):
+            name = g.get('name', '')
+            if not name:
+                return None
+            first_part = name
+            for sep in ["-", ":", "~"]:
+                if sep in name:
+                    first_part = name.split(sep)[0].strip()
+                    break
+            return normalize_game_name(first_part, remove_paranthesis=True, remove_articles=True)
+
+        _run_level("Level 8: First part before separator",
+                   level8_index,
+                   _level8_key,
+                   needs_name=True)
+
+        # ── Phase 4: Save results ──
+        matched_count = len(matched_games)
+        not_matched_count = len(games) - matched_count - skipped_count
+
+        if copied_count > 0:
+            save_gamelist_xml(gamelist_path, all_games)
+            notify_gamelist_updated(system_name, len(all_games), updated_count=copied_count)
+
+        task.data = task.data or {}
+        task.data['system_name'] = system_name
+
+        summary = (
+            f"Fanart scrapper completed: {matched_count} matches, "
+            f"{copied_count} copied, {skipped_count} skipped, "
+            f"{failed_count} failed, {not_matched_count} unmatched"
+        )
+        task.complete(True, summary)
+
+        emit_non_blocking('task_completed', {
+            'task_type': 'fanart_scrapper',
+            'success': True,
+            'message': summary,
+            'system_name': system_name
+        })
+
+    except Exception as e:
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, str(e))
+            emit_non_blocking('task_completed', {
+                'task_type': 'fanart_scrapper',
+                'success': False,
+                'message': str(e),
+                'system_name': system_name
+            })
+        print(f"Error in fanart scrapper task: {e}")
         import traceback
         traceback.print_exc()
 
@@ -12555,6 +12970,39 @@ def import_roms_endpoint():
         
     except Exception as e:
         print(f"Error starting import ROMs task: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/fanart-scrapper', methods=['POST'])
+@login_required
+def fanart_scrapper_endpoint():
+    """Start a background task to scrape fanart for games"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+            
+        overwrite_existing = data.get('overwrite_existing', False)
+        selected_games = data.get('selected_games', [])
+        
+        # Add task to queue using the standard pattern
+        task = add_task_to_queue('fanart_scrapper', {
+            'system_name': system_name,
+            'overwrite_existing': overwrite_existing,
+            'selected_games': selected_games
+        })
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': 'Fanart Scrapper task queued successfully'
+        })
+        
+    except Exception as e:
+        print(f"Error starting fanart scrapper task: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/multiscraper-search', methods=['POST'])
@@ -22703,6 +23151,19 @@ def stop_task_endpoint(task_id):
                 print(f"DEBUG: Set Import Medias cancel flag for task {task_id}")
             except Exception as e:
                 print(f"Warning: could not set Import Medias cancel flag: {e}")
+        
+        # For Fanart Scrapper tasks, we need to handle cancellation
+        if task.type == 'fanart_scrapper':
+            task.update_progress("🛑 Fanart Scrapper task stop requested - worker will save partial changes and exit")
+            # Set the cancel flag for Fanart Scrapper tasks
+            try:
+                global _fanart_scrapper_cancel_maps
+                if '_fanart_scrapper_cancel_maps' not in globals():
+                    _fanart_scrapper_cancel_maps = {}
+                _fanart_scrapper_cancel_maps[task_id] = True
+                print(f"DEBUG: Set Fanart Scrapper cancel flag for task {task_id}")
+            except Exception as e:
+                print(f"Warning: could not set Fanart Scrapper cancel flag: {e}")
         
         # For Import ROMs tasks, we need to handle cancellation
         if task.type == 'import_roms':

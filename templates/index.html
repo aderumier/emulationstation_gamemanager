@@ -526,6 +526,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openImportMediasModal">
                                 <i class="bi bi-download me-2"></i>Import Medias
                             </a></li>
+                        <li><a class="dropdown-item" href="#" id="openFanartScrapperModal">
+                                <i class="bi bi-images me-2"></i>Fanart Scrapper
+                            </a></li>
                         <li><a class="dropdown-item" href="#" id="openImportRomsModal">
                                 <i class="bi bi-file-earmark-arrow-up me-2"></i>Import ROMs
                             </a></li>
@@ -728,6 +731,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </button>
                 <button id="scrapCustom2Btn" class="btn btn-purple btn-sm ms-2" disabled>
                     <i class="bi bi-database"></i> Custom2
+                </button>
+                <button id="scrapFanartBtn" class="btn btn-outline-info btn-sm ms-2" disabled>
+                    <i class="bi bi-images"></i> Fanart
                 </button>
                 <div class="btn-group ms-2" role="group">
                     <button type="button" class="btn btn-outline-info btn-sm dropdown-toggle"
@@ -7177,6 +7183,68 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     </button>
                     <button type="button" class="btn btn-primary" id="startImportMediasBtn">
                         <i class="bi bi-download me-2"></i>Start Import
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fanart Scrapper Modal -->
+    <div class="modal fade" id="fanartScrapperModal" tabindex="-1" aria-labelledby="fanartScrapperModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fanartScrapperModalLabel">
+                        <i class="bi bi-images me-2"></i>Fanart Scrapper
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Find fanarts for the current system's games by searching in all other systems' gamelists. Images
+                        will be matched using the same algorithm as Import Medias.
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="fanartScrapperSourceSystems" class="form-label">
+                                <i class="bi bi-collection me-1"></i>Source Systems
+                            </label>
+                            <div class="d-flex gap-2 mb-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    id="fanartScrapperSelectAll">Select All</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    id="fanartScrapperSelectNone">Select None</button>
+                            </div>
+                            <select class="form-select" id="fanartScrapperSourceSystems" multiple size="8">
+                                <!-- Populated dynamically -->
+                            </select>
+                            <div class="form-text">Select which systems to search for fanart. By default, all systems
+                                are selected.</div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="fanartScrapperOverwriteExisting">
+                                <label class="form-check-label" for="fanartScrapperOverwriteExisting">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Overwrite existing fanarts
+                                </label>
+                            </div>
+                            <div class="form-text">If checked, existing fanarts will be replaced. If unchecked, only
+                                empty fanart fields will be filled.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" id="startFanartScrapperBtn">
+                        <i class="bi bi-search me-2"></i>Start Scrapper
                     </button>
                 </div>
             </div>

@@ -1859,6 +1859,10 @@ class GameCollectionManager {
         document.getElementById('confirmForceImportBtn').addEventListener('click', () => this.confirmForceImport());
         document.getElementById('clearImageCacheBtn').addEventListener('click', () => this.clearImageCache());
         document.getElementById('startImportMediasBtn').addEventListener('click', () => this.startImportMedias());
+        const startFanartScrapperBtn = document.getElementById('startFanartScrapperBtn');
+        if (startFanartScrapperBtn) {
+            startFanartScrapperBtn.addEventListener('click', () => this.startFanartScrapper());
+        }
         document.getElementById('startImportRomsBtn').addEventListener('click', () => this.startImportRoms());
 
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', async () => {
@@ -1909,6 +1913,9 @@ class GameCollectionManager {
         document.getElementById('scrapCustom2Btn').addEventListener('click', async () => {
             await this.ensurePanelGameSavedIfOpen();
             this.scrapCustom2();
+        });
+        document.getElementById('scrapFanartBtn').addEventListener('click', () => {
+            this.openFanartScrapperModal();
         });
 
         // Add event listeners for find best match dropdown options
@@ -23457,6 +23464,15 @@ class GameCollectionManager {
             });
         }
 
+        // Add event listener for Fanart Scrapper modal
+        const openFanartScrapperModal = document.getElementById('openFanartScrapperModal');
+        if (openFanartScrapperModal) {
+            openFanartScrapperModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openFanartScrapperModal();
+            });
+        }
+
         // Add event listener for Import ROMs modal
         const openImportRomsModal = document.getElementById('openImportRomsModal');
         if (openImportRomsModal) {
@@ -25785,6 +25801,69 @@ class GameCollectionManager {
         }
     }
 
+    async openFanartScrapperModal() {
+        try {
+            const modal = new bootstrap.Modal(document.getElementById('fanartScrapperModal'));
+            modal.show();
+
+            // Reset UI state
+            document.getElementById('fanartScrapperOverwriteExisting').checked = false;
+
+            // Populate source systems multiselect
+            const selectEl = document.getElementById('fanartScrapperSourceSystems');
+            if (selectEl && this.allSystems) {
+                selectEl.innerHTML = '';
+                // Get saved selection from localStorage
+                const savedSystems = JSON.parse(localStorage.getItem('fanartScrapperSourceSystems') || 'null');
+
+                // Add all systems except the current one, sorted alphabetically
+                const otherSystems = this.allSystems
+                    .filter(s => s.name !== this.currentSystem)
+                    .sort((a, b) => a.name.localeCompare(b.name));
+
+                otherSystems.forEach(system => {
+                    const option = document.createElement('option');
+                    option.value = system.name;
+                    option.textContent = system.name;
+                    // Select if in saved list, or select all if no saved preference
+                    if (savedSystems === null || savedSystems.includes(system.name)) {
+                        option.selected = true;
+                    }
+                    selectEl.appendChild(option);
+                });
+
+                // Save selection on change
+                selectEl.addEventListener('change', () => {
+                    const selected = Array.from(selectEl.selectedOptions).map(o => o.value);
+                    localStorage.setItem('fanartScrapperSourceSystems', JSON.stringify(selected));
+                });
+
+                // Select All button
+                const selectAllBtn = document.getElementById('fanartScrapperSelectAll');
+                if (selectAllBtn) {
+                    selectAllBtn.onclick = () => {
+                        Array.from(selectEl.options).forEach(o => o.selected = true);
+                        const selected = Array.from(selectEl.selectedOptions).map(o => o.value);
+                        localStorage.setItem('fanartScrapperSourceSystems', JSON.stringify(selected));
+                    };
+                }
+
+                // Select None button
+                const selectNoneBtn = document.getElementById('fanartScrapperSelectNone');
+                if (selectNoneBtn) {
+                    selectNoneBtn.onclick = () => {
+                        Array.from(selectEl.options).forEach(o => o.selected = false);
+                        localStorage.setItem('fanartScrapperSourceSystems', JSON.stringify([]));
+                    };
+                }
+            }
+
+        } catch (error) {
+            console.error('Error opening fanart scrapper modal:', error);
+            this.showAlert('Error opening fanart scrapper modal', 'danger');
+        }
+    }
+
     resetImportMediasUI() {
         // Reset form fields
         document.getElementById('importSourceDirectory').value = '';
@@ -26889,6 +26968,62 @@ class GameCollectionManager {
         } finally {
             // Re-enable button
             document.getElementById('startImportMediasBtn').disabled = false;
+        }
+    }
+
+    async startFanartScrapper() {
+        const overwriteExisting = document.getElementById('fanartScrapperOverwriteExisting').checked;
+
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+
+        try {
+            // Disable button to prevent multiple submissions
+            const btn = document.getElementById('startFanartScrapperBtn');
+            if (btn) btn.disabled = true;
+
+            // Get selected game paths (empty array means all games)
+            const selectedGamePaths = this.selectedGames ? this.selectedGames.map(game => game.path) : [];
+
+            // Get selected source systems
+            const sourceSystemsEl = document.getElementById('fanartScrapperSourceSystems');
+            const sourceSystems = sourceSystemsEl ? Array.from(sourceSystemsEl.selectedOptions).map(o => o.value) : [];
+
+            // Start the scrapper task
+            const response = await fetch('/api/fanart-scrapper', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    overwrite_existing: overwriteExisting,
+                    selected_games: selectedGamePaths,
+                    source_systems: sourceSystems
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showAlert('Fanart Scrapper task started successfully', 'success');
+
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('fanartScrapperModal'));
+                if (modal) {
+                    modal.hide();
+                }
+            } else {
+                this.showAlert(data.error || 'Error starting fanart scrapper task', 'danger');
+                if (btn) btn.disabled = false;
+            }
+        } catch (error) {
+            console.error('Error starting fanart scrapper:', error);
+            this.showAlert('Error starting fanart scrapper task', 'danger');
+            const btn = document.getElementById('startFanartScrapperBtn');
+            if (btn) btn.disabled = false;
         }
     }
 
@@ -35044,6 +35179,11 @@ class GameCollectionManager {
         const custom2Btn = document.getElementById('scrapCustom2Btn');
         if (custom2Btn) {
             custom2Btn.disabled = false; // Allow Custom2 scraping
+        }
+
+        const fanartBtn = document.getElementById('scrapFanartBtn');
+        if (fanartBtn) {
+            fanartBtn.disabled = false; // Allow Fanart scrapping
         }
 
         // Update selection display
