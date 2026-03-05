@@ -30171,13 +30171,15 @@ def load_box_template():
         corners_logo = template_data.get('corners_logo', {})
         logo_source = template_data.get('logo_source', 'marquee')
         text_logo_settings = template_data.get('text_logo_settings')
+        enable_foreground_mask = template_data.get('enable_foreground_mask', False)
         
         response_data = {
             'success': True,
             'corners': corners_screenshot,  # Keep for backward compatibility
             'corners_screenshot': corners_screenshot,
             'corners_logo': corners_logo,
-            'logo_source': logo_source
+            'logo_source': logo_source,
+            'enable_foreground_mask': enable_foreground_mask
         }
         
         # Include background_image_path only if background_image exists
