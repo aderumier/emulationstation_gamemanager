@@ -3806,6 +3806,7 @@ def process_next_queued_task():
         system_name = task_data.get('system_name')
         overwrite_existing = task_data.get('overwrite_existing', False)
         selected_games = task_data.get('selected_games', [])
+        source_systems = task_data.get('source_systems', [])
         if system_name:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -3819,7 +3820,7 @@ def process_next_queued_task():
                 set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start fanart scrapper in background thread
-            thread = threading.Thread(target=run_fanart_scrapper_task, args=(system_name, overwrite_existing, selected_games, task.id))
+            thread = threading.Thread(target=run_fanart_scrapper_task, args=(system_name, overwrite_existing, selected_games, source_systems, task.id))
             thread.daemon = True
             thread.start()
     elif task_type == 'custom_scrapper' or task_type == 'custom2_scrapper':
@@ -12987,12 +12988,14 @@ def fanart_scrapper_endpoint():
             
         overwrite_existing = data.get('overwrite_existing', False)
         selected_games = data.get('selected_games', [])
+        source_systems = data.get('source_systems', [])
         
         # Add task to queue using the standard pattern
         task = add_task_to_queue('fanart_scrapper', {
             'system_name': system_name,
             'overwrite_existing': overwrite_existing,
-            'selected_games': selected_games
+            'selected_games': selected_games,
+            'source_systems': source_systems
         })
         
         return jsonify({

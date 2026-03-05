@@ -25809,6 +25809,10 @@ class GameCollectionManager {
             // Reset UI state
             document.getElementById('fanartScrapperOverwriteExisting').checked = false;
 
+            // Re-enable start button
+            const startBtn = document.getElementById('startFanartScrapperBtn');
+            if (startBtn) startBtn.disabled = false;
+
             // Populate source systems multiselect
             const selectEl = document.getElementById('fanartScrapperSourceSystems');
             if (selectEl && this.allSystems) {
