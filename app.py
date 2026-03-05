@@ -4892,10 +4892,10 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
             media_name_no_suffix = remove_number_suffix(media_name_without_ext)
             
-            # If media filename contains separator ("-", ":", "~"), keep only the first part before separator
+            # If media filename contains separator (" - ", " : ", " ~ "), keep only the first part before separator
             # If no separator, use the full string
             first_part = media_name_no_suffix
-            for separator in ["-", ":", "~"]:
+            for separator in [" - ", " : ", " ~ "]:
                 if separator in media_name_no_suffix:
                     first_part = media_name_no_suffix.split(separator)[0].strip()
                     break  # Only use the first separator found
@@ -5203,10 +5203,10 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             rom_filename = os.path.basename(rom_path)
             rom_name_without_ext = os.path.splitext(rom_filename)[0]
             
-            # If ROM filename contains separator ("-", ":", "~"), keep only the first part before separator
+            # If ROM filename contains separator (" - ", " : ", " ~ "), keep only the first part before separator
             # If no separator, use the full string
             first_part = rom_name_without_ext
-            for separator in ["-", ":", "~"]:
+            for separator in [" - ", " : ", " ~ "]:
                 if separator in rom_name_without_ext:
                     first_part = rom_name_without_ext.split(separator)[0].strip()
                     break  # Only use the first separator found
@@ -5248,10 +5248,10 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             
             game_name = game['name']
             
-            # If game name contains separator ("-", ":", "~"), keep only the first part before separator
+            # If game name contains separator (" - ", " : ", " ~ "), keep only the first part before separator
             # If no separator, use the full string
             first_part = game_name
-            for separator in ["-", ":", "~"]:
+            for separator in [" - ", " : ", " ~ "]:
                 if separator in game_name:
                     first_part = game_name.split(separator)[0].strip()
                     break  # Only use the first separator found
@@ -5489,7 +5489,7 @@ def run_fanart_scrapper_task(system_name, overwrite_existing, selected_games, so
         for src in fanart_sources:
             base = src['name'] if src['name'] else src['rom_no_ext']
             first_part = base
-            for sep in ["-", ":", "~"]:
+            for sep in [" - ", " : ", " ~ "]:
                 if sep in base:
                     first_part = base.split(sep)[0].strip()
                     break
@@ -5657,7 +5657,7 @@ def run_fanart_scrapper_task(system_name, overwrite_existing, selected_games, so
             if not name:
                 return None
             first_part = name
-            for sep in ["-", ":", "~"]:
+            for sep in [" - ", " : ", " ~ "]:
                 if sep in name:
                     first_part = name.split(sep)[0].strip()
                     break
@@ -5678,6 +5678,10 @@ def run_fanart_scrapper_task(system_name, overwrite_existing, selected_games, so
 
         task.data = task.data or {}
         task.data['system_name'] = system_name
+        
+        # Trigger grid refresh on frontend if we modified anything
+        if copied_count > 0:
+            task.grid_refresh_needed = True
 
         summary = (
             f"Fanart scrapper completed: {matched_count} matches, "
