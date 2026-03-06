@@ -5373,62 +5373,95 @@ def run_fanart_scrapper_task(system_name, overwrite_existing, selected_games, so
         task.update_progress(f"📂 Target {target_field} directory: {target_dir}")
 
         # ── Phase 1: Scan all OTHER systems to build a fanart source pool ──
-        task.update_progress("🔍 Phase 1: Scanning other systems for fanart sources...")
+        # Results are cached for 1 hour in var/cache/local_media_<source_field>.pkl
+        CACHE_TTL = 3600  # seconds
+        cache_dir = os.path.join('var', 'cache')
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_path = os.path.join(cache_dir, f'local_media_{source_field}.pkl')
 
-        systems_config = load_systems_config()
-        # Build a list of (game_name, rom_filename_no_ext, fanart_abs_path) tuples
-        fanart_sources = []
+        fanart_sources_all = None  # full unfiltered cache (all systems)
 
-        for other_system, _sys_conf in systems_config.items():
-            if other_system == system_name:
-                continue  # skip the current system
-                
-            # Skip if source_systems is provided and this system is not in it
-            if source_systems and other_system not in source_systems:
-                continue
+        if os.path.exists(cache_path):
+            cache_age = time.time() - os.path.getmtime(cache_path)
+            if cache_age < CACHE_TTL:
+                try:
+                    with open(cache_path, 'rb') as f:
+                        fanart_sources_all = pickle.load(f)
+                    task.update_progress(
+                        f"⚡ Phase 1: Using cached source index ({len(fanart_sources_all)} entries, "
+                        f"age {int(cache_age)}s)"
+                    )
+                except Exception as e:
+                    task.update_progress(f"⚠️  Cache load failed ({e}), rebuilding...")
+                    fanart_sources_all = None
 
-            if task_id in _fanart_scrapper_cancel_maps and _fanart_scrapper_cancel_maps[task_id]:
-                task.update_progress("🛑 Fanart scrapper task cancelled by user")
-                task.complete(True, "Fanart scrapper task cancelled by user")
-                return
+        if fanart_sources_all is None:
+            task.update_progress("🔍 Phase 1: Scanning other systems for fanart sources...")
+            systems_config = load_systems_config()
+            fanart_sources_all = []
 
-            other_gamelist = get_gamelist_path(other_system)
-            if not os.path.exists(other_gamelist):
-                continue
-
-            other_games = parse_gamelist_xml(other_gamelist)
-            if not other_games:
-                continue
-
-            count_from_system = 0
-            for og in other_games:
-                fanart_rel = og.get(source_field, '')
-                if not fanart_rel:
+            for other_system, _sys_conf in systems_config.items():
+                if other_system == system_name:
                     continue
 
-                # Resolve the absolute path of the fanart file
-                fanart_abs = os.path.normpath(os.path.join(ROMS_FOLDER, other_system, fanart_rel.lstrip('./')))
+                if task_id in _fanart_scrapper_cancel_maps and _fanart_scrapper_cancel_maps[task_id]:
+                    task.update_progress("🛑 Fanart scrapper task cancelled by user")
+                    task.complete(True, "Fanart scrapper task cancelled by user")
+                    return
 
-                og_name = og.get('name', '')
-                og_path = og.get('path', '')
-                og_rom_no_ext = os.path.splitext(os.path.basename(og_path))[0] if og_path else ''
+                other_gamelist = get_gamelist_path(other_system)
+                if not os.path.exists(other_gamelist):
+                    continue
 
-                fanart_sources.append({
-                    'name': og_name,
-                    'rom_no_ext': og_rom_no_ext,
-                    'fanart_abs': fanart_abs,
-                    'system': other_system,
-                })
-                count_from_system += 1
+                other_games = parse_gamelist_xml(other_gamelist)
+                if not other_games:
+                    continue
 
-            if count_from_system > 0:
-                task.update_progress(f"   📁 {other_system}: {count_from_system} fanart sources found")
+                count_from_system = 0
+                for og in other_games:
+                    fanart_rel = og.get(source_field, '')
+                    if not fanart_rel:
+                        continue
+
+                    fanart_abs = os.path.normpath(
+                        os.path.join(ROMS_FOLDER, other_system, fanart_rel.lstrip('./'))
+                    )
+
+                    og_name = og.get('name', '')
+                    og_path = og.get('path', '')
+                    og_rom_no_ext = os.path.splitext(os.path.basename(og_path))[0] if og_path else ''
+
+                    fanart_sources_all.append({
+                        'name': og_name,
+                        'rom_no_ext': og_rom_no_ext,
+                        'fanart_abs': fanart_abs,
+                        'system': other_system,
+                    })
+                    count_from_system += 1
+
+                if count_from_system > 0:
+                    task.update_progress(f"   📁 {other_system}: {count_from_system} {source_field} sources found")
+
+            # Save to cache
+            try:
+                with open(cache_path, 'wb') as f:
+                    pickle.dump(fanart_sources_all, f)
+                task.update_progress(f"💾 Phase 1 index cached to {cache_path}")
+            except Exception as e:
+                task.update_progress(f"⚠️  Cache save failed: {e}")
+
+        # Apply source_systems filter (cache is always global; filter here)
+        if source_systems:
+            fanart_sources = [s for s in fanart_sources_all if s['system'] not in (system_name,) and s['system'] in source_systems]
+        else:
+            fanart_sources = [s for s in fanart_sources_all if s['system'] != system_name]
 
         if not fanart_sources:
             task.complete(True, "No fanart sources found in any other system")
             return
 
-        task.update_progress(f"✅ Found {len(fanart_sources)} total fanart sources across all systems")
+        task.update_progress(f"✅ Found {len(fanart_sources)} total {source_field} sources across all systems")
+
 
         # ── Phase 2: Build matching indexes (same approach as import_medias) ──
         task.update_progress("🔧 Phase 2: Precomputing matching indexes...")
