@@ -4764,15 +4764,39 @@ class GameCollectionManager {
             return;
         }
 
-        // Close the merge modal
+        // Helper: show a Bootstrap modal and wait for its open transition to complete
+        const showModalAndWait = (modalEl, modalInstance) => new Promise(resolve => {
+            const handler = () => {
+                modalEl.removeEventListener('shown.bs.modal', handler);
+                resolve();
+            };
+            modalEl.addEventListener('shown.bs.modal', handler);
+            modalInstance.show();
+        });
+
+        // Helper: hide a Bootstrap modal and wait for its close transition to complete
+        const hideModalAndWait = (modalEl, modalInstance) => new Promise(resolve => {
+            const handler = () => {
+                modalEl.removeEventListener('hidden.bs.modal', handler);
+                resolve();
+            };
+            modalEl.addEventListener('hidden.bs.modal', handler);
+            modalInstance.hide();
+        });
+
+        // Close the merge modal and wait for it to fully hide before showing next modal
         const mergeModalEl = document.getElementById('mergeRomsModal');
         const mergeModal = bootstrap.Modal.getInstance(mergeModalEl);
-        if (mergeModal) mergeModal.hide();
+        if (mergeModal) {
+            await hideModalAndWait(mergeModalEl, mergeModal);
+        }
 
-        // Show waiting modal
+        // Show waiting modal and wait for it to be fully visible before starting the fetch.
+        // This ensures hide() is never called while the show animation is still in progress,
+        // which would prevent hidden.bs.modal from ever firing.
         const waitingModalEl = document.getElementById('mergeRomsWaitingModal');
-        const waitingModal = new bootstrap.Modal(waitingModalEl, { backdrop: 'static', keyboard: false });
-        waitingModal.show();
+        const waitingModal = bootstrap.Modal.getOrCreateInstance(waitingModalEl, { backdrop: 'static', keyboard: false });
+        await showModalAndWait(waitingModalEl, waitingModal);
 
         try {
             const response = await fetch(`/api/rom-system/${this.currentSystem}/games/merge`, {
@@ -4786,7 +4810,8 @@ class GameCollectionManager {
 
             const result = await response.json();
 
-            waitingModal.hide();
+            // Wait for waiting modal to fully hide before updating the grid
+            await hideModalAndWait(waitingModalEl, waitingModal);
 
             if (result.success) {
                 this.showAlert(result.message || 'ROMs merged successfully.', 'success');
@@ -4812,7 +4837,7 @@ class GameCollectionManager {
                 this.showAlert(result.error || 'Failed to merge ROMs.', 'error');
             }
         } catch (error) {
-            waitingModal.hide();
+            await hideModalAndWait(waitingModalEl, waitingModal);
             console.error('Error merging ROMs:', error);
             this.showAlert('An error occurred while merging ROMs.', 'error');
         }
