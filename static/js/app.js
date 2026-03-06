@@ -39495,7 +39495,7 @@ class GameCollectionManager {
                                 <p class="card-text">
                                     <small class="text-muted">
                                         <strong>Scraper:</strong> ${this.formatScraperLabel(result.scraper || 'Unknown')}<br>
-                                        <strong>System:</strong> ${result.platform || 'Unknown'}<br>
+                                        <strong>System:</strong> ${(result.url_systems && result.url_systems[index]) ? result.url_systems[index] : (result.platform || 'Unknown')}<br>
                                         <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
                                     </small>
                                 </p>
@@ -39606,7 +39606,7 @@ class GameCollectionManager {
                                 <p class="card-text">
                                     <small class="text-muted">
                                         <strong>Scraper:</strong> ${this.formatScraperLabel(result.scraper || 'Unknown')}<br>
-                                        <strong>System:</strong> ${result.platform || 'Unknown'}<br>
+                                        <strong>System:</strong> ${(result.url_systems && result.url_systems[index]) ? result.url_systems[index] : (result.platform || 'Unknown')}<br>
                                         <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
                                     </small>
                                 </p>

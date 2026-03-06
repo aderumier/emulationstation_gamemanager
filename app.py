@@ -13556,14 +13556,15 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
                         web_path = media_path
                     
                     # Store entry with both normalized name (key) and original game name (value)
-                    # Structure: {normalized_name: {'game_name': original_name, 'urls': [web_path, ...]}}
+                    # Structure: {normalized_name: {'game_name': original_name, 'url_entries': [{url, system_dir}, ...]}}
                     if normalized_game_name not in grouped_entries:
                         grouped_entries[normalized_game_name] = {
                             'game_name': game_name_from_gamelist,
-                            'urls': []
+                            'url_entries': []
                         }
-                    if web_path not in grouped_entries[normalized_game_name]['urls']:
-                        grouped_entries[normalized_game_name]['urls'].append(web_path)
+                    existing_urls = [e['url'] for e in grouped_entries[normalized_game_name]['url_entries']]
+                    if web_path not in existing_urls:
+                        grouped_entries[normalized_game_name]['url_entries'].append({'url': web_path, 'system': system_dir})
 
             cache[cache_key] = {
                 'timestamp': time.time(),
@@ -13576,8 +13577,11 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
             return results
 
         for normalized_candidate, entry_data in grouped_entries.items():
-            # New format: dict with game_name and urls
-            entry_list = entry_data.get('urls', [])
+            # New format: dict with game_name and url_entries
+            url_entries = entry_data.get('url_entries', [])
+            # Backward compatibility: support old 'urls' flat list
+            if not url_entries and 'urls' in entry_data:
+                url_entries = [{'url': u, 'system': 'Unknown'} for u in entry_data['urls']]
             original_game_name = entry_data.get('game_name', normalized_candidate)
             
             if direct_match:
@@ -13596,12 +13600,15 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
                     continue
 
             media_key = f'{media_type}_urls'
+            url_list = [e['url'] for e in url_entries]
+            system_list = [e['system'] for e in url_entries]
             results.append({
                 'scraper': 'local_images',
                 'scraper_id': 'local_images',
                 'game_name': original_game_name,
                 'similarity_score': round(similarity, 4),
-                media_key: entry_list,
+                media_key: url_list,
+                'url_systems': system_list,
                 'platform': 'Local Storage'
             })
 
