@@ -13821,12 +13821,6 @@ def download_multiscraper_media_endpoint():
                     final_filename = f"{rom_filename_no_ext}{ext}"
                     final_path = os.path.join(media_dir, final_filename)
                     
-                    # Handle conflicts
-                    counter = 1
-                    while os.path.exists(final_path):
-                        final_path = os.path.join(media_dir, f"{rom_filename_no_ext}_{counter}{ext}")
-                        counter += 1
-                    
                     # Save file
                     if is_video or is_pdf:
                         with open(final_path, 'wb') as f:
@@ -13848,10 +13842,6 @@ def download_multiscraper_media_endpoint():
                         if processed_path and os.path.exists(processed_path):
                             processed_ext = os.path.splitext(processed_path)[1] or ext
                             final_path = os.path.join(media_dir, f"{rom_filename_no_ext}{processed_ext}")
-                            counter = 1
-                            while os.path.exists(final_path):
-                                final_path = os.path.join(media_dir, f"{rom_filename_no_ext}_{counter}{processed_ext}")
-                                counter += 1
                             
                             if processed_path != final_path:
                                 shutil.move(processed_path, final_path)
