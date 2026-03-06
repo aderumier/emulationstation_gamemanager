@@ -3807,6 +3807,7 @@ def process_next_queued_task():
         overwrite_existing = task_data.get('overwrite_existing', False)
         selected_games = task_data.get('selected_games', [])
         source_systems = task_data.get('source_systems', [])
+        source_field = task_data.get('source_field', 'fanart')
         target_field = task_data.get('target_field', 'fanart')
         if system_name:
             # Use the existing queued task instead of creating a new one
@@ -3821,7 +3822,7 @@ def process_next_queued_task():
                 set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start fanart scrapper in background thread
-            thread = threading.Thread(target=run_fanart_scrapper_task, args=(system_name, overwrite_existing, selected_games, source_systems, target_field, task.id))
+            thread = threading.Thread(target=run_fanart_scrapper_task, args=(system_name, overwrite_existing, selected_games, source_systems, source_field, target_field, task.id))
             thread.daemon = True
             thread.start()
     elif task_type == 'custom_scrapper' or task_type == 'custom2_scrapper':
@@ -5314,7 +5315,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
         import traceback
         traceback.print_exc()
 
-def run_fanart_scrapper_task(system_name, overwrite_existing, selected_games, source_systems, target_field, task_id):
+def run_fanart_scrapper_task(system_name, overwrite_existing, selected_games, source_systems, source_field, target_field, task_id):
     """Run fanart scrapper task in background thread.
     Scans all other systems for games with fanart set, builds matching indexes,
     and copies matching fanart files to the current system's games.
@@ -5401,14 +5402,12 @@ def run_fanart_scrapper_task(system_name, overwrite_existing, selected_games, so
 
             count_from_system = 0
             for og in other_games:
-                fanart_rel = og.get(target_field, '')
+                fanart_rel = og.get(source_field, '')
                 if not fanart_rel:
                     continue
 
                 # Resolve the absolute path of the fanart file
                 fanart_abs = os.path.normpath(os.path.join(ROMS_FOLDER, other_system, fanart_rel.lstrip('./')))
-                if not os.path.isfile(fanart_abs):
-                    continue
 
                 og_name = og.get('name', '')
                 og_path = og.get('path', '')
@@ -5576,8 +5575,8 @@ def run_fanart_scrapper_task(system_name, overwrite_existing, selected_games, so
                     continue
                 if needs_name and not game.get('name'):
                     continue
-                # Skip if already has target field and not overwriting
-                current_value = game.get(target_field, '')
+                # Skip if already has source field media and not overwriting
+                current_value = game.get(source_field, '')
                 if current_value and not overwrite_existing:
                     skipped_count += 1
                     continue
@@ -12994,6 +12993,7 @@ def fanart_scrapper_endpoint():
         overwrite_existing = data.get('overwrite_existing', False)
         selected_games = data.get('selected_games', [])
         source_systems = data.get('source_systems', [])
+        source_field = data.get('source_field', 'fanart')
         target_field = data.get('target_field', 'fanart')
         
         # Add task to queue using the standard pattern
@@ -13002,6 +13002,7 @@ def fanart_scrapper_endpoint():
             'overwrite_existing': overwrite_existing,
             'selected_games': selected_games,
             'source_systems': source_systems,
+            'source_field': source_field,
             'target_field': target_field
         })
         

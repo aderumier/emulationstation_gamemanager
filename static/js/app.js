@@ -25887,25 +25887,35 @@ class GameCollectionManager {
                 }
             }
 
-            // Populate target fields
+            // Populate source and target fields from the same endpoint
+            const fieldsResponse = await fetch('/api/remap-media-fields/target');
+            const fieldsData = await fieldsResponse.json();
+            const fields = (fieldsData.success && fieldsData.fields) ? fieldsData.fields : [];
+
+            // Populate source field (default: fanart)
+            const sourceFieldEl = document.getElementById('fanartScrapperSourceField');
+            if (sourceFieldEl) {
+                sourceFieldEl.innerHTML = '';
+                fields.forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    if (field === 'fanart') option.selected = true;
+                    sourceFieldEl.appendChild(option);
+                });
+            }
+
+            // Populate target field (default: fanart)
             const targetFieldEl = document.getElementById('fanartScrapperTargetField');
             if (targetFieldEl) {
-                targetFieldEl.innerHTML = '<option value="">Select target field...</option>';
-                const response = await fetch('/api/remap-media-fields/target');
-                const data = await response.json();
-
-                if (data.success && data.fields) {
-                    data.fields.forEach(field => {
-                        const option = document.createElement('option');
-                        option.value = field;
-                        option.textContent = field;
-                        // Select fanart by default
-                        if (field === 'fanart') {
-                            option.selected = true;
-                        }
-                        targetFieldEl.appendChild(option);
-                    });
-                }
+                targetFieldEl.innerHTML = '';
+                fields.forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    if (field === 'fanart') option.selected = true;
+                    targetFieldEl.appendChild(option);
+                });
             }
 
         } catch (error) {
@@ -27037,6 +27047,10 @@ class GameCollectionManager {
             // Get selected game paths (empty array means all games)
             const selectedGamePaths = this.selectedGames ? this.selectedGames.map(game => game.path) : [];
 
+            // Get selected source field
+            const sourceFieldEl = document.getElementById('fanartScrapperSourceField');
+            const sourceField = sourceFieldEl ? sourceFieldEl.value : 'fanart';
+
             // Get selected source systems
             const sourceSystemsEl = document.getElementById('fanartScrapperSourceSystems');
             const sourceSystems = sourceSystemsEl ? Array.from(sourceSystemsEl.selectedOptions).map(o => o.value) : [];
@@ -27055,6 +27069,7 @@ class GameCollectionManager {
                     system_name: this.currentSystem,
                     overwrite_existing: overwriteExisting,
                     selected_games: selectedGamePaths,
+                    source_field: sourceField,
                     source_systems: sourceSystems,
                     target_field: targetField
                 })
