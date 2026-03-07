@@ -17144,7 +17144,7 @@ def save_gamelist_xml(file_path, games):
                         value = ''
                 
                 elem = ET.SubElement(game_elem, field)
-                elem.text = html.escape(str(value), quote=False) if value else ''
+                elem.text = str(value) if value else ''
         
         # Create XML tree and save
         tree = ET.ElementTree(root)
@@ -35364,14 +35364,10 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                                     print(f"⏸️ Skipping {gamelist_field} for {game['name']} (field already has value: {current_value[:50]}...)")
                             
                             if should_update:
-                                # HTML entity encode the text value for XML
-                                import html
-                                encoded_value = html.escape(text_value)
-                                
-                                game[gamelist_field] = encoded_value
+                                game[gamelist_field] = text_value
                                 game_text_updated_count += 1
                                 text_updated_count += 1
-                                print(f"📝 Updated {gamelist_field} for {game['name']}: {encoded_value[:100]}...")
+                                print(f"📝 Updated {gamelist_field} for {game['name']}: {text_value[:100]}...")
                     
                     if game_text_updated_count > 0:
                         print(f"📝 Updated {game_text_updated_count} text fields for {game['name']}")

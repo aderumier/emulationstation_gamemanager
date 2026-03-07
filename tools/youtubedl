@@ -43,6 +43,7 @@ def main():
     parser.add_argument("url", help="YouTube Playlist or Video URL")
     parser.add_argument("-p", "--percentage", type=int, default=50, help="Percentage of the video length where to begin (default: 50)")
     parser.add_argument("-d", "--duration", type=int, default=30, help="Duration of the clip in seconds (default: 30)")
+    parser.add_argument("--from-end", action="store_true", help="Get the clip from the end of the video instead of a percentage")
     parser.add_argument("--resolution", type=int, help="Optional resolution height (e.g. 720). Default: keep original")
     parser.add_argument("--fade", type=int, help="Optional fade in/out duration in seconds. Default: no fade")
     parser.add_argument("-o", "--output", type=str, help="Output directory path")
@@ -145,12 +146,16 @@ def main():
             print("  Could not determine duration, skipping.")
             continue
 
-        start_time = int(duration * args.percentage / 100)
-        end_time = start_time + args.duration
-        
-        if start_time >= duration:
+        if args.from_end:
             start_time = max(0, int(duration) - args.duration)
             end_time = start_time + args.duration
+        else:
+            start_time = int(duration * args.percentage / 100)
+            end_time = start_time + args.duration
+            
+            if start_time >= duration:
+                start_time = max(0, int(duration) - args.duration)
+                end_time = start_time + args.duration
 
         print(f"  Duration: {duration}s. Downloading section {start_time}s to {end_time}s...")
 

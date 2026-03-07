@@ -157,6 +157,10 @@ cp -r typing_extensions debian/opt/gamemanager/
 # Tools and plugins
 mkdir -p debian/opt/gamemanager/tools
 cp tools/yt-dlp debian/opt/gamemanager/tools/yt-dlp
+if [ -f "tools/youtubedl" ]; then
+    cp tools/youtubedl debian/opt/gamemanager/tools/youtubedl
+    chmod +x debian/opt/gamemanager/tools/youtubedl
+fi
 if [ -f "tools/deno" ]; then
     cp tools/deno debian/opt/gamemanager/tools/deno
     chmod +x debian/opt/gamemanager/tools/deno
@@ -375,6 +379,12 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/typing_extensions/__init__.py" ]; then
     echo "❌ ERROR: typing_extensions/__init__.py not found!"
+    exit 1
+fi
+
+# Verify tools are included
+if [ -f "tools/youtubedl" ] && [ ! -f "debian/opt/gamemanager/tools/youtubedl" ]; then
+    echo "❌ ERROR: youtubedl not found in package!"
     exit 1
 fi
 
