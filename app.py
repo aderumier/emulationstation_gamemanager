@@ -9324,6 +9324,17 @@ def manage_screenscraper_mappings():
             # Load ScreenScraper media types from API (with caching)
             screenscraper_media_types = load_screenscraper_media_types()
             
+            # Language priority options
+            language_priority = scrappers_config.get('screenscraper', {}).get('language_priority', [])
+            language_options = [
+                ['en', 'English'],
+                ['fr', 'French'],
+                ['es', 'Spanish'],
+                ['it', 'Italian'],
+                ['de', 'Deutch'],
+                ['pt', 'Portuguese']
+            ]
+            
             # Debug: Log the structure being returned
             print(f"🔧 DEBUG: Returning {len(screenscraper_media_types)} media types")
             if screenscraper_media_types:
@@ -9333,7 +9344,9 @@ def manage_screenscraper_mappings():
                 'success': True, 
                 'screenscraper_mappings': screenscraper_mappings,
                 'media_fields': media_fields,
-                'screenscraper_media_types': screenscraper_media_types
+                'screenscraper_media_types': screenscraper_media_types,
+                'language_priority': language_priority,
+                'language_options': language_options
             })
         
         elif request.method == 'PUT':
@@ -9345,8 +9358,8 @@ def manage_screenscraper_mappings():
             media_field = data['media_field']
             screenscraper_types = data.get('screenscraper_types', [])
             
-            # Validate that the media field exists
-            if media_field not in config.get('media_fields', {}):
+            # Validate that the media field exists, except for special fields
+            if media_field != 'language_priority' and media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
             # Update the mapping in scrappers.json
@@ -9355,8 +9368,12 @@ def manage_screenscraper_mappings():
             if 'image_type_mappings' not in scrappers_config['screenscraper']:
                 scrappers_config['screenscraper']['image_type_mappings'] = {}
             
-            # Update the mapping for this media field
-            scrappers_config['screenscraper']['image_type_mappings'][media_field] = screenscraper_types
+            if media_field == 'language_priority':
+                # Update language priority directly
+                scrappers_config['screenscraper']['language_priority'] = screenscraper_types
+            else:
+                # Update the mapping for this media field
+                scrappers_config['screenscraper']['image_type_mappings'][media_field] = screenscraper_types
             
             # Save to file
             with open('var/config/scrappers.json', 'w') as f:
@@ -9384,9 +9401,17 @@ def manage_screenscraper_mappings():
                 "cartridge": "cartridge"
             }
             
-            # Reset to default value
             if 'screenscraper' not in config:
                 config['screenscraper'] = {}
+                
+            if screenscraper_type == 'language_priority':
+                if 'language_priority' in scrappers_config.get('screenscraper', {}):
+                    scrappers_config['screenscraper']['language_priority'] = ['en']
+                    with open('var/config/scrappers.json', 'w') as f:
+                        json.dump(scrappers_config, f, indent=4)
+                return jsonify({'success': True, 'message': 'ScreenScraper language priority reset to default'})
+            
+            # Reset to default value
             if 'image_type_mappings' not in config['screenscraper']:
                 config['screenscraper']['image_type_mappings'] = {}
             

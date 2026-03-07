@@ -155,7 +155,7 @@ def select_best_media_by_region(media_list: List[Dict], region_priority: List[st
     return media_list[0]
 
 
-def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None, selected_fields: List[str] = None, familles_cache: Dict[str, str] = None) -> Dict[str, str]:
+def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None, selected_fields: List[str] = None, familles_cache: Dict[str, str] = None, language_priority: List[str] = None) -> Dict[str, str]:
     """
     Extract text information from ScreenScraper game data.
     
@@ -164,6 +164,7 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None, 
         rom_filename: Original ROM filename to preserve parentheses text
         selected_fields: List of selected fields to extract (if None, extract all)
         familles_cache: Dictionary mapping famille ID to nom (for family field extraction)
+        language_priority: List of languages by priority (e.g. ['fr', 'en'])
         
     Returns:
         Dictionary with extracted text information
@@ -213,17 +214,23 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None, 
         if 'text' in game_data['developpeur']:
             text_info['developer'] = game_data['developpeur']['text']
     
-    # Extract description from synopsis[text] with langue='en', fallback to first available
+    # Extract description from synopsis[text] with language_priority, fallback to first available
     if 'synopsis' in game_data and isinstance(game_data['synopsis'], list):
         description_text = None
         
-        # First try to find English synopsis
-        for synopsis in game_data['synopsis']:
-            if isinstance(synopsis, dict) and synopsis.get('langue') == 'en' and 'text' in synopsis:
-                description_text = synopsis['text']
+        # Use priority order if available, otherwise just 'en'
+        langs_to_try = language_priority if language_priority else ['en']
+        
+        # Try to find synopsis by language priority order
+        for lang in langs_to_try:
+            for synopsis in game_data['synopsis']:
+                if isinstance(synopsis, dict) and synopsis.get('langue') == lang and 'text' in synopsis:
+                    description_text = synopsis['text']
+                    break
+            if description_text:
                 break
         
-        # If no English synopsis found, use the first available
+        # If no synopsis matching priority or 'en' found, use the first available
         if not description_text:
             for synopsis in game_data['synopsis']:
                 if isinstance(synopsis, dict) and 'text' in synopsis:
@@ -731,14 +738,24 @@ class ScreenScraperService:
                                                 genre = g['noms'][0].get('text', 'Unknown')
                                             break
                                 
-                                # Get description (prefer English, fallback to first available)
+                                # Get description (prefer language_priority, fallback to English, fallback to first available)
                                 description = 'ScreenScraper game'
                                 if 'synopsis' in jeu and isinstance(jeu['synopsis'], list) and len(jeu['synopsis']) > 0:
-                                    for synopsis in jeu['synopsis']:
-                                        if synopsis.get('langue') == 'en':
-                                            description = synopsis.get('text', 'ScreenScraper game')
+                                    langs_to_try = self.scrappers_config.get('screenscraper', {}).get('language_priority', [])
+                                    if not langs_to_try:
+                                        langs_to_try = ['en']
+                                    
+                                    found_desc = False
+                                    for lang in langs_to_try:
+                                        for synopsis in jeu['synopsis']:
+                                            if synopsis.get('langue') == lang:
+                                                description = synopsis.get('text', 'ScreenScraper game')
+                                                found_desc = True
+                                                break
+                                        if found_desc:
                                             break
-                                    if description == 'ScreenScraper game':
+                                            
+                                    if not found_desc and description == 'ScreenScraper game':
                                         description = jeu['synopsis'][0].get('text', 'ScreenScraper game')
                                 
                                 # Get players
@@ -1462,8 +1479,15 @@ class ScreenScraperService:
                     print(f"📝 Extracting text information for {game_name}...")
                     if detailed_progress_callback:
                         detailed_progress_callback(f"Extracting text information for {game_name}")
-                    
-                    text_info = extract_text_info_from_game_data(game_data, rom_filename, selected_fields, familles_cache)
+                    # Process text fields (always include them)
+                    language_priority = self.scrappers_config.get('screenscraper', {}).get('language_priority', [])
+                    text_info = extract_text_info_from_game_data(
+                        game_data=game_data,
+                        rom_filename=rom_filename,
+                        selected_fields=selected_fields,
+                        familles_cache=self.familles_cache if hasattr(self, 'familles_cache') else None,
+                        language_priority=language_priority
+                    )
                     if text_info:
                         print(f"📝 Extracted text info: {text_info}")
                         if detailed_progress_callback:

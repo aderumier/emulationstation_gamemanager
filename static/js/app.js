@@ -29258,6 +29258,9 @@ class GameCollectionManager {
 
             if (data.success) {
                 this.populateScreenscraperMappingsTable(data.screenscraper_mappings, data.media_fields, data.screenscraper_media_types);
+                if (data.language_priority && data.language_options) {
+                    this.populateScreenscraperLanguageTable(data.language_priority, data.language_options);
+                }
             } else {
                 this.showAlert('Failed to load ScreenScraper mappings data', 'danger');
             }
@@ -29405,6 +29408,61 @@ class GameCollectionManager {
         }
     }
 
+    populateScreenscraperLanguageTable(languagePriority, languageOptions) {
+        const tbody = document.getElementById('screenscraperLanguageTableBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <span class="media-field-display fw-bold">Synopsis Language</span>
+            </td>
+            <td>
+                <div class="row g-2">
+                    <div class="col-5">
+                        <label class="form-label small fw-bold">Available Languages</label>
+                        <select class="form-select form-select-sm" multiple size="4" id="screenscraper_availableTypes_language_priority" style="overflow-y: auto; max-height: 120px; min-width: 300px;">
+                            ${languageOptions.filter(([shortName, fullName]) => !languagePriority.includes(shortName)).map(([shortName, fullName]) =>
+            `<option value="${shortName}">${fullName}</option>`
+        ).join('')}
+                        </select>
+                    </div>
+                    <div class="col-2 d-flex flex-column justify-content-center align-items-center">
+                        <button type="button" class="btn btn-outline-primary btn-sm mb-1" onclick="gameManager.addScreenscraperType('language_priority', true)" title="Add selected language">
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="gameManager.removeScreenscraperType('language_priority')" title="Remove selected language">
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                    </div>
+                    <div class="col-5">
+                        <label class="form-label small fw-bold">Priority Order (Top = Highest)</label>
+                        <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto; min-width: 300px;" id="screenscraper_selectedTypes_language_priority">
+                            ${languagePriority.map((lang, index) => {
+            // Find the full name for this short name
+            const langInfo = languageOptions.find(([shortName, fullName]) => shortName === lang);
+            const displayName = langInfo ? langInfo[1] : lang;
+            return `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${lang}" style="cursor: move;">
+                                    <span class="small">${displayName}</span>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificScreenscraperType('language_priority', '${lang}')" title="Remove">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </div>`;
+        }).join('')}
+                        </div>
+                    </div>
+                </div>
+                <small class="text-muted">Drag items to reorder language priority. English is used as a fallback.</small>
+            </td>
+        `;
+        tbody.appendChild(row);
+
+        // Initialize drag and drop for this row
+        this.initializeDragAndDrop('language_priority', 'screenscraper');
+    }
+
     async resetScreenscraperMapping(screenscraperType) {
         if (!confirm(`Reset ScreenScraper mapping for "${screenscraperType}" to default?`)) {
             return;
@@ -29436,7 +29494,7 @@ class GameCollectionManager {
     }
 
     // ScreenScraper type management functions
-    addScreenscraperType(mediaField) {
+    addScreenscraperType(mediaField, isLanguage = false) {
         const availableSelect = document.getElementById(`screenscraper_availableTypes_${mediaField}`);
         const selectedTypesContainer = document.getElementById(`screenscraper_selectedTypes_${mediaField}`);
 
@@ -29447,7 +29505,7 @@ class GameCollectionManager {
 
         selectedOptions.forEach(option => {
             const type = option.value;
-            const displayName = option.textContent; // This is the full name
+            const displayName = isLanguage ? option.textContent : option.textContent; // This is the full name
 
             // Add to selected types container
             const typeDiv = document.createElement('div');
@@ -29492,7 +29550,9 @@ class GameCollectionManager {
             // Add back to available select
             const option = document.createElement('option');
             option.value = type;
-            option.textContent = type;
+
+            const span = item.querySelector('.small');
+            option.textContent = span ? span.textContent : type;
             availableSelect.appendChild(option);
 
             // Remove from selected container
@@ -29520,14 +29580,23 @@ class GameCollectionManager {
 
         // Find and remove the specific type from selected container
         const typeItem = selectedTypesContainer.querySelector(`[data-type="${type}"]`);
+
+        // Find the matching explicit full name when re-adding back to available. 
+        // For 'language_priority', we may need to reload options logic if needed, 
+        // but textContent from typeItem.querySelector('.small').textContent should work.
+        let displayName = type;
         if (typeItem) {
+            const span = typeItem.querySelector('.small');
+            if (span) {
+                displayName = span.textContent;
+            }
             typeItem.remove();
         }
 
         // Add back to available select
         const option = document.createElement('option');
         option.value = type;
-        option.textContent = type;
+        option.textContent = displayName;
         availableSelect.appendChild(option);
 
         // Sort the available options alphabetically

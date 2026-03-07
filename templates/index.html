@@ -4612,6 +4612,26 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     media field from the dropdown.
                                 </div>
 
+                                <div class="mt-4 mb-3">
+                                    <h6>ScreenScraper Synopsis Language Priority</h6>
+                                    <p class="text-muted small">Configure the order in which languages should be
+                                        requested for game descriptions/synopses.</p>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped table-hover compact-table"
+                                        id="screenscraperLanguageTable">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 30%">Mapping</th>
+                                                <th style="width: 70%">Language (Priority Order)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="screenscraperLanguageTableBody">
+                                            <!-- Language options will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+
                                 <!-- ScreenScraper API Credentials -->
                                 <div class="row mt-4">
                                     <div class="col-12">
@@ -7709,7 +7729,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     }
                 });
             }
-    });
+        });
     </script>
 
     <!-- Merge ROMs Waiting Modal -->
