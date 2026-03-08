@@ -20123,25 +20123,50 @@ def move_rom(system_name):
         if not os.path.isdir(full_destination_path):
             return jsonify({'error': 'Destination is not a directory'}), 400
         
-        # Get the filename/dirname for the destination
-        game_name = os.path.basename(full_game_path)
-        new_path = os.path.join(full_destination_path, game_name)
+        # Determine if we should move the whole parent directory
+        src_to_move = full_game_path
+        dst_name = os.path.basename(full_game_path)
+        moved_whole_dir = False
         
-        if os.path.exists(new_path):
+        if os.path.isfile(full_game_path):
+            rom_dir = os.path.dirname(full_game_path)
+            # Ensure it's in a subdirectory of system_rom_dir, not system_rom_dir itself
+            if os.path.abspath(rom_dir) != os.path.abspath(system_rom_dir) and os.path.abspath(rom_dir).startswith(os.path.abspath(system_rom_dir)):
+                file_ext = os.path.splitext(full_game_path)[1].lower()
+                items_in_dir = os.listdir(rom_dir)
+                same_ext_files = [f for f in items_in_dir if os.path.isfile(os.path.join(rom_dir, f)) and os.path.splitext(f)[1].lower() == file_ext]
+                
+                # Check if it's the ONLY rom (no other with same extension) and there are other files
+                if len(same_ext_files) == 1 and same_ext_files[0] == os.path.basename(full_game_path):
+                    if len(items_in_dir) > 1:
+                        # Move the whole subdirectory
+                        src_to_move = rom_dir
+                        dst_name = os.path.basename(rom_dir)
+                        moved_whole_dir = True
+
+        new_path_for_move = os.path.join(full_destination_path, dst_name)
+        
+        if os.path.exists(new_path_for_move):
             return jsonify({'error': 'A file/directory with that name already exists in the destination'}), 400
         
         try:
             # Move the file/directory
-            print(f"Moving file from {full_game_path} to {new_path}")
-            shutil.move(full_game_path, new_path)
-            print(f"File moved successfully")
+            print(f"Moving from {src_to_move} to {new_path_for_move}")
+            shutil.move(src_to_move, new_path_for_move)
+            print(f"Moved successfully")
             
+            # Calculate the new game path for gamelist
+            if moved_whole_dir:
+                new_game_path = os.path.join(new_path_for_move, os.path.basename(full_game_path))
+            else:
+                new_game_path = new_path_for_move
+                
             # Update the gamelist
             print(f"Updating gamelist for {system_name}")
             print(f"  Original game_path: {game_path}")
-            print(f"  New path: {new_path}")
+            print(f"  New path: {new_game_path}")
             # Calculate new relative path
-            new_relative = os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+            new_relative = os.path.relpath(new_game_path, system_rom_dir).replace('\\', '/')
             if not new_relative.startswith('./'):
                 new_relative = './' + new_relative
             # Use batch function with single entry
@@ -20155,14 +20180,14 @@ def move_rom(system_name):
                 # Try to move the file back to original location
                 try:
                     print(f"Attempting to rollback file move...")
-                    shutil.move(new_path, full_game_path)
+                    shutil.move(new_path_for_move, src_to_move)
                     print(f"Rollback successful")
                 except Exception as rollback_error:
                     print(f"ERROR: Rollback failed: {rollback_error}")
                     return jsonify({
                         'success': False,
                         'error': f'{error_msg}. File was moved but rollback failed. Manual intervention required.',
-                        'new_path': os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+                        'new_path': os.path.relpath(new_game_path, system_rom_dir).replace('\\', '/')
                     }), 500
                 return jsonify({
                     'success': False,
@@ -20174,7 +20199,7 @@ def move_rom(system_name):
             return jsonify({
                 'success': True,
                 'message': f'ROM moved successfully to {destination_path}',
-                'new_path': os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+                'new_path': os.path.relpath(new_game_path, system_rom_dir).replace('\\', '/')
             })
             
         except PermissionError:
@@ -20354,7 +20379,6 @@ def move_roms_bulk(system_name):
                 normalized_game_path = normalized_game_path.lstrip('/')
                 
                 full_game_path = os.path.join(system_rom_dir, normalized_game_path)
-                new_path = os.path.join(full_destination_path, os.path.basename(full_game_path))
                 
                 # Security checks
                 if not os.path.abspath(full_game_path).startswith(os.path.abspath(system_rom_dir)):
@@ -20365,16 +20389,45 @@ def move_roms_bulk(system_name):
                     failed_games.append({'name': game_name, 'error': 'File not found'})
                     continue
                 
-                if os.path.exists(new_path):
-                    failed_games.append({'name': game_name, 'error': 'File already exists in destination'})
+                # Determine if we should move the whole parent directory
+                src_to_move = full_game_path
+                dst_name = os.path.basename(full_game_path)
+                moved_whole_dir = False
+                
+                if os.path.isfile(full_game_path):
+                    rom_dir = os.path.dirname(full_game_path)
+                    # Ensure it's in a subdirectory of system_rom_dir, not system_rom_dir itself
+                    if os.path.abspath(rom_dir) != os.path.abspath(system_rom_dir) and os.path.abspath(rom_dir).startswith(os.path.abspath(system_rom_dir)):
+                        file_ext = os.path.splitext(full_game_path)[1].lower()
+                        items_in_dir = os.listdir(rom_dir)
+                        same_ext_files = [f for f in items_in_dir if os.path.isfile(os.path.join(rom_dir, f)) and os.path.splitext(f)[1].lower() == file_ext]
+                        
+                        # Check if it's the ONLY rom (no other with same extension) and there are other files
+                        if len(same_ext_files) == 1 and same_ext_files[0] == os.path.basename(full_game_path):
+                            if len(items_in_dir) > 1:
+                                # Move the whole subdirectory
+                                src_to_move = rom_dir
+                                dst_name = os.path.basename(rom_dir)
+                                moved_whole_dir = True
+
+                new_path_for_move = os.path.join(full_destination_path, dst_name)
+                
+                if os.path.exists(new_path_for_move):
+                    failed_games.append({'name': game_name, 'error': 'File or directory already exists in destination'})
                     continue
                 
                 # Move the file/directory
-                print(f"Moving file from {full_game_path} to {new_path}")
-                shutil.move(full_game_path, new_path)
+                print(f"Moving from {src_to_move} to {new_path_for_move}")
+                shutil.move(src_to_move, new_path_for_move)
+                
+                # Calculate the new game path for gamelist
+                if moved_whole_dir:
+                    new_game_path = os.path.join(new_path_for_move, os.path.basename(full_game_path))
+                else:
+                    new_game_path = new_path_for_move
                 
                 # Store path update for batch processing
-                new_relative = os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+                new_relative = os.path.relpath(new_game_path, system_rom_dir).replace('\\', '/')
                 if not new_relative.startswith('./'):
                     new_relative = './' + new_relative
                 path_updates[game_path] = new_relative
