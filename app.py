@@ -1809,7 +1809,8 @@ def delete_orphan_media_files(system_name):
             return deleted_files
         
         # Load the gamelist to get referenced media files
-        gamelist_path = os.path.join(ROMS_FOLDER, system_name, 'gamelist.xml')
+        # Use var gamelist to ensure games in hidden directories are included
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             print(f"Gamelist does not exist: {gamelist_path}")
             return deleted_files
