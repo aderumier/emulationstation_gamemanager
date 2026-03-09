@@ -39272,6 +39272,24 @@ class GameCollectionManager {
             modalElement.removeEventListener('shown.bs.modal', handleModalShown);
         };
         modalElement.addEventListener('shown.bs.modal', handleModalShown, { once: true });
+
+        // Add listener for modal close to cancel search
+        const handleModalClose = () => {
+            if (this.currentFanartSearchController) {
+                this.currentFanartSearchController.abort();
+                this.currentFanartSearchController = null;
+            }
+            if (this.currentFanartSearchId) {
+                fetch('/api/cancel-fanart-search/' + this.currentFanartSearchId, { method: 'POST' }).catch(e => console.error(e));
+                this.currentFanartSearchId = null;
+            }
+            const container = document.getElementById('fanartResultsContainer');
+            if (container) container.innerHTML = '';
+            document.getElementById('fanartSearchResults').style.display = 'none';
+            document.getElementById('fanartSearchLoading').style.display = 'none';
+            modalElement.removeEventListener('hidden.bs.modal', handleModalClose);
+        };
+        modalElement.addEventListener('hidden.bs.modal', handleModalClose);
     }
 
     async populateMediaScrapersDropdown(fieldType) {
@@ -39342,6 +39360,24 @@ class GameCollectionManager {
             modalElement.removeEventListener('shown.bs.modal', handleModalShown);
         };
         modalElement.addEventListener('shown.bs.modal', handleModalShown, { once: true });
+
+        // Add listener for modal close to cancel search
+        const handleModalClose = () => {
+            if (this.currentFanartSearchController) {
+                this.currentFanartSearchController.abort();
+                this.currentFanartSearchController = null;
+            }
+            if (this.currentFanartSearchId) {
+                fetch('/api/cancel-fanart-search/' + this.currentFanartSearchId, { method: 'POST' }).catch(e => console.error(e));
+                this.currentFanartSearchId = null;
+            }
+            const container = document.getElementById('fanartResultsContainer');
+            if (container) container.innerHTML = '';
+            document.getElementById('fanartSearchResults').style.display = 'none';
+            document.getElementById('fanartSearchLoading').style.display = 'none';
+            modalElement.removeEventListener('hidden.bs.modal', handleModalClose);
+        };
+        modalElement.addEventListener('hidden.bs.modal', handleModalClose);
     }
 
     async populateFanartScrapersDropdown() {
@@ -39386,6 +39422,15 @@ class GameCollectionManager {
             this.currentFanartSearchStream.close();
             this.currentFanartSearchStream = null;
         }
+        if (this.currentFanartSearchController) {
+            this.currentFanartSearchController.abort();
+        }
+        if (this.currentFanartSearchId) {
+            fetch('/api/cancel-fanart-search/' + this.currentFanartSearchId, { method: 'POST' }).catch(e => console.error(e));
+            this.currentFanartSearchId = null;
+        }
+
+        this.currentFanartSearchController = new AbortController();
 
         // Reset loading state
         document.getElementById('fanartSearchLoading').style.display = 'none';
@@ -39427,7 +39472,8 @@ class GameCollectionManager {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(searchData)
+                body: JSON.stringify(searchData),
+                signal: this.currentFanartSearchController.signal
             });
 
             if (!response.ok) {
@@ -39481,6 +39527,9 @@ class GameCollectionManager {
         switch (data.type) {
             case 'connected':
                 console.log('Fanart search connected:', data.message);
+                if (data.search_id) {
+                    this.currentFanartSearchId = data.search_id;
+                }
                 break;
 
             case 'scraper_start':
@@ -39531,8 +39580,15 @@ class GameCollectionManager {
             if (urls && urls.length > 0) {
                 urls.forEach((url, index) => {
                     // Check if this result already exists (avoid duplicates)
-                    const existingCards = container.querySelectorAll(`[data-result-id="${result.scraper}-${result.game_name}-${index}"]`);
-                    if (existingCards.length > 0) {
+                    const resultId = `${result.scraper}-${result.game_name}-${index}`;
+                    let isDuplicate = false;
+                    for (const child of container.children) {
+                        if (child.getAttribute('data-result-id') === resultId) {
+                            isDuplicate = true;
+                            break;
+                        }
+                    }
+                    if (isDuplicate) {
                         return; // Skip duplicate
                     }
 
@@ -40214,8 +40270,15 @@ class GameCollectionManager {
             if (result.marquee_urls && result.marquee_urls.length > 0) {
                 result.marquee_urls.forEach((url, index) => {
                     // Check if this result already exists (avoid duplicates)
-                    const existingCards = container.querySelectorAll(`[data-result-id="${result.scraper}-${result.game_name}-${index}"]`);
-                    if (existingCards.length > 0) {
+                    const resultId = `${result.scraper}-${result.game_name}-${index}`;
+                    let isDuplicate = false;
+                    for (const child of container.children) {
+                        if (child.getAttribute('data-result-id') === resultId) {
+                            isDuplicate = true;
+                            break;
+                        }
+                    }
+                    if (isDuplicate) {
                         return; // Skip duplicate
                     }
 

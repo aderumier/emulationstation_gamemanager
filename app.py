@@ -14963,12 +14963,20 @@ def fanart_search_stream_endpoint():
     if not all([game_name, system_name]):
         return jsonify({'error': 'Game name and system name are required'}), 400
     
+    # Generate unique search ID and cancellation event
+    import uuid
+    import threading
+    search_id = str(uuid.uuid4())
+    cancel_event = threading.Event()
+    global _manual_search_cancel_events
+    _manual_search_cancel_events[search_id] = cancel_event
+    
     def generate():
         try:
-            print(f"🔧 DEBUG: Media search stream for game: {game_name}, system: {system_name}, scraper: {selected_scraper}, field_type: {field_type}")
+            print(f"🔧 DEBUG: Media search stream for game: {game_name}, system: {system_name}, scraper: {selected_scraper}, field_type: {field_type}, search_id: {search_id}")
             
             # Send initial connection message
-            yield f"data: {json.dumps({'type': 'connected', 'message': f'{field_type.capitalize()} search started'})}\n\n"
+            yield f"data: {json.dumps({'type': 'connected', 'message': f'{field_type.capitalize()} search started', 'search_id': search_id})}\n\n"
             
             # Get scrapers that have the specified field type mapped
             scrapers_config = load_scrappers_config()
@@ -14992,9 +15000,11 @@ def fanart_search_stream_endpoint():
             # Search scrapers in parallel using ThreadPoolExecutor
             def search_scraper(scraper_name, scraper_config):
                 """Helper function to search a single scraper"""
+                if cancel_event.is_set():
+                    return scraper_name, [], "cancelled"
                 try:
                     print(f"🔧 DEBUG: Searching {scraper_name} for {field_type}...")
-                    results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, field_type)
+                    results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, field_type, cancel_event)
                     print(f"🔧 DEBUG: Found {len(results)} {field_type} results from {scraper_name}")
                     return scraper_name, results, None
                 except Exception as e:
@@ -15017,11 +15027,15 @@ def fanart_search_stream_endpoint():
                 
                 # Process results as they complete (using as_completed for better streaming)
                 for future in as_completed(future_to_scraper):
+                    if cancel_event.is_set():
+                        continue
                     scraper_name = future_to_scraper[future]
                     try:
                         scraper_name_result, results, error = future.result()
                         
-                        if error:
+                        if error == "cancelled":
+                            continue
+                        elif error:
                             yield f"data: {json.dumps({'type': 'scraper_error', 'scraper': scraper_name_result, 'error': error})}\n\n"
                         else:
                             all_results.extend(results)
@@ -15037,13 +15051,28 @@ def fanart_search_stream_endpoint():
                         traceback.print_exc()
                         yield f"data: {json.dumps({'type': 'scraper_error', 'scraper': scraper_name, 'error': str(e)})}\n\n"
             
-            # Send completion with all sorted results
-            all_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
-            yield f"data: {json.dumps({'type': 'completed', 'total_found': len(all_results), 'results': all_results})}\n\n"
-            print(f"🔧 DEBUG: Fanart search completed with {len(all_results)} total results")
+            
+            if cancel_event.is_set():
+                yield f"data: {json.dumps({'type': 'cancelled', 'message': 'Search cancelled'})}\n\n"
+            else:
+                # Send completion with all sorted results
+                all_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
+                yield f"data: {json.dumps({'type': 'completed', 'total_found': len(all_results), 'results': all_results})}\n\n"
+                print(f"🔧 DEBUG: Fanart search completed with {len(all_results)} total results")
+            
+            # Clean up cancellation event
+            try:
+                del _manual_search_cancel_events[search_id]
+            except:
+                pass
             
         except Exception as e:
             print(f"Error in fanart search stream: {e}")
+            # Clean up cancellation event on error
+            try:
+                _manual_search_cancel_events.pop(search_id, None)
+            except:
+                pass
             import traceback
             traceback.print_exc()
             yield f"data: {json.dumps({'type': 'error', 'message': f'Internal server error: {str(e)}'})}\n\n"
@@ -15053,6 +15082,21 @@ def fanart_search_stream_endpoint():
     response.headers['Connection'] = 'keep-alive'
     response.headers['X-Accel-Buffering'] = 'no'  # Disable nginx buffering
     return response
+
+@app.route('/api/cancel-fanart-search/<search_id>', methods=['POST'])
+@login_required
+def cancel_fanart_search(search_id):
+    """Cancel an ongoing fanart search"""
+    global _manual_search_cancel_events
+    
+    if search_id in _manual_search_cancel_events:
+        # Set the cancellation event
+        _manual_search_cancel_events[search_id].set()
+        print(f"🛑 Fanart search {search_id} cancellation requested")
+        return jsonify({'success': True, 'message': 'Search cancelled'})
+    else:
+        # Search either completed or never existed
+        return jsonify({'success': False, 'message': 'Search not found or already completed'})
 
 @app.route('/api/fanart-search', methods=['POST'])
 @login_required
