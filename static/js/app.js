@@ -39432,6 +39432,10 @@ class GameCollectionManager {
 
         this.currentFanartSearchController = new AbortController();
 
+        // Track active scrapers
+        this.activeFanartScrapers = new Set();
+        document.getElementById('fanartSearchActiveScrapers').textContent = '';
+
         // Reset loading state
         document.getElementById('fanartSearchLoading').style.display = 'none';
 
@@ -39523,6 +39527,18 @@ class GameCollectionManager {
 
     handleFanartSearchStreamEvent(data) {
         const container = document.getElementById('fanartResultsContainer');
+        const activeScrapersElement = document.getElementById('fanartSearchActiveScrapers');
+
+        const updateActiveScrapersUI = () => {
+            if (!this.activeFanartScrapers || this.activeFanartScrapers.size === 0) {
+                if (activeScrapersElement) activeScrapersElement.textContent = '';
+                return;
+            }
+            if (activeScrapersElement) {
+                const scrapersList = Array.from(this.activeFanartScrapers).map(s => this.formatScraperLabel(s)).join(', ');
+                activeScrapersElement.textContent = `Running: ${scrapersList}`;
+            }
+        };
 
         switch (data.type) {
             case 'connected':
@@ -39533,8 +39549,11 @@ class GameCollectionManager {
                 break;
 
             case 'scraper_start':
-                // Optionally show which scraper is starting
                 console.log(`Starting scraper: ${data.scraper}`);
+                if (this.activeFanartScrapers) {
+                    this.activeFanartScrapers.add(data.scraper);
+                    updateActiveScrapersUI();
+                }
                 break;
 
             case 'results':
@@ -39546,15 +39565,27 @@ class GameCollectionManager {
 
             case 'scraper_complete':
                 console.log(`Scraper ${data.scraper} completed with ${data.count} results`);
+                if (this.activeFanartScrapers) {
+                    this.activeFanartScrapers.delete(data.scraper);
+                    updateActiveScrapersUI();
+                }
                 break;
 
             case 'scraper_error':
                 console.error(`Error from scraper ${data.scraper}:`, data.error);
+                if (this.activeFanartScrapers) {
+                    this.activeFanartScrapers.delete(data.scraper);
+                    updateActiveScrapersUI();
+                }
                 break;
 
             case 'completed':
                 // All scrapers finished
                 document.getElementById('fanartSearchLoading').style.display = 'none';
+                if (this.activeFanartScrapers) {
+                    this.activeFanartScrapers.clear();
+                    updateActiveScrapersUI();
+                }
                 if (data.total_found === 0) {
                     container.innerHTML = '<div class="col-12"><p class="text-muted">No fanart found.</p></div>';
                 }
@@ -39563,6 +39594,10 @@ class GameCollectionManager {
             case 'error':
                 this.showAlert(`Error: ${data.message}`, 'error');
                 document.getElementById('fanartSearchLoading').style.display = 'none';
+                if (this.activeFanartScrapers) {
+                    this.activeFanartScrapers.clear();
+                    updateActiveScrapersUI();
+                }
                 break;
         }
     }
