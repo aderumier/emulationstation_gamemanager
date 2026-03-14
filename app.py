@@ -11360,23 +11360,16 @@ def rom_system_gamelist(system_name):
                 
                 for rom_path in delete_rom_paths:
                     try:
-                        # Normalize the path: remove leading ./ and normalize separators
-                        normalized_rom_path = rom_path.strip()
-                        # Remove leading ./ if present
-                        while normalized_rom_path.startswith('./'):
-                            normalized_rom_path = normalized_rom_path[2:]
-                        # Normalize path separators
-                        normalized_rom_path = normalized_rom_path.replace('\\', '/')
-                        # Remove leading slashes
-                        normalized_rom_path = normalized_rom_path.lstrip('/')
+                        # Use the robust normalization helper
+                        normalized_rom_path = normalize_gamelist_path(rom_path)
+                        if not normalized_rom_path:
+                            continue
                         
                         # Convert relative path to absolute path relative to ROMS_FOLDER
-                        if not os.path.isabs(normalized_rom_path):
-                            rom_path_abs = os.path.normpath(os.path.join(ROMS_FOLDER, normalized_rom_path))
-                        else:
-                            rom_path_abs = normalized_rom_path
+                        rom_path_abs = os.path.normpath(os.path.join(ROMS_FOLDER, normalized_rom_path))
                         
                         rom_abs_path = os.path.abspath(rom_path_abs)
+                        app.logger.debug(f'Target ROM absolute path: {rom_abs_path}')
                         
                         is_allowed = False
                         for allowed_dir in allowed_dirs:
@@ -11385,14 +11378,17 @@ def rom_system_gamelist(system_name):
                                 break
                         
                         if not is_allowed:
+                            app.logger.warning(f'Access denied for path: {rom_abs_path}')
                             failed_deletions.append({'path': rom_path, 'error': 'Access denied'})
                             continue
                         
                         # Delete ROM file
                         if os.path.exists(rom_abs_path):
                             os.remove(rom_abs_path)
+                            app.logger.info(f'Deleted ROM: {rom_abs_path}')
                             deleted_files.append(f"ROM: {rom_path}")
                         else:
+                            app.logger.warning(f'ROM file not found: {rom_abs_path}')
                             failed_deletions.append({'path': rom_path, 'error': 'ROM file not found'})
                         
                         rom_relative = os.path.relpath(rom_abs_path, ROMS_FOLDER).replace('\\', '/')
@@ -11428,8 +11424,65 @@ def rom_system_gamelist(system_name):
                     except Exception as e:
                         failed_deletions.append({'path': rom_path, 'error': str(e)})
                         app.logger.error(f'Error deleting files for ROM {rom_path}: {e}')
+                        
+                # After deleting all requested files, check for empty 1-game subdirectories
+                try:
+                    systems_config = load_systems_config()
+                    system_config = systems_config.get(system_name, {})
+                    rom_extensions = system_config.get('extensions', [])
+                    
+                    if rom_extensions:
+                        # Append playlist extensions explicitly
+                        rom_extensions.extend(['.m3u', '.M3U'])
+                        
+                        import shutil
+                        dirs_to_check = set()
+                        for rom_path in delete_rom_paths:
+                            # Use same robust normalization here
+                            normalized_rom_path = normalize_gamelist_path(rom_path)
+                            if not normalized_rom_path:
+                                continue
+                            
+                            rom_path_abs = os.path.normpath(os.path.join(ROMS_FOLDER, normalized_rom_path))
+                                
+                            rom_abs_path = os.path.abspath(rom_path_abs)
+                            parent_dir = os.path.dirname(rom_abs_path)
+                            
+                            # Only consider subdirectories strictly inside the system path (not the root system folder)
+                            system_abs_path = os.path.abspath(system_path)
+                            if parent_dir != system_abs_path and parent_dir.startswith(system_abs_path + os.sep):
+                                dirs_to_check.add(parent_dir)
+                                
+                        # Order directories by depth descending to ensure child dirs are checked/deleted before parents if multiple
+                        dirs_to_check = sorted(list(dirs_to_check), key=lambda x: x.count(os.sep), reverse=True)
+                        
+                        for parent_dir in dirs_to_check:
+                            if not os.path.exists(parent_dir):
+                                continue
+                                
+                            # Check if any valid ROMs remain in this directory hierarchy
+                            has_roms = False
+                            for root, _, files in os.walk(parent_dir):
+                                for file in files:
+                                    if any(file.endswith(ext) for ext in rom_extensions):
+                                        has_roms = True
+                                        break
+                                if has_roms:
+                                    break
+                                    
+                            # If no ROMs remain, delete the entire directory
+                            if not has_roms:
+                                try:
+                                    shutil.rmtree(parent_dir)
+                                    app.logger.info(f'Deleted 1-game directory: {parent_dir}')
+                                    deleted_files.append(f"Directory: {os.path.relpath(parent_dir, system_path)}")
+                                except Exception as e:
+                                    app.logger.error(f'Failed to delete directory {parent_dir}: {e}')
+                                    failed_deletions.append({'path': parent_dir, 'error': str(e)})
+                except Exception as e:
+                    app.logger.error(f'Error processing directory cleanup: {e}')
                 
-                app.logger.info(f'File deletion completed: {len(deleted_files)} files deleted, {len(failed_deletions)} failed')
+                app.logger.info(f'File deletion completed: {len(deleted_files)} items deleted, {len(failed_deletions)} failed')
             
             # Write the updated games back to gamelist.xml with verification
             try:
