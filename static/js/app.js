@@ -4735,7 +4735,8 @@ class GameCollectionManager {
         selectedGames.forEach(game => {
             const opt = document.createElement('option');
             opt.value = game.path;
-            opt.textContent = game.name || game.path;
+            const filename = game.path.split('/').pop();
+            opt.textContent = `${filename} (${game.path})`;
             if (game.path === defaultTarget.path) {
                 opt.selected = true;
             }
@@ -18368,7 +18369,7 @@ class GameCollectionManager {
 
 
     showRomScanConfirmation(scanSummary) {
-        const { new_roms, missing_roms, total_existing, total_rom_files, is_initial_import } = scanSummary;
+        const { new_roms, missing_roms, moved_roms = [], total_existing, total_rom_files, is_initial_import } = scanSummary;
 
         // Create modal HTML
         const modalId = 'romScanConfirmationModal';
@@ -18387,6 +18388,7 @@ class GameCollectionManager {
                                     <ul class="list-unstyled">
                                         <li><strong>New ROMs found:</strong> <span class="badge bg-success">${new_roms.length}</span></li>
                                         <li><strong>Games with missing ROMs:</strong> <span class="badge bg-danger">${missing_roms.length}</span></li>
+                                        <li><strong>Games with moved ROMs:</strong> <span class="badge bg-warning">${moved_roms.length}</span></li>
                                         <li><strong>Total existing games:</strong> <span class="badge bg-info">${total_existing}</span></li>
                                         <li><strong>Total ROM files:</strong> <span class="badge bg-primary">${total_rom_files}</span></li>
                                     </ul>
@@ -18396,7 +18398,7 @@ class GameCollectionManager {
                                     <div class="d-grid gap-2">`;
 
         // Show different buttons based on whether there are changes
-        if (new_roms.length > 0 || missing_roms.length > 0) {
+        if (new_roms.length > 0 || missing_roms.length > 0 || moved_roms.length > 0) {
             modalHTML += `
                                         <button type="button" class="btn btn-success btn-sm" onclick="window.gameManager.confirmRomScan('proceed')" data-bs-dismiss="modal">
                                             <i class="fas fa-check"></i> Proceed with Changes
@@ -18479,6 +18481,36 @@ class GameCollectionManager {
                                 </div>`;
         }
 
+        // Show detailed game lists for moved ROMs
+        if (moved_roms.length > 0 && !is_initial_import) {
+            modalHTML += `
+                            <hr>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="text-warning mb-0">Games with Moved ROMs</h6>
+                                    ${moved_roms.length > 10 ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="document.getElementById(&quot;movedRomsTruncated&quot;).classList.toggle(&quot;d-none&quot;); document.getElementById(&quot;movedRomsFull&quot;).classList.toggle(&quot;d-none&quot;); this.innerText = this.innerText === &quot;Show All&quot; ? &quot;Show Less&quot; : &quot;Show All&quot;">Show All</button>' : ''}
+                                </div>
+                                <div id="movedRomsTruncated" class="small text-muted">
+                                    <div class="row">`;
+            moved_roms.slice(0, 10).forEach(game => {
+                modalHTML += `<div class="col-12 text-truncate" title="${game.name}">• ${game.name} <small class="text-muted">(${game.old_path} → ${game.new_path})</small></div>`;
+            });
+            if (moved_roms.length > 10) {
+                modalHTML += `<div class="col-12 text-truncate">• ... and ${moved_roms.length - 10} more</div>`;
+            }
+            modalHTML += `
+                                    </div>
+                                </div>
+                                <div id="movedRomsFull" class="small text-muted d-none" style="max-height: 200px; overflow-y: auto; overflow-x: hidden;">
+                                    <div class="row">`;
+            moved_roms.forEach(game => {
+                modalHTML += `<div class="col-12 text-truncate" title="${game.name}">• ${game.name} <small class="text-muted">(${game.old_path} → ${game.new_path})</small></div>`;
+            });
+            modalHTML += `
+                                    </div>
+                                </div>`;
+        }
+
         // Only show warning about removing games if there are missing ROMs and it's not an initial import
         if (missing_roms.length > 0 && !is_initial_import) {
             modalHTML += `
@@ -18494,7 +18526,7 @@ class GameCollectionManager {
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>`;
 
         // Show different button text based on whether there are changes
-        if (new_roms.length > 0 || missing_roms.length > 0) {
+        if (new_roms.length > 0 || missing_roms.length > 0 || moved_roms.length > 0) {
             modalHTML += `
                             <button type="button" class="btn btn-success" onclick="window.gameManager.confirmRomScan('proceed')" data-bs-dismiss="modal">
                                 <i class="fas fa-check"></i> Proceed with Changes
@@ -18568,7 +18600,7 @@ class GameCollectionManager {
                     if (result.action_taken === 'completed') {
                         // Reload the system to get updated game list
                         await this.loadRomSystem(this.currentSystem);
-                        this.showAlert(`ROM scan completed! Added ${result.new_games_added} new games, removed ${result.games_removed} games with missing ROMs.`, 'success');
+                        this.showAlert(`ROM scan completed! Added ${result.new_games_added} new games, removed ${result.games_removed} missing, and moved ${result.games_moved} games.`, 'success');
 
                         // Continue with media scan after ROM confirmation
                         await this.continueWithMediaScan();

@@ -26052,18 +26052,24 @@ def run_rom_scan_task(system_name):
         
         # Create a set of ROM files from filesystem for case-sensitive matching
         rom_files_set = set()
+        # Also create a mapping by basename for moved ROM detection
+        new_roms_by_basename = {}
         for rom_file in rom_files:
             # Normalize path separators
             normalized_rom = rom_file.replace('\\', '/')
             rom_files_set.add(normalized_rom)
-        
+
         # Find new ROMs to add (case-sensitive: not in existing_roms_by_path)
         new_roms = []
         for rom_file in rom_files:
             normalized_rom = rom_file.replace('\\', '/')
             if normalized_rom not in existing_roms_by_path:
                 new_roms.append(rom_file)
-        
+                basename = os.path.splitext(os.path.basename(normalized_rom))[0]
+                if basename not in new_roms_by_basename:
+                    new_roms_by_basename[basename] = []
+                new_roms_by_basename[basename].append(normalized_rom)
+
         # Find games with missing ROM files (case-sensitive check)
         missing_roms = []
         for game in existing_games:
@@ -26073,7 +26079,7 @@ def run_rom_scan_task(system_name):
                 normalized_path = rom_path.removeprefix('./')
                 # Normalize path for Windows/Docker compatibility
                 normalized_path_clean = normalized_path.replace('\\', '/')
-                
+
                 # First check if path exists in filesystem set (case-sensitive)
                 if normalized_path_clean not in rom_files_set:
                     # Path not in filesystem, check if file exists with case-sensitive check
@@ -26087,9 +26093,35 @@ def run_rom_scan_task(system_name):
                     if not case_sensitive_path_exists(rom_file_path):
                         # Case doesn't match exactly - mark as missing
                         missing_roms.append(game)
+
+        # Detect moved ROMs
+        moved_roms = []
+        # Create copies of lists to iterate while modifying the originals
+        missing_roms_copy = list(missing_roms)
+        for missing_game in missing_roms_copy:
+            old_path = missing_game.get('path', '')
+            if not old_path:
+                continue
+                
+            old_name = os.path.splitext(os.path.basename(old_path.replace('\\', '/')))[0]
+            
+            # If the missing game's path basename matches exactly one new ROM's basename, it's a move
+            if old_name in new_roms_by_basename and len(new_roms_by_basename[old_name]) == 1:
+                new_path = new_roms_by_basename[old_name][0]
+                # Found a moved ROM
+                moved_roms.append({
+                    'game': missing_game,
+                    'old_path': old_path,
+                    'new_path': new_path
+                })
+                # Remove from missing_roms
+                missing_roms.remove(missing_game)
+                # Remove from new_roms matching exactly new_path (handling Windows/Docker paths)
+                new_roms = [r for r in new_roms if r.replace('\\', '/') != new_path]
         
         task.update_progress(f"Found {len(new_roms)} new ROMs to add")
         task.update_progress(f"Found {len(missing_roms)} games with missing ROM files")
+        task.update_progress(f"Found {len(moved_roms)} games with moved ROM files")
         
         # Check if this is an initial import (no existing gamelist file)
         is_initial_import = not os.path.exists(gamelist_path)
@@ -26104,6 +26136,7 @@ def run_rom_scan_task(system_name):
         task.scan_results = {
             'new_roms': new_roms,
             'missing_roms': missing_roms,
+            'moved_roms': moved_roms,
             'total_existing': len(existing_games),
             'total_rom_files': len(rom_files),
             'is_initial_import': is_initial_import,
@@ -26111,8 +26144,16 @@ def run_rom_scan_task(system_name):
         }
         
         # Always ask for confirmation, regardless of whether there are changes
-        if new_roms and missing_roms:
+        if new_roms and missing_roms and moved_roms:
+            task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs, {len(missing_roms)} missing ROMs, and {len(moved_roms)} moved ROMs. Awaiting confirmation.")
+        elif new_roms and missing_roms:
             task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs and {len(missing_roms)} missing ROMs. Awaiting confirmation.")
+        elif new_roms and moved_roms:
+            task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs and {len(moved_roms)} moved ROMs. Awaiting confirmation.")
+        elif missing_roms and moved_roms:
+            task.update_progress(f"ROM scan completed. Found {len(missing_roms)} missing ROMs and {len(moved_roms)} moved ROMs. Awaiting confirmation.")
+        elif moved_roms:
+            task.update_progress(f"ROM scan completed. Found {len(moved_roms)} moved ROMs. Awaiting confirmation.")
         elif new_roms:
             task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs to add. Awaiting confirmation.")
         elif missing_roms:
@@ -26158,6 +26199,7 @@ def get_rom_scan_results(system_name):
         scan_summary = {
             'new_roms': task.scan_results['new_roms'],
             'missing_roms': [{'id': game.get('id'), 'name': game.get('name'), 'path': game.get('path')} for game in task.scan_results['missing_roms']],
+            'moved_roms': [{'name': m['game'].get('name', ''), 'old_path': m['old_path'], 'new_path': m['new_path']} for m in task.scan_results.get('moved_roms', [])],
             'total_existing': task.scan_results['total_existing'],
             'total_rom_files': task.scan_results['total_rom_files'],
             'is_initial_import': task.scan_results.get('is_initial_import', False),
@@ -26165,12 +26207,20 @@ def get_rom_scan_results(system_name):
         }
         
         # Determine message based on what was found
-        if len(task.scan_results['new_roms']) > 0 and len(task.scan_results['missing_roms']) > 0:
-            message = f'ROM scan completed. Found {len(scan_summary["new_roms"])} new ROMs and {len(scan_summary["missing_roms"])} missing ROMs.'
-        elif len(task.scan_results['new_roms']) > 0:
-            message = f'ROM scan completed. Found {len(scan_summary["new_roms"])} new ROMs to add.'
-        elif len(task.scan_results['missing_roms']) > 0:
-            message = f'ROM scan completed. Found {len(scan_summary["missing_roms"])} missing ROMs.'
+        new_cnt = len(task.scan_results.get('new_roms', []))
+        miss_cnt = len(task.scan_results.get('missing_roms', []))
+        mov_cnt = len(task.scan_results.get('moved_roms', []))
+
+        parts = []
+        if new_cnt > 0:
+            parts.append(f"{new_cnt} new ROMs")
+        if miss_cnt > 0:
+            parts.append(f"{miss_cnt} missing ROMs")
+        if mov_cnt > 0:
+            parts.append(f"{mov_cnt} moved ROMs")
+        
+        if parts:
+            message = f'ROM scan completed. Found ' + ', '.join(parts) + '.'
         else:
             message = 'ROM scan completed. No changes needed.'
         
@@ -26232,10 +26282,11 @@ def scan_rom_files_confirm(system_name):
         # Use the stored scan results
         new_roms = task.scan_results.get('new_roms', [])
         missing_roms = task.scan_results.get('missing_roms', [])
+        moved_roms = task.scan_results.get('moved_roms', [])
         is_initial_import = task.scan_results.get('is_initial_import', False)
         hidden_roms = set(task.scan_results.get('hidden_roms', []))
         
-        task.update_progress(f"Using stored scan results: {len(new_roms)} new ROMs, {len(missing_roms)} missing ROMs")
+        task.update_progress(f"Using stored scan results: {len(new_roms)} new ROMs, {len(missing_roms)} missing ROMs, {len(moved_roms)} moved ROMs")
         
         system_path = os.path.join(ROMS_FOLDER, system_name)
         gamelist_path = get_gamelist_path(system_name)
@@ -26245,12 +26296,19 @@ def scan_rom_files_confirm(system_name):
         if os.path.exists(gamelist_path):
             existing_games = parse_gamelist_xml(gamelist_path)
         
+        # Build lookup for moved games by their old path
+        moved_roms_by_old_path = {}
+        for m in moved_roms:
+            old_p = m.get('old_path', '')
+            if old_p:
+                moved_roms_by_old_path[old_p] = m.get('new_path', '')
+
         # For initial import, we start with an empty list
         if is_initial_import:
             valid_games = []
         else:
             # If there are no changes, preserve all existing games
-            if not new_roms and not missing_roms:
+            if not new_roms and not missing_roms and not moved_roms:
                 valid_games = existing_games.copy()
                 task.update_progress("No changes detected, preserving all existing games")
             else:
@@ -26259,6 +26317,17 @@ def scan_rom_files_confirm(system_name):
                 valid_games = []
                 for game in existing_games:
                     rom_path = game.get('path', '')
+                    
+                    if rom_path in moved_roms_by_old_path:
+                        # Apply move
+                        new_loc = moved_roms_by_old_path[rom_path]
+                        if not new_loc.startswith('./'):
+                            new_loc = f"./{new_loc}"
+                        game['path'] = new_loc
+                        task.update_progress(f"Moved game: {game.get('name', 'Unknown')} to {new_loc}")
+                        valid_games.append(game)
+                        continue
+
                     if rom_path:
                         # Normalize path (remove ./ prefix if present)
                         normalized_path = rom_path.removeprefix('./')
@@ -26326,6 +26395,7 @@ def scan_rom_files_confirm(system_name):
         task.update_progress(f"ROM scan completed successfully!")
         task.update_progress(f"Added {len(new_roms)} new games")
         task.update_progress(f"Removed {len(missing_roms)} games with missing ROMs")
+        task.update_progress(f"Moved {len(moved_roms)} games")
         task.update_progress(f"Total games in system: {len(valid_games)}")
         task.update_progress("Media files have been verified and updated")
         
@@ -26334,10 +26404,11 @@ def scan_rom_files_confirm(system_name):
         
         return jsonify({
             'success': True,
-            'message': f'ROM scan completed. Added {len(new_roms)} new games, removed {len(missing_roms)} games with missing ROMs.',
+            'message': f'ROM scan completed. Added {len(new_roms)} new games, removed {len(missing_roms)} missing, moved {len(moved_roms)} games.',
             'action_taken': 'completed',
             'new_games_added': len(new_roms),
             'games_removed': len(missing_roms),
+            'games_moved': len(moved_roms),
             'total_games': len(valid_games)
         })
         

@@ -166,6 +166,9 @@ class CustomScraperService:
                 # Initialize database index
                 new_index[db_name] = {}
                 
+                # First pass: Group games by their normalized base title
+                title_groups = {}
+                
                 for game_id, game_data in games_dict.items():
                     # Try to find game name field (common variations)
                     game_name = None
@@ -181,16 +184,38 @@ class CustomScraperService:
                         normalized_title = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
                         if normalized_title:
                             normalized_title = normalized_title.strip()  # Ensure no leading/trailing whitespace
-                            first_char = normalized_title[0] if normalized_title else 'other'
-                            if first_char not in new_index[db_name]:
-                                new_index[db_name][first_char] = {}
-                            # Store normalized_name -> customid mapping
-                            # If key already exists, log a warning (shouldn't happen but helps debug)
-                            if normalized_title in new_index[db_name][first_char]:
-                                existing_id = new_index[db_name][first_char][normalized_title]
-                                if existing_id != game_id:
-                                    print(f"⚠️ WARNING: Duplicate normalized key '{normalized_title}' in {db_name} partition '{first_char}': existing_id={existing_id}, new_id={game_id}")
-                            new_index[db_name][first_char][normalized_title] = game_id
+                            if normalized_title not in title_groups:
+                                title_groups[normalized_title] = []
+                            title_groups[normalized_title].append((game_id, game_data, game_name))
+                            
+                # Second pass: Build index
+                for normalized_title, group in title_groups.items():
+                    if len(group) == 1:
+                        # No duplicates, index normally
+                        game_id, _, _ = group[0]
+                        first_char = normalized_title[0] if normalized_title else 'other'
+                        if first_char not in new_index[db_name]:
+                            new_index[db_name][first_char] = {}
+                        new_index[db_name][first_char][normalized_title] = game_id
+                    else:
+                        # Duplicates found, append publisher to the name for each game in the group
+                        for game_id, game_data, game_name in group:
+                            publisher = None
+                            if isinstance(game_data, dict):
+                                publisher = game_data.get('publisher')
+                                
+                            if publisher:
+                                title_pub = normalize_game_name(f"{game_name} ({publisher})", remove_paranthesis=False, remove_articles=False)
+                            else:
+                                # Fallback if no publisher
+                                title_pub = normalize_game_name(f"{game_name} ({game_id})", remove_paranthesis=False, remove_articles=False)
+
+                            if title_pub:
+                                title_pub = title_pub.strip()
+                                first_char = title_pub[0] if title_pub else 'other'
+                                if first_char not in new_index[db_name]:
+                                    new_index[db_name][first_char] = {}
+                                new_index[db_name][first_char][title_pub] = game_id
                 
                 processed_databases += 1
                 partition_count = len(new_index[db_name])
