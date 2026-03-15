@@ -288,6 +288,26 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None, 
             else:
                 text_info['players'] = players_text
     
+    # Extract release date from dates[text] with region='wor', fallback to first available
+    if 'dates' in game_data and isinstance(game_data['dates'], list):
+        release_date = None
+        
+        # First try to find 'wor' region
+        for date in game_data['dates']:
+            if isinstance(date, dict) and date.get('region') == 'wor' and 'text' in date:
+                release_date = date.get('text')
+                break
+        
+        # If no 'wor' region found, use the first available date
+        if not release_date:
+            for date in game_data['dates']:
+                if isinstance(date, dict) and 'text' in date:
+                    release_date = date.get('text')
+                    break
+        
+        if release_date:
+            text_info['release_date'] = release_date
+    
     # Extract family from familles if 'family' is in selected_fields
     if (selected_fields is None or 'family' in selected_fields) and familles_cache is not None:
         # Check for familles structure: familles { familles_id [famille_id] }

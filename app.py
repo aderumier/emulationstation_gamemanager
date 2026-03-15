@@ -11630,7 +11630,10 @@ def force_import_gamelist_endpoint(system_name):
 
 def load_launchbox_config():
     """Load Launchbox configuration from consolidated config.json"""
-    global platform_metadata_cache, current_system_platform
+    global platform_metadata_cache, current_system_platform, scrappers_config
+    
+    # Reload scrappers_config to ensure we have the latest mappings from scrappers.json
+    scrappers_config = load_scrappers_config()
     
     # Load from consolidated config
     mapping_config = scrappers_config.get('launchbox', {}).get('mapping', {})
@@ -35596,7 +35599,8 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                         'family': 'family',
                         'genre': 'genre',
                         'rating': 'rating',  # Rating is already normalized in extract_text_info
-                        'players': 'players'
+                        'players': 'players',
+                        'release_date': 'releasedate'
                     }
                     
                     for text_field, text_value in text_info.items():
@@ -35619,6 +35623,10 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                                     print(f"⏸️ Skipping {gamelist_field} for {game['name']} (field already has value: {current_value[:50]}...)")
                             
                             if should_update:
+                                # Special handling for date formatting
+                                if gamelist_field == 'releasedate':
+                                    text_value = format_releasedate_to_iso8601(text_value)
+                                
                                 game[gamelist_field] = text_value
                                 game_text_updated_count += 1
                                 text_updated_count += 1
