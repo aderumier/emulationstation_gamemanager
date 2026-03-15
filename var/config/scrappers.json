@@ -8,7 +8,8 @@
             "Genres": "genre",
             "CommunityRating": "rating",
             "MaxPlayers": "players",
-            "VideoURL": "youtubeurl"
+            "VideoURL": "youtubeurl",
+            "ReleaseDate": "releasedate"
         },
         "image_type_mappings": {
             "boxart": [
@@ -46,7 +47,8 @@
             ],
             "spine": [
                 "Box - Spine"
-            ]
+            ],
+            "bezel": []
         },
         "region": {
             "priority": [
@@ -130,7 +132,8 @@
             ],
             "themehb": [
                 "themehb"
-            ]
+            ],
+            "bezel": []
         }
     },
     "steamgriddb": {

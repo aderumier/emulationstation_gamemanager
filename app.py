@@ -2206,6 +2206,11 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
                     new_value = process_launchbox_genres(new_value)
                     print(f"🔧 DEBUG: Processed LaunchBox genres: '{best_match[launchbox_field]}' -> '{new_value}'")
                 
+                # Special handling for ReleaseDate - format to ISO 8601
+                if launchbox_field == 'ReleaseDate' and gamelist_field == 'releasedate':
+                    new_value = format_releasedate_to_iso8601(new_value)
+                    print(f"🔧 DEBUG: Processed LaunchBox release date: '{best_match[launchbox_field]}' -> '{new_value}'")
+                
                 # Check if we should update this field
                 should_update = False
                 if selected_fields:
@@ -34353,7 +34358,7 @@ async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filenam
         
         # Process text fields (name, description, genre, etc.)
         if not selected_fields or len(selected_fields) == 0 or any(field in selected_fields for field in ['name', 'desc', 'genre', 'developer', 'publisher']):
-            await populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, overwrite_text_fields)
+            await populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_config, igdb_mapping, overwrite_text_fields)
         
         # Process media fields (cover, fanart, screenshots, marquee, etc.)
         # Check if any gamelist field that maps to IGDB media types is in selected_fields
@@ -34378,7 +34383,7 @@ async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filenam
         import traceback
         traceback.print_exc()
 
-async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, overwrite_text_fields):
+async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_config, igdb_mapping, overwrite_text_fields):
     """Populate gamelist with IGDB data from local database (no API calls)"""
     try:
         game_name = game.find('name').text.strip()
@@ -34411,10 +34416,24 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                 print(f"✅ Updated {gamelist_field} for '{game_name}': {value}")
         
         # Map IGDB fields to gamelist fields
-        for gamelist_field, igdb_field in igdb_mapping.items():
+        for igdb_field, gamelist_field in igdb_mapping.items():
             # Skip genre field since we handled it separately above
             if igdb_field == 'genre':
                 continue
+            
+            # Skip field if not in selected_fields (if provided)
+            # Match against both IGDB field name, gamelist field name, and common aliases
+            if igdb_config.get('selected_fields'):
+                selected_fields = igdb_config.get('selected_fields')
+                # Check for direct match or gamelist field match
+                if igdb_field not in selected_fields and gamelist_field not in selected_fields:
+                    # Special cases for fields that might be named differently in the UI
+                    ui_field_name = igdb_field
+                    if igdb_field == 'summary': ui_field_name = 'summary'
+                    if igdb_field == 'release_date': ui_field_name = 'release_date'
+                    
+                    if ui_field_name not in selected_fields:
+                        continue
             
             # Debug logging for summary field
             if igdb_field == 'summary':
@@ -34423,20 +34442,25 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                 print(f"🔍 DEBUG: igdb_field in igdb_game: {igdb_field in igdb_game}")
                 if igdb_field in igdb_game:
                     print(f"🔍 DEBUG: igdb_game[{igdb_field}] exists: {igdb_game[igdb_field] is not None}")
-                    print(f"🔍 DEBUG: igdb_game[{igdb_field}] is truthy: {bool(igdb_game[igdb_field])}")
-                    if igdb_game[igdb_field]:
-                        print(f"🔍 DEBUG: Summary content: {igdb_game[igdb_field][:100]}...")
                 
-            if igdb_field in igdb_game and igdb_game[igdb_field]:
+            # Handle field name aliases between mapping and actual IGDB data
+            search_field = igdb_field
+            if igdb_field == 'rating' and 'rating' not in igdb_game and 'total_rating' in igdb_game:
+                search_field = 'total_rating'
+            elif igdb_field == 'release_date' and 'release_date' not in igdb_game and 'first_release_date' in igdb_game:
+                search_field = 'first_release_date'
+                
+            if search_field in igdb_game and igdb_game[search_field]:
                 # Check if we should overwrite existing data
                 existing_elem = game.find(gamelist_field)
                 if existing_elem is not None and existing_elem.text and not overwrite_text_fields:
                     continue  # Skip if field exists and overwrite is disabled
                 
                 # Get the value from IGDB data
-                igdb_value = igdb_game[igdb_field]
+                igdb_value = igdb_game[search_field]
                 
                 # Handle different data types
+                value = ""
                 if isinstance(igdb_value, list):
                     if igdb_value:  # Only process if list is not empty
                         if igdb_field == 'genres':
@@ -34486,9 +34510,18 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                     elif igdb_field in ['rating', 'total_rating']:
                         # Normalize rating from 0-100 scale to 0-5 scale
                         value = normalize_rating(igdb_value, 100)
+                    elif igdb_field == 'release_date' or igdb_field == 'first_release_date':
+                        # If it's a timestamp, format it
+                        if isinstance(igdb_value, (int, float)):
+                            value = format_releasedate_to_iso8601(igdb_value)
+                        else:
+                            value = str(igdb_value)
                     else:
                         value = str(igdb_value)
                 
+                if not value:
+                    continue
+
                 # Set the gamelist field
                 if existing_elem is None:
                     existing_elem = ET.SubElement(game, gamelist_field)
@@ -34497,7 +34530,7 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                 print(f"✅ Updated {gamelist_field} for '{game_name}': {value[:100]}...")
                 
                 # Special debug for description field
-                if gamelist_field == 'desc':
+                if gamelist_field == 'desc' or igdb_field == 'summary':
                     print(f"🔍 DEBUG: Description field updated for '{game_name}'")
                     print(f"🔍 DEBUG: Value length: {len(value)}")
                     print(f"🔍 DEBUG: First 200 chars: {value[:200]}")

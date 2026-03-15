@@ -18081,6 +18081,9 @@ class GameCollectionManager {
                 const extensions = systemConfig.extensions || [];
                 document.getElementById('extensionsMapping').value = extensions.join(', ');
             }
+
+            // Initialize Select2 for the dropdowns in this modal
+            this.initializeScraperMappingSelect2('systemScraperConfigModal');
         } catch (error) {
             console.error('Error loading system mappings:', error);
             this.showAlert('Error loading current system mappings', 'danger');
@@ -18120,6 +18123,9 @@ class GameCollectionManager {
             option.disabled = true;
             select.appendChild(option);
         }
+
+        // Trigger change for Select2
+        $(select).trigger('change');
     }
 
     async populateDatscrapperMapping() {
@@ -18146,6 +18152,9 @@ class GameCollectionManager {
                     select.appendChild(option);
                 });
             }
+
+            // Trigger change for Select2
+            $(select).trigger('change');
         } catch (error) {
             console.error('Error loading DAT files:', error);
         }
@@ -18198,6 +18207,10 @@ class GameCollectionManager {
                     });
                 }
             }
+
+            // Trigger change for Select2
+            if (select) $(select).trigger('change');
+            if (select2) $(select2).trigger('change');
         } catch (error) {
             console.error('Error loading custom databases:', error);
         }
@@ -26026,7 +26039,6 @@ class GameCollectionManager {
                     select.appendChild(option);
                 });
             }
-
         } catch (error) {
             console.error('Error loading target fields:', error);
             this.showAlert('Error loading target fields', 'danger');
@@ -28888,6 +28900,8 @@ class GameCollectionManager {
             // Initialize drag and drop for this row
             this.initializeDragAndDrop(mediaField);
         });
+
+
     }
 
     async updateLaunchboxMapping(mediaField) {
@@ -28989,6 +29003,8 @@ class GameCollectionManager {
             options.forEach(opt => availableSelect.appendChild(opt));
         }
 
+
+
         // Update the mapping
         this.updateLaunchboxMapping(mediaField);
     }
@@ -29017,7 +29033,6 @@ class GameCollectionManager {
 
             // Update the mapping
             this.updateLaunchboxMapping(mediaField);
-
         }
     }
 
@@ -29239,6 +29254,8 @@ class GameCollectionManager {
             `;
             tbody.appendChild(row);
         });
+
+
     }
 
     async updateIgdbMapping(igdbType, mediaField) {
@@ -29409,6 +29426,8 @@ class GameCollectionManager {
             // Initialize drag and drop for this row
             this.initializeDragAndDrop(mediaField, 'screenscraper');
         });
+
+
     }
 
     async updateScreenscraperMapping(screenscraperType, mediaField) {
@@ -29493,6 +29512,8 @@ class GameCollectionManager {
 
         // Initialize drag and drop for this row
         this.initializeDragAndDrop('language_priority', 'screenscraper');
+
+
     }
 
     async resetScreenscraperMapping(screenscraperType) {
@@ -29556,6 +29577,8 @@ class GameCollectionManager {
             option.remove();
         });
 
+
+
         // Re-initialize drag and drop
         this.initializeDragAndDrop(mediaField, 'screenscraper');
 
@@ -29596,6 +29619,8 @@ class GameCollectionManager {
         options.sort((a, b) => a.textContent.localeCompare(b.textContent));
         availableSelect.innerHTML = '';
         options.forEach(opt => availableSelect.appendChild(opt));
+
+
 
         // Re-initialize drag and drop
         this.initializeDragAndDrop(mediaField, 'screenscraper');
@@ -29731,8 +29756,8 @@ class GameCollectionManager {
                     <span class="media-field-display">${mediaField}</span>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm" 
-                            data-media-field="${mediaField}" 
+                    <select class="form-select form-select-sm"
+                            data-media-field="${mediaField}"
                             onchange="gameManager.updateSteamgriddbMapping(this.value, '${mediaField}')">
                         <option value="">-- Select SteamGridDB Image Type --</option>
                         ${steamgriddbMediaTypes.map(type =>
@@ -29743,6 +29768,8 @@ class GameCollectionManager {
             `;
             tbody.appendChild(row);
         });
+
+
     }
 
     async updateSteamgriddbMapping(steamgriddbType, mediaField) {
@@ -30191,6 +30218,8 @@ class GameCollectionManager {
                 this.saveDatscrapperFieldMapping(datField, gamelistField);
             });
         });
+
+
     }
 
     async saveDatscrapperFieldMapping(datField, gamelistField) {
@@ -30303,6 +30332,8 @@ class GameCollectionManager {
             `;
             tbody.appendChild(row);
         });
+
+
     }
 
     async updateCustomMapping(customType, mediaField) {
@@ -31619,6 +31650,8 @@ class GameCollectionManager {
             `;
             tbody.appendChild(row);
         });
+
+
     }
 
     async updateSteamMapping(steamType, mediaField) {
@@ -37838,6 +37871,33 @@ class GameCollectionManager {
 
     }
 
+    initializeScraperMappingSelect2(containerId) {
+        if (typeof $ === 'undefined' || typeof $.fn.select2 === 'undefined') {
+            return;
+        }
+
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        // Find all selects in this container and initialize Select2
+        $(container).find('select.form-select').each((index, element) => {
+            // Destroy existing instance if any
+            if ($(element).hasClass('select2-hidden-accessible')) {
+                $(element).select2('destroy');
+            }
+
+            const isMultiple = $(element).prop('multiple');
+
+            $(element).select2({
+                placeholder: isMultiple ? "-- Search/Select Types --" : "-- Select Mapping --",
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $(container).closest('.modal'),
+                dropdownAutoWidth: true
+            });
+        });
+    }
+
     updateSelect2Options() {
         console.log('updateSelect2Options called, select2Instance:', this.select2Instance);
 
@@ -41037,6 +41097,8 @@ class GameCollectionManager {
             // Initialize drag and drop for this row
             this.initializeDragAndDrop(mediaField, 'emumovies');
         });
+
+
     }
 
     async updateEmumoviesMapping(mediaField) {
@@ -41094,10 +41156,11 @@ class GameCollectionManager {
                 </button>
             `;
             selectedTypesContainer.appendChild(typeItem);
-
             // Remove from available select
             option.remove();
         });
+
+
 
         // Re-initialize drag and drop
         this.initializeDragAndDrop(mediaField, 'emumovies');
@@ -41137,6 +41200,8 @@ class GameCollectionManager {
             availableSelect.innerHTML = '';
             options.forEach(opt => availableSelect.appendChild(opt));
         }
+
+
 
         // Update the mapping
         this.updateEmumoviesMapping(mediaField);
