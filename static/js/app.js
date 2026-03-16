@@ -25126,29 +25126,41 @@ class GameCollectionManager {
 
             // Load saved field selections from cookies
             allFields.forEach(field => {
-                const savedValue = this.getCookie(`launchboxField_${field}`);
+                const cookieName = `launchboxField_${field}`;
+                const savedValue = this.getCookie(cookieName);
                 const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
 
                 if (checkbox) {
                     // If cookie exists, use its value; if not, default to checked (first time)
-                    checkbox.checked = savedValue === null ? true : savedValue === 'true';
+                    if (savedValue === null) {
+                        checkbox.checked = true;
+                        this.setCookie(cookieName, true);
+                    } else {
+                        checkbox.checked = savedValue === 'true';
+                    }
                 }
             });
         } catch (error) {
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'Name', 'Overview', 'Developer', 'Publisher', 'Genres',
-                'CommunityRating', 'MaxPlayers', 'Box - Front', 'Box - Back', 'Box - 3D',
+                'CommunityRating', 'MaxPlayers', 'VideoURL', 'ReleaseDate', 'Box - Front', 'Box - Back', 'Box - 3D',
                 'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
                 'Fanart - Background', 'Cart - Front'
             ];
 
             fallbackFields.forEach(field => {
-                const savedValue = this.getCookie(`launchboxField_${field}`);
+                const cookieName = `launchboxField_${field}`;
+                const savedValue = this.getCookie(cookieName);
                 const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
 
                 if (checkbox) {
-                    checkbox.checked = savedValue === 'true' || savedValue === null;
+                    if (savedValue === null) {
+                        checkbox.checked = true;
+                        this.setCookie(cookieName, true);
+                    } else {
+                        checkbox.checked = savedValue === 'true';
+                    }
                 }
             });
         }
@@ -25176,7 +25188,7 @@ class GameCollectionManager {
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'Name', 'Overview', 'Developer', 'Publisher', 'Genres',
-                'CommunityRating', 'MaxPlayers', 'Box - Front', 'Box - Back', 'Box - 3D',
+                'CommunityRating', 'MaxPlayers', 'VideoURL', 'ReleaseDate', 'Box - Front', 'Box - Back', 'Box - 3D',
                 'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
                 'Fanart - Background', 'Cart - Front'
             ];
@@ -25206,7 +25218,7 @@ class GameCollectionManager {
             if (allFields.length === 0) {
                 const fallbackFields = [
                     'Name', 'Overview', 'Developer', 'Publisher', 'Genres',
-                    'CommunityRating', 'MaxPlayers', 'Box - Front', 'Box - Back', 'Box - 3D',
+                    'CommunityRating', 'MaxPlayers', 'VideoURL', 'ReleaseDate', 'Box - Front', 'Box - Back', 'Box - 3D',
                     'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
                     'Fanart - Background', 'Cart - Front'
                 ];
@@ -25244,7 +25256,7 @@ class GameCollectionManager {
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'Name', 'Overview', 'Developer', 'Publisher', 'Genres',
-                'CommunityRating', 'MaxPlayers', 'Box - Front', 'Box - Back', 'Box - 3D',
+                'CommunityRating', 'MaxPlayers', 'VideoURL', 'ReleaseDate', 'Box - Front', 'Box - Back', 'Box - 3D',
                 'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
                 'Fanart - Background', 'Cart - Front'
             ];
