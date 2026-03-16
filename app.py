@@ -2760,7 +2760,7 @@ class Task:
             print(f"Error writing final status to log file {self.log_file}: {e}")
         
         # Mark that grid refresh is needed for this task type
-        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias', 'import_roms', 'fanart_scrapper']:
+        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias', 'import_roms', 'fanart_scrapper', 'upload_media']:
             self.grid_refresh_needed = True
         
         # Clear current task for this system and start next queued task
@@ -5809,7 +5809,15 @@ def run_upload_media_task(system_name, selected_games, target_field, temp_file_p
         
         # Load system config and media config
         config = load_config()
-        media_config = load_media_config()
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        games = []
+        if os.path.exists(gamelist_path):
+            games = parse_gamelist_xml(gamelist_path)
+            task.update_progress(f"📖 Loaded gamelist with {len(games)} games")
+        else:
+            task.update_progress(f"⚠️ Gamelist not found at {gamelist_path}")
+
         media_directory = get_media_directory(target_field)
         
         if not media_directory:
@@ -5836,6 +5844,7 @@ def run_upload_media_task(system_name, selected_games, target_field, temp_file_p
         task.total_steps = len(selected_games)
         task.current_step = 0
         stats = {'total_games': len(selected_games), 'updated_games': 0, 'errors': 0}
+        updated_rom_paths = []
         
         for i, rom_path in enumerate(selected_games):
             if task.status != TASK_STATUS_RUNNING:
@@ -5854,14 +5863,31 @@ def run_upload_media_task(system_name, selected_games, target_field, temp_file_p
                 import shutil
                 shutil.copy2(full_temp_path, dest_path)
                 
+                final_filename = dest_filename
+                
                 # Process image if needed
                 if should_process:
                     processed_path, process_status = convert_and_resize_image_replace(
                         dest_path, target_ext, target_w, target_h
                     )
+                    final_filename = os.path.basename(processed_path)
                     task.update_progress(f"✅ Processed {os.path.basename(rom_path)} ({process_status})", progress_percentage=progress_pct, current_step=task.current_step)
                 else:
                     task.update_progress(f"✅ Copied {os.path.basename(rom_path)}", progress_percentage=progress_pct, current_step=task.current_step)
+                
+                # Update game in gamelist
+                game_found = False
+                for game in games:
+                    if game.get('path') == rom_path:
+                        # Construct relative path for gamelist: ./media/{directory}/{filename}
+                        rel_media_path = f"./media/{media_directory}/{final_filename}".replace('\\', '/')
+                        game[target_field] = rel_media_path
+                        game_found = True
+                        updated_rom_paths.append(rom_path)
+                        break
+                
+                if not game_found:
+                    task.update_progress(f"⚠️ Warning: Game not found in gamelist: {os.path.basename(rom_path)}")
                 
                 stats['updated_games'] += 1
                 
@@ -5871,11 +5897,26 @@ def run_upload_media_task(system_name, selected_games, target_field, temp_file_p
                 
         # Clean up temp file
         try:
-            os.remove(full_temp_path)
-            task.update_progress("🧹 Cleaned up temporary upload file")
+            if os.path.exists(full_temp_path):
+                os.remove(full_temp_path)
+                task.update_progress("🧹 Cleaned up temporary upload file")
         except Exception as e:
             print(f"Warning: Could not remove temp file {full_temp_path}: {e}")
             
+        # Save gamelist if anything was updated
+        if stats['updated_games'] > 0 and games:
+            try:
+                write_gamelist_xml(games, gamelist_path)
+                task.update_progress(f"💾 Saved {stats['updated_games']} updates to gamelist.xml")
+                
+                # Notify clients for UI refresh
+                notify_gamelist_updated(system_name, len(games), updated_count=stats['updated_games'])
+                for p in updated_rom_paths:
+                    notify_game_updated(system_name, p, [target_field])
+            except Exception as e:
+                task.update_progress(f"❌ Error saving gamelist: {str(e)}")
+                print(f"Error saving gamelist in upload_media_task: {e}")
+
         task.update_stats(stats)
         task.complete(True)
         
