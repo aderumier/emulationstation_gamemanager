@@ -4338,6 +4338,9 @@ class GameCollectionManager {
                 <a class="dropdown-item" href="#" onclick="gameManager.openMergeRomsModal()">
                     <i class="bi bi-shuffle"></i> Merge ROMs
                 </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.openUploadMediaModal()">
+                    <i class="bi bi-cloud-upload"></i> Upload Media
+                </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.hideSelectedGames()">
                     <i class="bi bi-eye-slash"></i> Hide Selected
@@ -4507,6 +4510,142 @@ class GameCollectionManager {
         // Enable/disable next button
         if (nextBtn) {
             nextBtn.disabled = this.editingGameIndex >= this.games.length - 1;
+        }
+    }
+
+    async openUploadMediaModal() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        if (selectedGames.length === 0) {
+            this.showAlert('Please select at least one game.', 'warning');
+            return;
+        }
+
+        const modalEl = document.getElementById('uploadMediaModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        
+        // Populate selection info
+        const infoEl = document.getElementById('uploadMediaSelectionInfo');
+        infoEl.innerHTML = `<i class="bi bi-info-circle me-2"></i>Targeting <strong>${selectedGames.length}</strong> selected games.`;
+        
+        // Populate media fields dropdown
+        const selectEl = document.getElementById('uploadMediaTargetField');
+        selectEl.innerHTML = '<option value="">-- Select Field --</option>';
+        
+        try {
+            // Get media fields from config
+            const mediaFields = await this.getMediaFieldsFromConfig();
+            if (mediaFields && Array.isArray(mediaFields)) {
+                mediaFields.sort().forEach(field => {
+                    const opt = document.createElement('option');
+                    opt.value = field;
+                    opt.textContent = field;
+                    selectEl.appendChild(opt);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading media fields:', error);
+            // Fallback to basic fields if API fails
+            ['image', 'titleshot', 'boxart', 'marquee', 'fanart', 'thumbnail'].forEach(field => {
+                const opt = document.createElement('option');
+                opt.value = field;
+                opt.textContent = field;
+                selectEl.appendChild(opt);
+            });
+        }
+        
+        // Reset file input and preview
+        document.getElementById('uploadMediaFile').value = '';
+        document.getElementById('uploadMediaPreviewContainer').classList.add('d-none');
+        document.getElementById('uploadMediaPreview').src = '';
+        
+        // Add preview listener
+        const fileInput = document.getElementById('uploadMediaFile');
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (re) => {
+                    const preview = document.getElementById('uploadMediaPreview');
+                    preview.src = re.target.result;
+                    document.getElementById('uploadMediaPreviewContainer').classList.remove('d-none');
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        modal.show();
+    }
+
+    async submitUploadMedia() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        const targetField = document.getElementById('uploadMediaTargetField').value;
+        const fileInput = document.getElementById('uploadMediaFile');
+        const file = fileInput.files[0];
+
+        if (!targetField) {
+            this.showAlert('Please select a target media field.', 'warning');
+            return;
+        }
+        if (!file) {
+            this.showAlert('Please select an image file to upload.', 'warning');
+            return;
+        }
+
+        const submitBtn = document.getElementById('submitUploadMediaBtn');
+        const originalBtnHtml = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+
+        try {
+            // 1. Upload file to temp location
+            const formData = new FormData();
+            formData.append('media_file', file);
+
+            const uploadResp = await fetch('/api/upload-temp-media', {
+                method: 'POST',
+                body: formData
+            });
+
+            const uploadResult = await uploadResp.json();
+            if (!uploadResp.ok) {
+                throw new Error(uploadResult.error || 'Failed to upload file');
+            }
+
+            // 2. Create task
+            const taskData = {
+                system_name: this.currentSystem,
+                selected_games: selectedGames.map(g => g.path),
+                target_field: targetField,
+                temp_file_path: uploadResult.temp_file_path
+            };
+
+            const taskResp = await fetch('/api/tasks/upload-media', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(taskData)
+            });
+
+            const taskResult = await taskResp.json();
+            if (!taskResp.ok) {
+                throw new Error(taskResult.error || 'Failed to create task');
+            }
+
+            // Success
+            const modal = bootstrap.Modal.getInstance(document.getElementById('uploadMediaModal'));
+            modal.hide();
+            this.showAlert(`Task created: Media upload for ${selectedGames.length} games.`, 'success');
+            
+            // Refresh tasks if task manager is open
+            if (typeof refreshTasks === 'function') {
+                refreshTasks();
+            }
+
+        } catch (error) {
+            console.error('Error in submitUploadMedia:', error);
+            this.showAlert(error.message, 'danger');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHtml;
         }
     }
 

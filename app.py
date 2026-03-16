@@ -3807,6 +3807,29 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_import_roms_task, args=(system_name, source_directory, task.id))
             thread.daemon = True
             thread.start()
+    elif task_type == 'upload_media':
+        # Start upload media task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        target_field = task_data.get('target_field')
+        temp_file_path = task_data.get('temp_file_path')
+        if system_name and selected_games and target_field and temp_file_path:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                set_running_task_for_system(system_name, task.id)
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('upload_media', task_data)
+                set_running_task_for_system(system_name, task.id)
+                task.start()
+            # Start upload media in background thread
+            username = next_task.get('username')
+            thread = threading.Thread(target=run_upload_media_task, args=(system_name, selected_games, target_field, temp_file_path, username, task.id))
+            thread.daemon = True
+            thread.start()
     elif task_type == 'fanart_scrapper':
         # Start fanart scrapper task
         system_name = task_data.get('system_name')
@@ -5773,6 +5796,97 @@ def run_media_scan_task(system_name):
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].complete(False, str(e))
         print(f"Error in media scan task: {e}")
+
+def run_upload_media_task(system_name, selected_games, target_field, temp_file_path, username, task_id):
+    """Run upload media task in background thread"""
+    try:
+        if not task_id or task_id not in tasks:
+            print(f"Error: Task {task_id} not found")
+            return
+        
+        task = tasks[task_id]
+        task.update_progress(f"🚀 Starting media upload for {len(selected_games)} games to {target_field}")
+        
+        # Load system config and media config
+        config = load_config()
+        media_config = load_media_config()
+        media_directory = get_media_directory(target_field)
+        
+        if not media_directory:
+            task.complete(False, f"Media field {target_field} not found in config")
+            return
+            
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        category_dir = os.path.join(system_path, 'media', media_directory)
+        os.makedirs(category_dir, exist_ok=True)
+        
+        # Get target extension/dimensions from config
+        from game_utils import should_process_field, convert_and_resize_image_replace
+        should_process, target_ext, target_w, target_h = should_process_field(target_field, config)
+        
+        # Resolve full temp file path
+        full_temp_path = os.path.join(VAR_TEMP_DIR, 'uploads', os.path.basename(temp_file_path))
+        if not os.path.exists(full_temp_path):
+            task.complete(False, f"Temporary file not found: {full_temp_path}")
+            return
+            
+        # Get file extension from temp file
+        file_ext = os.path.splitext(full_temp_path)[1].lower()
+        
+        task.total_steps = len(selected_games)
+        task.current_step = 0
+        stats = {'total_games': len(selected_games), 'updated_games': 0, 'errors': 0}
+        
+        for i, rom_path in enumerate(selected_games):
+            if task.status != TASK_STATUS_RUNNING:
+                task.update_progress("🛑 Task stopped by user")
+                break
+                
+            task.current_step = i + 1
+            progress_pct = int((task.current_step / task.total_steps) * 100)
+            
+            try:
+                # Generate target filename using ROM name
+                dest_filename = create_media_filename(rom_path, file_ext)
+                dest_path = os.path.join(category_dir, dest_filename)
+                
+                # Copy temp file to destination
+                import shutil
+                shutil.copy2(full_temp_path, dest_path)
+                
+                # Process image if needed
+                if should_process:
+                    processed_path, process_status = convert_and_resize_image_replace(
+                        dest_path, target_ext, target_w, target_h
+                    )
+                    task.update_progress(f"✅ Processed {os.path.basename(rom_path)} ({process_status})", progress_percentage=progress_pct, current_step=task.current_step)
+                else:
+                    task.update_progress(f"✅ Copied {os.path.basename(rom_path)}", progress_percentage=progress_pct, current_step=task.current_step)
+                
+                stats['updated_games'] += 1
+                
+            except Exception as e:
+                task.update_progress(f"❌ Error processing {os.path.basename(rom_path)}: {str(e)}", progress_percentage=progress_pct, current_step=task.current_step)
+                stats['errors'] += 1
+                
+        # Clean up temp file
+        try:
+            os.remove(full_temp_path)
+            task.update_progress("🧹 Cleaned up temporary upload file")
+        except Exception as e:
+            print(f"Warning: Could not remove temp file {full_temp_path}: {e}")
+            
+        task.update_stats(stats)
+        task.complete(True)
+        
+    except Exception as e:
+        if 'task' in locals():
+            task.complete(False, str(e))
+        print(f"Error in upload_media_task: {e}")
+    finally:
+        # Clear running task for this system and process next in queue
+        clear_running_task_for_system(system_name)
+        process_next_queued_task()
 
 def run_image_download_task(system_name, data):
     """Run image download task in background thread"""
@@ -18637,6 +18751,81 @@ def upload_game_rom(system_name):
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Failed to upload ROM: {str(e)}'}), 500
+
+@app.route('/api/upload-temp-media', methods=['POST'])
+@login_required
+def upload_temp_media():
+    """Upload a media file to a temporary location for batch processing"""
+    try:
+        if 'media_file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+            
+        file = request.files['media_file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+            
+        # Create temp directory for uploads
+        temp_uploads_dir = os.path.join(VAR_TEMP_DIR, 'uploads')
+        os.makedirs(temp_uploads_dir, exist_ok=True)
+        
+        # Generate unique temp filename
+        import time
+        timestamp = int(time.time() * 1000)
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        temp_filename = f"upload_{timestamp}{file_ext}"
+        temp_file_path = os.path.join(temp_uploads_dir, temp_filename)
+        
+        # Save the file
+        file.save(temp_file_path)
+        
+        app.logger.info(f'Uploaded temp media: {temp_file_path}')
+        
+        return jsonify({
+            'success': True,
+            'temp_file_path': temp_file_path,
+            'message': 'File uploaded successfully'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error in upload_temp_media: {str(e)}')
+        return jsonify({'error': f'Failed to upload file: {str(e)}'}), 500
+
+@app.route('/api/tasks/upload-media', methods=['POST'])
+@login_required
+def upload_media_trigger_task():
+    """Trigger an upload_media task"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        system_name = data.get('system_name')
+        selected_games = data.get('selected_games')
+        target_field = data.get('target_field')
+        temp_file_path = data.get('temp_file_path')
+        
+        if not all([system_name, selected_games, target_field, temp_file_path]):
+            return jsonify({'error': 'Missing required parameters'}), 400
+            
+        username = session.get('username')
+        
+        # Trigger the background task
+        task = add_task_to_queue('upload_media', {
+            'system_name': system_name,
+            'selected_games': selected_games,
+            'target_field': target_field,
+            'temp_file_path': temp_file_path
+        }, username)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': 'Media upload task triggered successfully'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error triggering upload_media task: {str(e)}')
+        return jsonify({'error': f'Failed to trigger task: {str(e)}'}), 500
 
 @app.route('/api/rom-system/<system_name>/game/save-screenshot', methods=['POST'])
 @login_required

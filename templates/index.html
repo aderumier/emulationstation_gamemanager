@@ -7739,6 +7739,51 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         });
     </script>
 
+    <!-- Upload Media Modal -->
+    <div class="modal fade" id="uploadMediaModal" tabindex="-1" aria-labelledby="uploadMediaModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="uploadMediaModalLabel">
+                        <i class="bi bi-cloud-upload me-2"></i>Upload Media
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="uploadMediaSelectionInfo" class="alert alert-info py-2 mb-3" style="font-size: 0.9rem;">
+                        <!-- Selection info will be populated by JS -->
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="uploadMediaTargetField" class="form-label">Target Media Field</label>
+                        <select class="form-select" id="uploadMediaTargetField">
+                            <option value="">-- Select Field --</option>
+                            <!-- Media fields will be populated by JS -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="uploadMediaFile" class="form-label">Upload Image</label>
+                        <input class="form-control" type="file" id="uploadMediaFile" accept="image/*">
+                        <div class="form-text">Select an image file to upload. It will be copied to each selected game.</div>
+                    </div>
+                    
+                    <div id="uploadMediaPreviewContainer" class="text-center mt-3 d-none">
+                        <img id="uploadMediaPreview" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" id="submitUploadMediaBtn" onclick="gameManager.submitUploadMedia()">
+                        <i class="bi bi-cloud-upload me-1"></i>Upload & Process
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Merge ROMs Waiting Modal -->
     <div class="modal fade" id="mergeRomsWaitingModal" tabindex="-1" aria-labelledby="mergeRomsWaitingModalLabel"
         aria-hidden="true">
