@@ -5350,7 +5350,17 @@ class GameCollectionManager {
     }
 
     async performBulkMove(games, destinationPath) {
+        const waitingEl = document.getElementById('directoryMoveWaiting');
+        const contentsEl = document.getElementById('directoryContents');
+        const modalEl = document.getElementById('directoryExplorerModal');
+        const cancelBtn = modalEl.querySelector('.modal-footer .btn-secondary');
+
         try {
+            // Show waiting state
+            if (waitingEl) waitingEl.classList.remove('d-none');
+            if (contentsEl) contentsEl.classList.add('d-none');
+            if (cancelBtn) cancelBtn.disabled = true;
+
             // Save current filter state before refreshing
             const currentFilterModel = this.gridApi ? this.gridApi.getFilterModel() : null;
             const duplicatesFilterWasActive = this.duplicatesFilterActive;
@@ -5373,8 +5383,10 @@ class GameCollectionManager {
                 this.showAlert(`${gameCount} game${gameCount > 1 ? 's' : ''} moved successfully`, 'success');
 
                 // Close the modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('directoryExplorerModal'));
-                modal.hide();
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) {
+                    modal.hide();
+                }
 
                 // Refresh the grid to show updated paths
                 console.log(`Refreshing grid after moving ${gameCount} ROMs...`);
@@ -5382,10 +5394,26 @@ class GameCollectionManager {
                 console.log('Grid refreshed successfully');
             } else {
                 this.showAlert(result.error || 'Failed to move ROMs', 'error');
+                // Restore UI on error
+                if (waitingEl) waitingEl.classList.add('d-none');
+                if (contentsEl) contentsEl.classList.remove('d-none');
+                if (cancelBtn) cancelBtn.disabled = false;
             }
         } catch (error) {
             console.error('Error moving ROMs:', error);
             this.showAlert('Failed to move ROMs', 'error');
+            // Restore UI on error
+            if (waitingEl) waitingEl.classList.add('d-none');
+            if (contentsEl) contentsEl.classList.remove('d-none');
+            if (cancelBtn) cancelBtn.disabled = false;
+        } finally {
+            // Ensure waiting is hidden if we don't close the modal
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal && !result?.success) {
+                if (waitingEl) waitingEl.classList.add('d-none');
+                if (contentsEl) contentsEl.classList.remove('d-none');
+                if (cancelBtn) cancelBtn.disabled = false;
+            }
         }
     }
 
