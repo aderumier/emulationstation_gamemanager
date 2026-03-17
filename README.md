@@ -123,6 +123,18 @@ docker run -d \
 ```
 
 
+### Cloudflare Bypass (Unflare)
+
+For scrapers protected by Cloudflare (like **Lemon64** and **LemonAmiga**), a bypass service is required to download media files. You can run the `unflare` Docker container alongside GameManager.
+
+```bash
+# Run the unflare container
+docker run -d --name unflare -p 5002:5002 ghcr.io/iamyegor/unflare:latest
+```
+
+The application will automatically use this service at `http://localhost:5002` when downloading from supported sites.
+
+
 ### Manual Installation
 
 For detailed installation instructions, see:
@@ -1020,6 +1032,17 @@ roms/<system>/media/import/
 - Configure YouTube cookies (optional)
 - Set up PO Token provider (optional, for restricted videos)
 - See video configuration in **Configuration → Video Configuration**
+
+#### 9. Custom JSON Scrapers (Lemon64, LemonAmiga, etc.)
+
+**Capabilities**:
+- Supports local JSON databases for specific platforms
+- **Lemon64**: Comprehensive Commodore 64 game database
+- **LemonAmiga**: Extensive Amiga game database
+- Intelligent similarity matching against local databases
+
+**Cloudflare Bypass**:
+Due to Cloudflare protection on Lemon sites, you must run the **Unflare** service to download media. See [Cloudflare Bypass (Unflare)](#cloudflare-bypass-unflare) section for setup instructions.
 
 ### Manual Scraping
 
