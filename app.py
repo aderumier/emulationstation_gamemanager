@@ -14297,8 +14297,8 @@ def download_multiscraper_media_endpoint():
                     # Download CBZ - use Selenium for amigahol URLs
                     import requests
                     
-                    if _is_amigahol_url(media_url):
-                        cbz_content = download_media_content(media_url, timeout=30)
+                    if _is_amigahol_url(media_url) or _is_lemon64_url(media_url):
+                        cbz_content = download_media_content(media_url, timeout=60 if _is_lemon64_url(media_url) else 30)
                     else:
                         resp = requests.get(media_url, timeout=30)
                         if resp.status_code == 200:
@@ -14354,8 +14354,8 @@ def download_multiscraper_media_endpoint():
                     # Download PDF - use Selenium for amigahol URLs
                     import requests
                     
-                    if _is_amigahol_url(media_url):
-                        pdf_content = download_media_content(media_url, timeout=30)
+                    if _is_amigahol_url(media_url) or _is_lemon64_url(media_url):
+                        pdf_content = download_media_content(media_url, timeout=60 if _is_lemon64_url(media_url) else 30)
                     else:
                         resp = requests.get(media_url, timeout=30)
                         if resp.status_code == 200:
@@ -15685,11 +15685,13 @@ def download_and_save_media(media_url, game, media_type, system_name):
         # Download the media first to get content type and determine extension if needed
         print(f"🔧 DEBUG: Downloading from URL: {media_url}")
         
-        # Use Selenium for amigahol URLs
+        # Use special downloaders for protected sites (Selenium or Unflare)
         media_content = None
-        if _is_amigahol_url(media_url):
-            media_content = download_media_content(media_url, timeout=30)
+        if _is_amigahol_url(media_url) or _is_lemon64_url(media_url):
+            logger.debug(f"Using special downloader for protected URL: {media_url}")
+            media_content = download_media_content(media_url, timeout=60 if _is_lemon64_url(media_url) else 30)
             if not media_content:
+                logger.error(f"Special download failed for: {media_url}")
                 return False
         else:
             import requests
@@ -21270,9 +21272,9 @@ def apply_manual_scrap(system_name):
                     temp_cbz.close()
                     
                     try:
-                        # Download CBZ - use Selenium for amigahol URLs
-                        if _is_amigahol_url(selected_url):
-                            cbz_content = download_media_content(selected_url, timeout=30)
+                        # Download CBZ - use special downloaders for protected sites
+                        if _is_amigahol_url(selected_url) or _is_lemon64_url(selected_url):
+                            cbz_content = download_media_content(selected_url, timeout=60 if _is_lemon64_url(selected_url) else 30)
                         else:
                             resp = requests.get(selected_url, timeout=30)
                             if resp.status_code == 200:
@@ -21321,9 +21323,9 @@ def apply_manual_scrap(system_name):
                     temp_pdf.close()
                     
                     try:
-                        # Download PDF - use Selenium for amigahol URLs
-                        if _is_amigahol_url(selected_url):
-                            pdf_content = download_media_content(selected_url, timeout=30)
+                        # Download PDF - use special downloaders for protected sites
+                        if _is_amigahol_url(selected_url) or _is_lemon64_url(selected_url):
+                            pdf_content = download_media_content(selected_url, timeout=60 if _is_lemon64_url(selected_url) else 30)
                         else:
                             resp = requests.get(selected_url, timeout=30)
                             if resp.status_code == 200:
@@ -29936,10 +29938,10 @@ def get_pdf_preview_remote():
         
         # Check if this is an amigahol URL - use Selenium for Anubis bot protection
         pdf_content = None
-        if _is_amigahol_url(pdf_url):
-            # Use Selenium to download PDF from amiga.abime.net
-            print(f"🔧 Using Selenium for amigahol PDF preview: {pdf_url}")
-            pdf_content = download_media_content(pdf_url, timeout=30)
+        if _is_amigahol_url(pdf_url) or _is_lemon64_url(pdf_url):
+            # Use special downloader for protected sites
+            print(f"🔧 Using special downloader for protected PDF preview: {pdf_url}")
+            pdf_content = download_media_content(pdf_url, timeout=60 if _is_lemon64_url(pdf_url) else 30)
             if not pdf_content:
                 return jsonify({'error': 'Failed to download PDF from amiga.abime.net using Selenium'}), 500
             pdf_data = io.BytesIO(pdf_content)
@@ -37805,7 +37807,22 @@ def download_media_with_unflare(url: str, output_path: str, timeout: int = 60) -
             
         # Attempt download using the session
         logger.debug(f"Attempting final download with Unflare session for: {url}")
-        img_response = session.get(url, headers=headers, timeout=30)
+        
+        # Only keep 'User-Agent' from Unflare headers if it exists, otherwise use a common one
+        # Cloudflare validates that the UA matches the one used to generate cookies
+        clean_headers = {}
+        ua_keys = ['User-Agent', 'user-agent', 'User-agent']
+        found_ua = False
+        for key in ua_keys:
+            if key in headers:
+                clean_headers['User-Agent'] = headers[key]
+                found_ua = True
+                break
+        
+        if not found_ua:
+            clean_headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            
+        img_response = session.get(url, headers=clean_headers, timeout=30)
         
         if img_response.status_code == 200:
             content = img_response.content
@@ -37901,10 +37918,10 @@ def create_pdf_from_images(image_urls: List[str], output_path: str) -> bool:
         # Download and add each image as a page
         for image_url in image_urls:
             try:
-                # Download image - use Selenium for amiga.abime.net URLs
+                # Download image - use special downloaders for protected sites
                 image_content = None
-                if _is_amigahol_url(image_url):
-                    image_content = download_media_content(image_url, timeout=30)
+                if _is_amigahol_url(image_url) or _is_lemon64_url(image_url):
+                    image_content = download_media_content(image_url, timeout=60 if _is_lemon64_url(image_url) else 30)
                 else:
                     response = requests.get(image_url, timeout=30)
                     if response.status_code == 200:
@@ -37977,10 +37994,10 @@ def create_cbz_from_images(image_urls: List[str], output_path: str) -> bool:
         with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as cbz_file:
             for idx, image_url in enumerate(image_urls):
                 try:
-                    # Download image - use Selenium for amiga.abime.net URLs
+                    # Download image - use special downloaders for protected sites
                     image_content = None
-                    if _is_amigahol_url(image_url):
-                        image_content = download_media_content(image_url, timeout=30)
+                    if _is_amigahol_url(image_url) or _is_lemon64_url(image_url):
+                        image_content = download_media_content(image_url, timeout=60 if _is_lemon64_url(image_url) else 30)
                     else:
                         response = requests.get(image_url, timeout=30)
                         if response.status_code == 200:
@@ -38641,8 +38658,8 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                     temp_cbz_path = temp_cbz.name
                                                     temp_cbz.close()
                                                     try:
-                                                        if _is_amigahol_url(first_url):
-                                                            cbz_content = download_media_content(first_url, timeout=30)
+                                                        if _is_amigahol_url(first_url) or _is_lemon64_url(first_url):
+                                                            cbz_content = download_media_content(first_url, timeout=60 if _is_lemon64_url(first_url) else 30)
                                                         else:
                                                             import requests
                                                             resp = requests.get(first_url, timeout=30)
@@ -38667,8 +38684,8 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                     temp_pdf_path = temp_pdf.name
                                                     temp_pdf.close()
                                                     try:
-                                                        if _is_amigahol_url(first_url):
-                                                            pdf_content = download_media_content(first_url, timeout=30)
+                                                        if _is_amigahol_url(first_url) or _is_lemon64_url(first_url):
+                                                            pdf_content = download_media_content(first_url, timeout=60 if _is_lemon64_url(first_url) else 30)
                                                         else:
                                                             import requests
                                                             resp = requests.get(first_url, timeout=30)
@@ -38745,8 +38762,8 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                     temp_cbz_path = temp_cbz.name
                                                     temp_cbz.close()
                                                     try:
-                                                        if _is_amigahol_url(url):
-                                                            cbz_content = download_media_content(url, timeout=30)
+                                                        if _is_amigahol_url(url) or _is_lemon64_url(url):
+                                                            cbz_content = download_media_content(url, timeout=60 if _is_lemon64_url(url) else 30)
                                                         else:
                                                             import requests
                                                             resp = requests.get(url, timeout=30)
@@ -38771,8 +38788,8 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                     temp_pdf_path = temp_pdf.name
                                                     temp_pdf.close()
                                                     try:
-                                                        if _is_amigahol_url(url):
-                                                            pdf_content = download_media_content(url, timeout=30)
+                                                        if _is_amigahol_url(url) or _is_lemon64_url(url):
+                                                            pdf_content = download_media_content(url, timeout=60 if _is_lemon64_url(url) else 30)
                                                         else:
                                                             import requests
                                                             resp = requests.get(url, timeout=30)
