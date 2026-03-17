@@ -37484,6 +37484,12 @@ def _is_amigahol_url(url: str) -> bool:
         return False
     return 'amiga.abime.net' in url.lower()
 
+def _is_lemon64_url(url: str) -> bool:
+    """Check if URL is from lemon64.com"""
+    if not url:
+        return False
+    return 'lemon64.com' in url.lower()
+
 def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) -> bool:
     """
     Download media using Selenium for amigahol URLs (amiga.abime.net) with bot protection.
@@ -37755,6 +37761,70 @@ def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) 
             logger.debug(f"Traceback: {traceback.format_exc()}")
             return False
 
+def download_media_with_unflare(url: str, output_path: str, timeout: int = 60) -> bool:
+    """
+    Download media using Unflare API for URLs protected by Cloudflare (like lemon64.com).
+    
+    Args:
+        url: URL to download
+        output_path: Path where file should be saved
+        timeout: Timeout in seconds
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    unflare_url = "http://localhost:5002/scrape"
+    
+    payload = {
+        "url": url,
+        "timeout": timeout * 1000,
+        "method": "GET"
+    }
+    
+    try:
+        import requests
+        logger.debug(f"Requesting Cloudflare bypass from Unflare for: {url}")
+        response = requests.post(unflare_url, json=payload, timeout=timeout + 10)
+        
+        if response.status_code != 200:
+            logger.error(f"Unflare failed for {url}. Status: {response.status_code}")
+            return False
+            
+        data = response.json()
+        cookies_list = data.get("cookies", [])
+        headers = data.get("headers", {})
+        
+        if not cookies_list:
+             logger.error(f"No cookies returned from Unflare for {url}")
+             return False
+             
+        # Create session with cookies
+        session = requests.Session()
+        for cookie in cookies_list:
+            session.cookies.set(cookie['name'], cookie['value'], domain=cookie.get('domain'), path=cookie.get('path'))
+            
+        # Attempt download using the session
+        logger.debug(f"Attempting final download with Unflare session for: {url}")
+        img_response = session.get(url, headers=headers, timeout=30)
+        
+        if img_response.status_code == 200:
+            content = img_response.content
+            # Basic validation: ensure it's not HTML
+            if b"Cloudflare" in content and b"<html" in content.lower():
+                logger.error(f"Unflare returned Cloudflare block page instead of media for {url}")
+                return False
+                
+            with open(output_path, 'wb') as f:
+                f.write(content)
+            return True
+        else:
+            logger.error(f"Final download failed via Unflare for {url}. Status: {img_response.status_code}")
+            return False
+                
+    except Exception as e:
+        logger.error(f"Error in download_media_with_unflare for {url}: {e}")
+        return False
+
 def download_media_content(url: str, timeout: int = 30) -> Optional[bytes]:
     """
     Download media content, using Selenium for amiga.abime.net URLs
@@ -37768,13 +37838,21 @@ def download_media_content(url: str, timeout: int = 30) -> Optional[bytes]:
     """
     # Check if we need Selenium (amiga.abime.net URL)
     use_selenium = _is_amigahol_url(url)
+    # Check if we need Unflare (lemon64.com URL)
+    use_unflare = _is_lemon64_url(url)
     
-    if use_selenium:
-        # Use Selenium for download
+    if use_selenium or use_unflare:
+        # Use Selenium or Unflare for download
         import tempfile
         temp_file = tempfile.NamedTemporaryFile(delete=False)
         try:
-            if download_media_with_selenium(url, temp_file.name, timeout):
+            success = False
+            if use_selenium:
+                success = download_media_with_selenium(url, temp_file.name, timeout)
+            elif use_unflare:
+                success = download_media_with_unflare(url, temp_file.name, timeout)
+                
+            if success:
                 with open(temp_file.name, 'rb') as f:
                     content = f.read()
                 os.unlink(temp_file.name)
@@ -37788,10 +37866,11 @@ def download_media_content(url: str, timeout: int = 30) -> Optional[bytes]:
                     os.unlink(temp_file.name)
                 except:
                     pass
-            # Fallback to requests
+            # Fallback to requests (might still fail due to Cloudflare)
             use_selenium = False
+            use_unflare = False
     
-    if not use_selenium:
+    if not use_selenium and not use_unflare:
         # Use regular requests
         import requests
         response = requests.get(url, timeout=timeout)
@@ -38731,6 +38810,9 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                     if _is_amigahol_url(url):
                                                         logger.debug(f"Using Selenium for amigahol manual URL: {url}")
                                                         success = download_media_with_selenium(url, media_path, timeout=30)
+                                                    elif _is_lemon64_url(url):
+                                                        logger.debug(f"Using Unflare for lemon64 manual URL: {url}")
+                                                        success = download_media_with_unflare(url, media_path, timeout=60)
                                                     else:
                                                         logger.debug(f"Using requests for manual URL (not amigahol): {url}")
                                                         import requests
@@ -38799,9 +38881,16 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                 media_path = os.path.join(system_path, 'media', media_directory, media_filename)
                                                 os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                                 
-                                                # Use Selenium for amiga.abime.net URLs
+                                                # Use special downloaders for protected sites
                                                 if _is_amigahol_url(url):
-                                                    if download_media_with_selenium(url, media_path, timeout=30):
+                                                    download_success = download_media_with_selenium(url, media_path, timeout=30)
+                                                elif _is_lemon64_url(url):
+                                                    download_success = download_media_with_unflare(url, media_path, timeout=60)
+                                                else:
+                                                    download_success = False
+
+                                                if _is_amigahol_url(url) or _is_lemon64_url(url):
+                                                    if download_success:
                                                         # Determine extension from URL
                                                         ext = os.path.splitext(url)[1] or target_extension
                                                         if ext != target_extension:
@@ -38852,9 +38941,16 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                         media_path = os.path.join(system_path, 'media', media_directory, media_filename)
                                         os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                         
-                                        # Use Selenium for amiga.abime.net URLs
+                                        # Use special downloaders for protected sites
                                         if _is_amigahol_url(url):
-                                            if download_media_with_selenium(url, media_path, timeout=30):
+                                            download_success = download_media_with_selenium(url, media_path, timeout=30)
+                                        elif _is_lemon64_url(url):
+                                            download_success = download_media_with_unflare(url, media_path, timeout=60)
+                                        else:
+                                            download_success = False
+
+                                        if _is_amigahol_url(url) or _is_lemon64_url(url):
+                                            if download_success:
                                                 # Determine extension from URL
                                                 ext = os.path.splitext(url)[1] or target_extension
                                                 if ext != target_extension:

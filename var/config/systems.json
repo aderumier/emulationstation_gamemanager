@@ -3133,8 +3133,13 @@
     },
     "c64": {
         "launchbox": "Commodore 64",
-        "screenscraper": "66",
-        "igdb": "15",
+        "screenscraper": 66,
+        "igdb": 15,
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "lemon64",
+        "custom2": "lemon64",
         "extensions": [
             ".crt",
             ".d64",
