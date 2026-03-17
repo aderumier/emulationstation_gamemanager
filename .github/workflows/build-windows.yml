@@ -54,7 +54,7 @@ jobs:
 
     - name: Download ImageMagick
       run: |
-        $portableUrl = "https://imagemagick.org/archive/binaries/ImageMagick-7.1.2-15-portable-Q16-HDRI-x64.7z"
+        $portableUrl = "https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-17/ImageMagick-7.1.2-17-portable-Q16-HDRI-x64.7z"
         $im7z = "$env:TEMP\imagemagick.7z"
         $imExtract = "$env:TEMP\imagemagick"
         New-Item -ItemType Directory -Path "tools\windows\imagemagick" -Force | Out-Null
