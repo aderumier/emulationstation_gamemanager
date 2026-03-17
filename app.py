@@ -20200,11 +20200,11 @@ def rename_rom():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
-        game_id = data.get('game_id')
+        rom_path = data.get('rom_path')
         system_name = data.get('system')
         new_name = data.get('new_name')
         
-        if not game_id or not system_name or not new_name:
+        if not rom_path or not system_name or not new_name:
             return jsonify({'error': 'Missing required fields'}), 400
             
         resp = require_system_access(system_name)
@@ -20223,7 +20223,7 @@ def rename_rom():
         
         target_game = None
         for game in games:
-            if game.get('id') == game_id:
+            if game.get('path') == rom_path:
                 target_game = game
                 break
                 

@@ -5082,7 +5082,7 @@ class GameCollectionManager {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    game_id: this.renamingGame.id,
+                    rom_path: this.renamingGame.path,
                     system: this.currentSystem,
                     new_name: newFilename
                 })
