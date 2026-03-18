@@ -37681,6 +37681,22 @@ class GameCollectionManager {
             '<i class="bi bi-arrow-repeat text-info" title="Matched via alternate name"></i>' :
             '<i class="bi bi-check-circle text-success" title="Matched via main name"></i>';
 
+        // Create the display title with matched language if available
+        let titleHtml = `<h6 class="mb-0">${match.matched_name}</h6>`;
+        if (match.match_type === 'alternate' && match.matched_language) {
+            // Add language/region info when matched via alternate name with a language
+            titleHtml = `<div>
+                <h6 class="mb-0">${match.matched_name}</h6>
+                <small class="text-muted">${match.matched_language}</small>
+            </div>`;
+        } else if (match.match_type === 'alternate') {
+            // Add indicator when matched via alternate name even without language info
+            titleHtml = `<div>
+                <h6 class="mb-0">${match.matched_name}</h6>
+                <small class="text-muted">Alternate name</small>
+            </div>`;
+        }
+
         // Use box image URL directly from backend
         let boxImageHtml = '';
         if (match.box_image_url) {
@@ -37710,7 +37726,7 @@ class GameCollectionManager {
         card.innerHTML = `
             <div class="card match-card" data-match-index="${index}">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">${match.matched_name}</h6>
+                    ${titleHtml}
                     <div>
                         ${matchTypeIcon}
                         <span class="badge ${scoreClass}">${(match.score * 100).toFixed(1)}%</span>

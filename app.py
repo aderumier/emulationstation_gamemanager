@@ -7096,7 +7096,11 @@ def load_launchbox_partitioned_indexes():
             if normalized_with_parens:
                 if platform not in global_launchbox_partition_index:
                     global_launchbox_partition_index[platform] = {}
-                global_launchbox_partition_index[platform][normalized_with_parens] = db_id
+                global_launchbox_partition_index[platform][normalized_with_parens] = {
+                    'db_id': db_id,
+                    'name': game_name,
+                    'region': ''
+                }
         
         # Process alternate names separately
         # Alternate names reference games by DatabaseID, so we need to process them after all main games
@@ -7113,12 +7117,13 @@ def load_launchbox_partitioned_indexes():
             if not platform:
                 continue
             
-            # Process each alternate name (now just strings)
-            for alt_name in alternate_names:
-                if not alt_name or not isinstance(alt_name, str):
+            # Process each alternate name
+            for alt_name_info in alternate_names:
+                if not alt_name_info or not isinstance(alt_name_info, dict):
                     continue
                 
-                alt_name = alt_name.strip()
+                alt_name = alt_name_info.get('name', '').strip()
+                region = alt_name_info.get('region', '').strip()
                 if not alt_name:
                     continue
                 
@@ -7130,7 +7135,11 @@ def load_launchbox_partitioned_indexes():
                 if normalized_with_parens:
                     if platform not in global_launchbox_partition_index:
                         global_launchbox_partition_index[platform] = {}
-                    global_launchbox_partition_index[platform][normalized_with_parens] = db_id
+                    global_launchbox_partition_index[platform][normalized_with_parens] = {
+                        'db_id': db_id,
+                        'name': alt_name,
+                        'region': region
+                    }
         
         print(f"✅ Processed {alternate_names_processed} alternate names")
         
@@ -7341,12 +7350,15 @@ def load_metadata_cache():
                 if key not in ['Name', 'Platform', 'DatabaseID']:
                     flattened_entry[key] = value
             
-            # Process alternate names - extract just the name strings
+            # Process alternate names - extract just the name strings and regions
             for alt_name_data in alternate_names_data:
                 if isinstance(alt_name_data, dict):
                     alt_name = alt_name_data.get('AlternateName') or alt_name_data.get('Name')
                     if alt_name:
-                        flattened_entry['alternate_names'].append(alt_name)
+                        flattened_entry['alternate_names'].append({
+                            'name': alt_name,
+                            'region': alt_name_data.get('Region', '')
+                        })
             
             flattened_cache[db_id] = flattened_entry
         
@@ -11852,7 +11864,18 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
     platform_partition = partition_index[target_platform]
     print(f"🔍 DEBUG: Platform partition has {len(platform_partition)} entries")
     
-    for normalized_game_name_with_parens, launchboxid in platform_partition.items():
+    for normalized_game_name_with_parens, partition_entry in platform_partition.items():
+        # Handle both old (string) and new (dict) partition formats
+        if isinstance(partition_entry, dict):
+            db_id = partition_entry.get('db_id')
+            matched_name_from_partition = partition_entry.get('name', '')
+            matched_language = partition_entry.get('region', '')
+        else:
+            # Old format compatibility
+            db_id = partition_entry
+            matched_name_from_partition = ''
+            matched_language = ''
+        
         # Index keys are already normalized, use them directly
         normalized_game_name = normalized_game_name_with_parens
         
@@ -11866,17 +11889,25 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
             if similarity >= 0.7:
                 # Find the game in metadata_games
                 for game in metadata_games:
-                    if str(game.get('DatabaseID', '')) == str(launchboxid):
+                    if str(game.get('DatabaseID', '')) == str(db_id):
                         # Get box image URL for this game
                         database_id = game.get('DatabaseID', '')
                         box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
+                        
+                        # Determine if this is a main name or alternate name match
+                        is_alternate = matched_name_from_partition and matched_name_from_partition != game.get('Name', '')
+                        match_type = 'alternate' if is_alternate else 'main'
+                        
+                        # Use the matched name from partition if available and different from main name
+                        display_name = matched_name_from_partition if is_alternate else game.get('Name', '')
                         
                         # Create match info
                         match_info = {
                             'game': game,
                             'score': similarity,
-                            'match_type': 'main',
-                            'matched_name': game.get('Name', ''),
+                            'match_type': match_type,
+                            'matched_name': display_name or game.get('Name', ''),
+                            'matched_language': matched_language,
                             'database_id': database_id,
                             'name': game.get('Name', ''),
                             'overview': game.get('Overview', ''),
@@ -11891,7 +11922,7 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
                                 match_info[gamelist_field] = game.get(launchbox_field, '')
                         
                         matches.append(match_info)
-                        print(f"🔍 DEBUG: Found match: '{game.get('Name', '')}' -> similarity: {similarity:.4f}")
+                        print(f"🔍 DEBUG: Found match: '{display_name or game.get('Name', '')}' (type: {match_type}, language: {matched_language}) -> similarity: {similarity:.4f}")
                         break
     
     # Check if we already have a perfect match (100% similarity)
@@ -11921,7 +11952,18 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
                 print(f"🔍 DEBUG: Searching first part in partition '{first_char_first_part}'")
                 
                 # Search through all games in the platform partition for the first part
-                for normalized_game_name_with_parens, launchboxid in platform_partition.items():
+                for normalized_game_name_with_parens, partition_entry in platform_partition.items():
+                    # Handle both old (string) and new (dict) partition formats
+                    if isinstance(partition_entry, dict):
+                        db_id = partition_entry.get('db_id')
+                        matched_name_from_partition = partition_entry.get('name', '')
+                        matched_language = partition_entry.get('region', '')
+                    else:
+                        # Old format compatibility
+                        db_id = partition_entry
+                        matched_name_from_partition = ''
+                        matched_language = ''
+                    
                     # Normalize index entry name without parentheses for comparison
                     normalized_game_name = normalized_game_name_with_parens
                     
@@ -11936,17 +11978,25 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
                         if similarity >= 0.7:
                             # Find the game in metadata_games
                             for game in metadata_games:
-                                if str(game.get('DatabaseID', '')) == str(launchboxid):
+                                if str(game.get('DatabaseID', '')) == str(db_id):
                                     # Get box image URL for this game
                                     database_id = game.get('DatabaseID', '')
                                     box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
+                                    
+                                    # Determine if this is a main name or alternate name match
+                                    is_alternate = matched_name_from_partition and matched_name_from_partition != game.get('Name', '')
+                                    match_type = 'alternate' if is_alternate else 'first_part'
+                                    
+                                    # Use the matched name from partition if available and different from main name
+                                    display_name = matched_name_from_partition if is_alternate else game.get('Name', '')
                                     
                                     # Create match info
                                     match_info = {
                                         'game': game,
                                         'score': similarity,
-                                        'match_type': 'first_part',  # Mark as first part match
-                                        'matched_name': game.get('Name', ''),
+                                        'match_type': match_type,
+                                        'matched_name': display_name or game.get('Name', ''),
+                                        'matched_language': matched_language,
                                         'database_id': database_id,
                                         'name': game.get('Name', ''),
                                         'overview': game.get('Overview', ''),
@@ -11961,7 +12011,7 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
                                             match_info[gamelist_field] = game.get(launchbox_field, '')
                                     
                                     matches.append(match_info)
-                                    print(f"🔍 DEBUG: Found first part match: '{game.get('Name', '')}' -> similarity: {similarity:.4f}")
+                                    print(f"🔍 DEBUG: Found first part match: '{display_name or game.get('Name', '')}' (type: {match_type}, language: {matched_language}) -> similarity: {similarity:.4f}")
                                     break
     
     print(f"🔍 DEBUG: Found {len(matches)} total matches before deduplication")
