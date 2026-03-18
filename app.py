@@ -2061,9 +2061,13 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
             if launchboxid:
                 stats['matched_games'] += 1
                 print(f"🔧 DEBUG: Found LaunchBox ID: {launchboxid}")
-                
+
                 # Get game data from cache (ensure string format since global cache keys are strings)
-                launchboxid_str = str(launchboxid)
+                # Handle both old (string) and new (dict) partition formats
+                if isinstance(launchboxid, dict):
+                    launchboxid_str = str(launchboxid.get('db_id', ''))
+                else:
+                    launchboxid_str = str(launchboxid)
                 print(f"🔧 DEBUG: Looking up LaunchBox ID '{launchboxid_str}' in global cache")
                 print(f"🔧 DEBUG: Global cache has {len(global_metadata_cache)} entries")
                 print(f"🔧 DEBUG: Sample cache keys: {list(global_metadata_cache.keys())[:5]}")
@@ -14937,7 +14941,10 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
 
                         
                         if launchboxid:
-                            launchboxid_str = str(launchboxid)
+                            if isinstance(launchboxid, dict):
+                                launchboxid_str = str(launchboxid.get('db_id', ''))
+                            else:
+                                launchboxid_str = str(launchboxid)
                             entry = global_metadata_cache.get(launchboxid_str)
                             # Entry is now flattened, no need to get 'game' sub-dictionary
                             if entry:
@@ -14954,7 +14961,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                     all_lb.append({
                                         'scraper': 'launchbox',
                                         'game_name': entry.get('Name', ''),
-                                        'game_id': launchboxid,
+                                        'game_id': launchboxid_str,
                                         'similarity_score': 1.0,
                                         f'{media_type}_urls': urls,
                                         'region': 'Unknown',
@@ -14970,7 +14977,8 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                     sim_list.append((sim, lbid, norm_name))
                             sim_list.sort(key=lambda x: x[0], reverse=True)
                             for sim, lbid, norm in sim_list[:5]:
-                                entry = global_metadata_cache.get(str(lbid))
+                                lbid_str = str(lbid.get('db_id', '')) if isinstance(lbid, dict) else str(lbid)
+                                entry = global_metadata_cache.get(lbid_str)
                                 if not entry:
                                     continue
                                 # Entry is now flattened, no need to get 'game' sub-dictionary
@@ -14986,7 +14994,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                     all_lb.append({
                                         'scraper': 'launchbox',
                                         'game_name': entry.get('Name', ''),
-                                        'game_id': lbid,
+                                        'game_id': lbid_str,
                                         'similarity_score': sim,
                                         f'{media_type}_urls': urls,
                                         'region': 'Unknown',
