@@ -39806,6 +39806,10 @@ class GameCollectionManager {
             }
 
         } catch (error) {
+            if (error.name === 'AbortError') {
+                // Search was intentionally aborted (e.g. new search started), ignore
+                return;
+            }
             console.error('Error in fanart search stream:', error);
             this.showAlert('Error searching fanart', 'error');
             document.getElementById('fanartSearchLoading').style.display = 'none';
