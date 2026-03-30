@@ -19568,46 +19568,52 @@ def remove_game_media_background(system_name):
         import shutil
         
         try:
-            # Detect background color from top-left pixel
+            # Detect background color from top-left pixel and get image dimensions
             with Image.open(full_media_path) as img:
+                img_width, img_height = img.size
                 # Get the top-left pixel color
                 # Convert to RGB if needed
                 if img.mode != 'RGB':
                     img_rgb = img.convert('RGB')
                 else:
                     img_rgb = img
-                
+
                 # Get top-left pixel (0, 0)
                 pixel_color = img_rgb.getpixel((0, 0))
                 r, g, b = pixel_color
-                
+
                 # Determine if it's closer to black or white
                 # Calculate average brightness
                 brightness = (r + g + b) / 3
-                
+
                 # Use threshold of 128 to determine if it's black-ish or white-ish
                 if brightness < 128:
-                    # Closer to black
                     background_color = 'black'
                     print(f"🔍 Detected black background (RGB: {r}, {g}, {b}, brightness: {brightness:.1f})")
                 else:
-                    # Closer to white
                     background_color = 'white'
                     print(f"🔍 Detected white background (RGB: {r}, {g}, {b}, brightness: {brightness:.1f})")
-            
+
             # Create a temporary file for atomic replacement
             temp_dir = os.path.dirname(full_media_path)
             with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix='.png') as temp_file:
                 temp_path = temp_file.name
-            
+
             try:
-                # Use ImageMagick to remove the detected background color
-                # -fuzz 10% handles slight variations in color
-                # -transparent removes the detected background color
+                # Use ImageMagick flood fill from all 4 corners to remove only the
+                # background that is connected to the image borders. This prevents
+                # removing matching color areas that are enclosed inside the objects.
+                w = img_width - 1
+                h = img_height - 1
                 cmd = get_imagemagick_cmd('convert') + [
                     full_media_path,
-                    '-fuzz', '10%',  # 10% threshold for color matching
-                    '-transparent', background_color,  # Remove detected background color
+                    '-alpha', 'set',
+                    '-fuzz', '10%',
+                    '-fill', 'none',
+                    '-draw', f'color 0,0 floodfill',
+                    '-draw', f'color {w},0 floodfill',
+                    '-draw', f'color 0,{h} floodfill',
+                    '-draw', f'color {w},{h} floodfill',
                     temp_path
                 ]
                 
