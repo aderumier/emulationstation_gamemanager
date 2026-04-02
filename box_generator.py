@@ -255,7 +255,7 @@ class BoxGenerator:
             trim_result = subprocess.run(cmd_trim, capture_output=True, text=True, timeout=10)
             if trim_result.returncode == 0:
                 # Replace original with trimmed version
-                os.rename(temp_trimmed, output_path)
+                os.replace(temp_trimmed, output_path)
             else:
                 logging.warning(f"Failed to trim text logo: {trim_result.stderr}")
                 # Continue with original if trim fails

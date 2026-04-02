@@ -213,7 +213,7 @@ def rename_media_files(gamelist_path, dry_run=False, media_fields=None):
             else:
                 try:
                     # Rename the file
-                    os.rename(old_abs_path, new_abs_path)
+                    os.replace(old_abs_path, new_abs_path)
                     print(f"   ✅ {media_field}: Renamed to {new_filename}")
                     
                     # Update gamelist.xml path

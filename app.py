@@ -4457,7 +4457,7 @@ def reencode_video(task, video_path, game_name, resolution, fadein, fadeout, sys
             # Replace original with processed
             if os.path.exists(video_path):
                 os.remove(video_path)
-            os.rename(processed_path, video_path)
+            os.replace(processed_path, video_path)
             
             task.log_message(f"✅ Reencoded video for {game_name}")
             return True
@@ -18746,7 +18746,7 @@ def upload_game_rom(system_name):
                 pass
                 
         # Rename assembled temp file to final file
-        os.rename(temp_upload_path, new_rom_full_path)
+        os.replace(temp_upload_path, new_rom_full_path)
         print(f"✅ Saved new ROM file (reconstructed from {total_chunks} chunks): {new_rom_full_path}")
         
         # Rename all associated media files to match new ROM filename
@@ -18790,7 +18790,7 @@ def upload_game_rom(system_name):
                                 
                                 # Rename old media file to new name
                                 if old_media_abs_path != new_media_abs_path:
-                                    os.rename(old_media_abs_path, new_media_abs_path)
+                                    os.replace(old_media_abs_path, new_media_abs_path)
                                     
                                     # Update game object with new relative path
                                     new_media_rel_path = os.path.relpath(new_media_abs_path, system_path)
@@ -38978,7 +38978,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                             # Rename file if extension differs
                                                             new_media_path = os.path.join(system_path, 'media', media_directory, f"{rom_filename}{ext}")
                                                             if os.path.exists(media_path):
-                                                                os.rename(media_path, new_media_path)
+                                                                os.replace(media_path, new_media_path)
                                                             media_path = new_media_path
                                                             media_filename = f"{rom_filename}{ext}"
                                                         relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
@@ -39038,7 +39038,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                     # Rename file if extension differs
                                                     new_media_path = os.path.join(system_path, 'media', media_directory, f"{rom_filename}{ext}")
                                                     if os.path.exists(media_path):
-                                                        os.rename(media_path, new_media_path)
+                                                        os.replace(media_path, new_media_path)
                                                     media_path = new_media_path
                                                     media_filename = f"{rom_filename}{ext}"
                                                 relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
