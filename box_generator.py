@@ -198,15 +198,15 @@ class BoxGenerator:
                 for ext in font_extensions:
                     font_file = os.path.join(custom_fonts_dir, f"{font}{ext}")
                     if os.path.exists(font_file):
-                        font_path = font_file
+                        font_path = os.path.abspath(font_file)
                         break
                 # Also check with exact filename match
                 if font_path == font:
                     for filename in os.listdir(custom_fonts_dir):
                         if os.path.splitext(filename)[0] == font:
-                            font_path = os.path.join(custom_fonts_dir, filename)
+                            font_path = os.path.abspath(os.path.join(custom_fonts_dir, filename))
                             break
-            
+
             # Calculate width if not provided (estimate based on text length and font size)
             if width is None:
                 # Average character width is ~0.4-0.5 times font size
@@ -885,13 +885,13 @@ class BoxGenerator:
                         for ext in font_extensions:
                             font_file = os.path.join(custom_fonts_dir, f"{font}{ext}")
                             if os.path.exists(font_file):
-                                font_path = font_file
+                                font_path = os.path.abspath(font_file)
                                 break
                         # Also check with exact filename match
                         if font_path == font:
                             for filename in os.listdir(custom_fonts_dir):
                                 if os.path.splitext(filename)[0] == font:
-                                    font_path = os.path.join(custom_fonts_dir, filename)
+                                    font_path = os.path.abspath(os.path.join(custom_fonts_dir, filename))
                                     break
                     
                     # Calculate caption width based on zone width
