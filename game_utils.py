@@ -13,6 +13,14 @@ from functools import lru_cache
 
 import jellyfish
 
+# Base directory: next to the executable (frozen) or next to this file (dev)
+if getattr(sys, 'frozen', False):
+    _base_dir = os.path.dirname(sys.executable)
+else:
+    _base_dir = os.path.dirname(os.path.abspath(__file__))
+
+VAR_FONTS_DIR = os.path.join(_base_dir, 'var', 'fonts')
+
 # Helper function to find external tools (Windows-aware)
 def find_tool(tool_name, windows_exe=None):
     """

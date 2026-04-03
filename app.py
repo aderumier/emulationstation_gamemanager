@@ -29350,7 +29350,7 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 # Create logo using ImageMagick caption: with transparent background for multi-line support
                 # Check if font is a custom font from var/fonts/
                 font_path = font
-                custom_fonts_dir = 'var/fonts'
+                custom_fonts_dir = os.path.join(_base_dir, 'var', 'fonts')
                 if os.path.exists(custom_fonts_dir):
                     # Check if font file exists in custom fonts directory
                     font_extensions = ['.ttf', '.otf', '.woff', '.woff2', '.ttc', '.eot']
@@ -32474,7 +32474,7 @@ def generate_logo_preview():
             # Step 1: Generate base text with caption: for multi-line support
             # Check if font is a custom font from var/fonts/
             font_path = font
-            custom_fonts_dir = 'var/fonts'
+            custom_fonts_dir = os.path.join(_base_dir, 'var', 'fonts')
             if os.path.exists(custom_fonts_dir):
                 # Check if font file exists in custom fonts directory
                 font_extensions = ['.ttf', '.otf', '.woff', '.woff2', '.ttc', '.eot']
@@ -32588,7 +32588,7 @@ def list_fonts():
         font_families = set()
         
         # Only scan var/fonts/ directory for custom fonts
-        custom_fonts_dir = 'var/fonts'
+        custom_fonts_dir = os.path.join(_base_dir, 'var', 'fonts')
         if os.path.exists(custom_fonts_dir):
             try:
                 # Supported font file extensions

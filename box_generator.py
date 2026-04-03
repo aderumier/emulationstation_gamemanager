@@ -32,6 +32,10 @@ def _imagemagick_cmd(subcommand):
     from game_utils import get_imagemagick_cmd
     return get_imagemagick_cmd(subcommand)
 
+def _get_fonts_dir():
+    from game_utils import VAR_FONTS_DIR
+    return VAR_FONTS_DIR
+
 class BoxGenerator:
     def __init__(self, width=600, height=800, logo_position="north", logo_offset="+0+60", 
                  gradient_height=400, border_size=2, border_color="#333333", 
@@ -192,7 +196,7 @@ class BoxGenerator:
             
             # Check for custom font
             font_path = font
-            custom_fonts_dir = 'var/fonts'
+            custom_fonts_dir = _get_fonts_dir()
             if os.path.exists(custom_fonts_dir):
                 font_extensions = ['.ttf', '.otf', '.woff', '.woff2', '.ttc', '.eot']
                 for ext in font_extensions:
@@ -879,7 +883,7 @@ class BoxGenerator:
                     
                     # Check for custom font
                     font_path = font
-                    custom_fonts_dir = 'var/fonts'
+                    custom_fonts_dir = _get_fonts_dir()
                     if os.path.exists(custom_fonts_dir):
                         font_extensions = ['.ttf', '.otf', '.woff', '.woff2', '.ttc', '.eot']
                         for ext in font_extensions:
