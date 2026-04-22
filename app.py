@@ -14495,44 +14495,13 @@ def download_multiscraper_media_endpoint():
                 success = download_and_save_media(media_url, game, media_type, system_name)
         
         if success:
-            # Verify media file was actually written before updating gamelist
-            media_field_value = game.get(media_type, '')
-            if media_field_value:
-                # media_field_value is like ./media/fanarts/foo.jpg — resolve to absolute
-                rel_part = media_field_value.lstrip('./')
-                abs_media_path = os.path.abspath(os.path.join(ROMS_FOLDER, system_name, rel_part))
-            else:
-                abs_media_path = None
-
-            abs_gamelist_path = os.path.abspath(gamelist_path)
-            abs_roms_folder = os.path.abspath(ROMS_FOLDER)
-            cwd = os.getcwd()
-
-            print(f"🔧 DEBUG write check: cwd={cwd}")
-            print(f"🔧 DEBUG write check: abs_roms_folder={abs_roms_folder}")
-            print(f"🔧 DEBUG write check: abs_media_path={abs_media_path}")
-            print(f"🔧 DEBUG write check: media_file_exists={os.path.exists(abs_media_path) if abs_media_path else 'N/A'}")
-            print(f"🔧 DEBUG write check: abs_gamelist_path={abs_gamelist_path}")
-            print(f"🔧 DEBUG write check: game[{media_type}]={media_field_value}")
-
             # Update the gamelist
             write_gamelist_xml(games, gamelist_path)
-            print(f"🔧 DEBUG write check: gamelist written, file_size={os.path.getsize(abs_gamelist_path)}")
 
             # Notify all connected clients about the game update
             notify_game_updated(system_name, game.get('path', ''), [media_type])
 
-            return jsonify({
-                'success': True,
-                'message': 'Media downloaded successfully',
-                'debug': {
-                    'cwd': cwd,
-                    'roms_folder': abs_roms_folder,
-                    'media_file': abs_media_path,
-                    'media_file_exists': os.path.exists(abs_media_path) if abs_media_path else None,
-                    'gamelist_path': abs_gamelist_path,
-                }
-            })
+            return jsonify({'success': True, 'message': 'Media downloaded successfully'})
         else:
             return jsonify({'error': 'Failed to download media'}), 500
         
