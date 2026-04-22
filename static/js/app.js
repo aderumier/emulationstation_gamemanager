@@ -8477,6 +8477,7 @@ class GameCollectionManager {
             const requestBody = {
                 media_url: mediaUrl,
                 game_name: game.name,
+                rom_path: game.path,
                 media_type: mediaType,
                 system_name: this.currentSystem
             };
@@ -40128,6 +40129,7 @@ class GameCollectionManager {
                 },
                 body: JSON.stringify({
                     game_name: game.name,
+                    rom_path: game.path,
                     system_name: this.currentFanartSearchSystem,
                     media_type: fieldType,
                     media_url: fanartUrl
@@ -40198,6 +40200,7 @@ class GameCollectionManager {
                 body: JSON.stringify({
                     image_url: imageUrl,
                     game_name: this.currentGoogleImagesSearchGame.name,
+                    rom_path: this.currentGoogleImagesSearchGame.path,
                     system_name: this.currentGoogleImagesSearchSystem,
                     media_type: this.currentGoogleImagesSearchMediaType || 'fanart'
                 })
@@ -40304,6 +40307,7 @@ class GameCollectionManager {
                 body: JSON.stringify({
                     image_url: imageUrl,
                     game_name: this.currentGoogleImagesSearchGame.name,
+                    rom_path: this.currentGoogleImagesSearchGame.path,
                     system_name: this.currentGoogleImagesSearchSystem,
                     media_type: this.currentGoogleImagesSearchMediaType || 'fanart'
                 })
@@ -40821,6 +40825,7 @@ class GameCollectionManager {
                 },
                 body: JSON.stringify({
                     game_name: game.name,
+                    rom_path: game.path,
                     system_name: this.currentMarqueeSearchSystem,
                     media_type: 'marquee',
                     media_url: marqueeUrl

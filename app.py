@@ -13917,6 +13917,24 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
     return results
 
 
+def resolve_game_for_media_request(games, rom_path=None):
+    """Resolve a game from a parsed gamelist using ROM path only."""
+    if not rom_path:
+        return None, {
+            'error': 'rom_path is required',
+            'requires_rom_path': True
+        }, 400
+
+    game = next((g for g in games if g.get('path') == rom_path), None)
+    if game:
+        return game, None, None
+
+    return None, {
+        'error': f'Game not found with ROM path: {rom_path}',
+        'requires_rom_path': True
+    }, 404
+
+
 @app.route('/api/download-multiscraper-media', methods=['POST'])
 @login_required
 def download_multiscraper_media_endpoint():
@@ -13930,13 +13948,14 @@ def download_multiscraper_media_endpoint():
         game_name = data.get('game_name')
         media_type = data.get('media_type')
         system_name = data.get('system_name')
+        rom_path = data.get('rom_path')
         screenscraper_id = data.get('screenscraper_id')
         screenscraper_system_id = data.get('screenscraper_system_id')
         urls_array = data.get('urls')  # Array of URLs for PDF/CBZ creation
         target_extension = data.get('target_extension')  # Target extension (.pdf or .cbz)
         
-        if not all([media_url, game_name, media_type, system_name]):
-            return jsonify({'error': 'Media URL, game name, media type, and system name are required'}), 400
+        if not all([media_url, media_type, system_name, rom_path]):
+            return jsonify({'error': 'Media URL, rom_path, media type, and system name are required'}), 400
         
         print(f"🔧 DEBUG: Downloading multiscraper media - URL: {media_url}, Game: {game_name}, Type: {media_type}, System: {system_name}")
         
@@ -13949,11 +13968,14 @@ def download_multiscraper_media_endpoint():
         
         games = parse_gamelist_xml(gamelist_path)
         print(f"🔧 DEBUG: Parsed {len(games)} games from gamelist")
-        game = next((g for g in games if g.get('name') == game_name), None)
-        
+        game, lookup_error, lookup_status = resolve_game_for_media_request(
+            games,
+            rom_path=rom_path
+        )
+
         if not game:
-            print(f"🔧 DEBUG: Game '{game_name}' not found in gamelist")
-            return jsonify({'error': 'Game not found in gamelist'}), 404
+            print(f"🔧 DEBUG: Failed to resolve game '{game_name}' with rom_path '{rom_path}': {lookup_error}")
+            return jsonify(lookup_error), lookup_status
         
         print(f"🔧 DEBUG: Found game: {game.get('name')} with path: {game.get('path')}")
         
@@ -14501,7 +14523,11 @@ def download_multiscraper_media_endpoint():
             # Notify all connected clients about the game update
             notify_game_updated(system_name, game.get('path', ''), [media_type])
 
-            return jsonify({'success': True, 'message': 'Media downloaded successfully'})
+            return jsonify({
+                'success': True,
+                'message': 'Media downloaded successfully',
+                'matched_rom_path': game.get('path', '')
+            })
         else:
             return jsonify({'error': 'Failed to download media'}), 500
         
@@ -23937,7 +23963,7 @@ def youtube_search():
         print(f"YouTube search error: {e}")
         return jsonify({'error': str(e)}), 500
 
-def download_media_from_url(media_url, game_name, system_name, media_type='fanart'):
+def download_media_from_url(media_url, rom_path, system_name, media_type='fanart'):
     """Download media from URL and save it to the appropriate media directory"""
     import requests
     import os
@@ -23968,17 +23994,8 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
         os.makedirs(media_directory, exist_ok=True)
         print(f"🔧 DEBUG: Created media directory: {media_directory}")
         
-        # Get ROM filename without extension and use target extension
         gamelist_path = get_gamelist_path(system_name)
-        rom_filename_without_extension = None
-        if os.path.exists(gamelist_path):
-            games = parse_gamelist_xml(gamelist_path)
-            for game in games:
-                if game.get('name') == game_name:
-                    rom_path = game.get('path', '')
-                    if rom_path:
-                        rom_filename_without_extension = os.path.splitext(os.path.basename(rom_path))[0]
-                    break
+        rom_filename_without_extension = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else None
         
         
         # Set headers to mimic a real browser
@@ -24025,7 +24042,7 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
         
         # Create filename: <romfilename_without_extension>.<extension>
         if not rom_filename_without_extension:
-            return {'success': False, 'error': f'ROM path not found for game "{game_name}" in system "{system_name}". Cannot determine media filename.'}
+            return {'success': False, 'error': f'ROM path not found for system "{system_name}". Cannot determine media filename.'}
         
         media_filename = f"{rom_filename_without_extension}{file_extension}"
         
@@ -24079,10 +24096,10 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
         gamelist_path = get_gamelist_path(system_name)
         if os.path.exists(gamelist_path):
             games = parse_gamelist_xml(gamelist_path)
-            print(f"🔧 DEBUG: Looking for game: '{game_name}' in {len(games)} games")
-            game = next((g for g in games if g.get('name') == game_name), None)
+            print(f"🔧 DEBUG: Looking for rom_path: '{rom_path}' in {len(games)} games")
+            game = next((g for g in games if g.get('path') == rom_path), None)
             if game:
-                print(f"🔧 DEBUG: Found game: {game.get('name')}")
+                print(f"🔧 DEBUG: Found game: {game.get('name')} ({game.get('path')})")
                 # Update game object in memory (same pattern as other scrapers)
                 media_subdirectory = media_fields[media_type].get('directory', media_type) if media_type in media_fields else media_type
                 relative_path = f"./media/{media_subdirectory}/{os.path.basename(file_path)}".replace('\\', '/')
@@ -24097,16 +24114,15 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
                 notify_game_updated(system_name, game.get('path', ''), [media_type])
                 print(f"🔧 DEBUG: Notified clients of update")
             else:
-                print(f"🔧 DEBUG: Game '{game_name}' not found in gamelist")
-                # List some game names for debugging
-                game_names = [g.get('name', 'Unknown') for g in games[:5]]
-                print(f"🔧 DEBUG: Available games (first 5): {game_names}")
+                print(f"🔧 DEBUG: Game with rom_path '{rom_path}' not found in gamelist")
+                return {'success': False, 'error': f'Game not found with ROM path: {rom_path}'}
         
         return {
             'success': True,
             'file_path': file_path,
             'filename': os.path.basename(file_path),
-            'gamelist_updated': True
+            'gamelist_updated': True,
+            'matched_rom_path': rom_path
         }
         
     except requests.exceptions.RequestException as e:
@@ -24125,17 +24141,17 @@ def download_media_from_url_endpoint():
     try:
         data = request.get_json()
         image_url = data.get('image_url', '').strip()
-        game_name = data.get('game_name', '').strip()
+        rom_path = data.get('rom_path', '').strip()
         system_name = data.get('system_name', '').strip()
         media_type = data.get('media_type', 'fanart')
         
-        if not image_url or not game_name or not system_name:
-            return jsonify({'error': 'Image URL, game name, and system name are required'}), 400
+        if not image_url or not rom_path or not system_name:
+            return jsonify({'error': 'Image URL, rom_path, and system name are required'}), 400
         
         print(f"🔧 DEBUG: Downloading Google Image: {image_url[:50]}...")
         
         # Download the media
-        result = download_media_from_url(image_url, game_name, system_name, media_type)
+        result = download_media_from_url(image_url, rom_path, system_name, media_type)
         
         if result.get('success'):
             return jsonify({
@@ -24143,7 +24159,8 @@ def download_media_from_url_endpoint():
                 'message': f'Successfully downloaded: {result.get("filename")}',
                 'file_path': result.get('file_path'),
                 'filename': result.get('filename'),
-                'gamelist_updated': result.get('gamelist_updated')
+                'gamelist_updated': result.get('gamelist_updated'),
+                'matched_rom_path': result.get('matched_rom_path')
             })
         else:
             return jsonify({
