@@ -32,6 +32,95 @@ from game_utils import normalize_game_name, calculate_similarity
 # Lightweight namedtuple for search index entries
 GameItem = namedtuple('GameItem', ['name', 'normalized', 'game_id'])
 
+# Module-level selenium driver for MobyGames (reused across calls)
+_mobygames_selenium_driver = None
+
+def _is_mobygames_bot_protected(text):
+    """Check if a response contains bot protection markers"""
+    bot_patterns = [
+        "Just a moment",
+        "Checking your browser",
+        "Making sure you're not a bot",
+        "Enable JavaScript and cookies to continue",
+    ]
+    return any(p in text for p in bot_patterns)
+
+def _get_mobygames_page_selenium(url):
+    """Fetch a MobyGames page using Selenium to bypass bot protection"""
+    _logger = logging.getLogger(__name__)
+    global _mobygames_selenium_driver
+
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from bs4 import BeautifulSoup
+    except ImportError as e:
+        _logger.error(f"Selenium not available for MobyGames: {e}")
+        return None
+
+    if _mobygames_selenium_driver is None:
+        try:
+            options = Options()
+            options.add_argument('--headless')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-gpu')
+            options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+            _mobygames_selenium_driver = webdriver.Chrome(options=options)
+            _mobygames_selenium_driver.set_page_load_timeout(30)
+            _logger.info("Selenium WebDriver initialized for MobyGames")
+        except Exception as e:
+            _logger.error(f"Failed to initialize Selenium for MobyGames: {e}")
+            return None
+
+    try:
+        _logger.info(f"Fetching MobyGames page with Selenium: {url}")
+        _mobygames_selenium_driver.get(url)
+
+        WebDriverWait(_mobygames_selenium_driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+
+        page_source = _mobygames_selenium_driver.page_source
+        if _is_mobygames_bot_protected(page_source):
+            _logger.info("Bot protection detected on MobyGames, waiting for challenge to complete...")
+            for _ in range(30):
+                time.sleep(1)
+                page_source = _mobygames_selenium_driver.page_source
+                if not _is_mobygames_bot_protected(page_source):
+                    break
+            else:
+                _logger.error("MobyGames bot challenge did not complete within 30 seconds")
+                return None
+
+        time.sleep(2)
+        from bs4 import BeautifulSoup
+        return BeautifulSoup(_mobygames_selenium_driver.page_source, 'html.parser')
+
+    except Exception as e:
+        _logger.error(f"Selenium error fetching MobyGames page {url}: {e}")
+        return None
+
+def _fetch_mobygames_soup(url, headers):
+    """Fetch a MobyGames page, falling back to Selenium if bot-protected"""
+    import httpx
+    from bs4 import BeautifulSoup
+    _logger = logging.getLogger(__name__)
+
+    try:
+        with httpx.Client(headers=headers, timeout=15.0, follow_redirects=True) as client:
+            response = client.get(url)
+            if response.status_code == 200 and not _is_mobygames_bot_protected(response.text):
+                return BeautifulSoup(response.text, 'html.parser')
+            _logger.info(f"MobyGames httpx request blocked (status={response.status_code}), falling back to Selenium")
+    except Exception as e:
+        _logger.warning(f"MobyGames httpx request failed: {e}, falling back to Selenium")
+
+    return _get_mobygames_page_selenium(url)
+
 class MobyGamesService:
     def __init__(self, config: Dict, scrappers_config: Dict = None, systems_config: Dict = None):
         self.config = config
@@ -422,11 +511,8 @@ class MobyGamesService:
     def scrape_additional_text_fields(self, game_id: int, mobygames_system: str) -> Dict[str, Any]:
         """Scrape additional text fields from MobyGames game page"""
         try:
-            import httpx
-            from bs4 import BeautifulSoup
             import random
-            import time
-            
+
             # Get game data
             if mobygames_system not in self.databases:
                 return {}
@@ -471,108 +557,96 @@ class MobyGamesService:
             
             # Add random delay
             time.sleep(random.uniform(0.5, 1.5))
-            
-            with httpx.Client(headers=headers, timeout=15.0, follow_redirects=True) as client:
-                response = client.get(game_url)
-                
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    
-                    # Extract text fields
-                    text_fields = {}
-                    
-                    # Extract description
-                    desc_section = soup.find('section', id='gameDescription')
-                    if desc_section:
-                        desc_div = desc_section.find('div', id='description-text')
-                        if desc_div:
-                            # Get all text content, preserving structure
-                            description = desc_div.get_text(separator=' ', strip=True)
-                            text_fields['description'] = description
-                    
-                    # Extract publisher and developer (platform-specific)
-                    publishers = []
-                    developers = []
-                    
-                    # Find the metadata dl element
-                    metadata_dl = soup.find('dl', class_='metadata')
-                    if metadata_dl:
-                        # Find Publishers dt element
-                        publishers_dt = metadata_dl.find('dt', string=lambda text: text and text.strip().lower() == 'publishers')
-                        if publishers_dt:
-                            publishers_dd = publishers_dt.find_next_sibling('dd')
-                            if publishers_dd:
-                                publisher_links = publishers_dd.find_all('a', href=lambda x: x and '/company/' in x)
-                                for link in publisher_links:
-                                    popover_data = link.get('data-popover')
-                                    if popover_data:
-                                        try:
-                                            import json as json_lib
-                                            popover_info = json_lib.loads(popover_data)
-                                            platforms = popover_info.get('platforms', [])
-                                            
-                                            # Check if our platform is in the list
-                                            if mobygames_system in platforms:
-                                                company_name = link.get_text(strip=True)
-                                                publishers.append(company_name)
-                                        except Exception as e:
-                                            continue
-                                    else:
-                                        # If no popover data, add the company anyway
-                                        company_name = link.get_text(strip=True)
-                                        publishers.append(company_name)
-                        
-                        # Find Developers dt element
-                        developers_dt = metadata_dl.find('dt', string=lambda text: text and text.strip().lower() == 'developers')
-                        if developers_dt:
-                            developers_dd = developers_dt.find_next_sibling('dd')
-                            if developers_dd:
-                                developer_links = developers_dd.find_all('a', href=lambda x: x and '/company/' in x)
-                                for link in developer_links:
-                                    popover_data = link.get('data-popover')
-                                    if popover_data:
-                                        try:
-                                            import json as json_lib
-                                            popover_info = json_lib.loads(popover_data)
-                                            platforms = popover_info.get('platforms', [])
-                                            
-                                            # Check if our platform is in the list
-                                            if mobygames_system in platforms:
-                                                company_name = link.get_text(strip=True)
-                                                developers.append(company_name)
-                                        except Exception as e:
-                                            self.logger.debug(f"Error parsing developer popover data: {e}")
-                                            continue
-                                    else:
-                                        # If no popover data, add the company anyway
-                                        company_name = link.get_text(strip=True)
-                                        developers.append(company_name)
-                    
-                    # Join multiple publishers/developers
-                    if publishers:
-                        text_fields['publisher'] = ', '.join(publishers)
-                    if developers:
-                        text_fields['developer'] = ', '.join(developers)
-                    
-                    # Extract number of votes
-                    reviews_links = soup.find_all('a', href=lambda x: x and '/reviews/' in x)
-                    for reviews_link in reviews_links:
-                        votes_text = reviews_link.get_text(strip=True)
-                        try:
-                            votes = int(votes_text)
-                            text_fields['nbvotes'] = votes
-                            break  # Found a valid number, stop looking
-                        except ValueError:
-                            continue
-                    
-                    # Cache the results
-                    self._cache_text_fields(game_id, text_fields)
-                    
-                    return text_fields
-                
-                else:
-                    self.logger.warning(f"Failed to load game page: {response.status_code}")
-                    return {}
+
+            soup = _fetch_mobygames_soup(game_url, headers)
+            if soup:
+                # Extract text fields
+                text_fields = {}
+
+                # Extract description
+                desc_section = soup.find('section', id='gameDescription')
+                if desc_section:
+                    desc_div = desc_section.find('div', id='description-text')
+                    if desc_div:
+                        description = desc_div.get_text(separator=' ', strip=True)
+                        text_fields['description'] = description
+
+                # Extract publisher and developer (platform-specific)
+                publishers = []
+                developers = []
+
+                # Find the metadata dl element
+                metadata_dl = soup.find('dl', class_='metadata')
+                if metadata_dl:
+                    # Find Publishers dt element
+                    publishers_dt = metadata_dl.find('dt', string=lambda text: text and text.strip().lower() == 'publishers')
+                    if publishers_dt:
+                        publishers_dd = publishers_dt.find_next_sibling('dd')
+                        if publishers_dd:
+                            publisher_links = publishers_dd.find_all('a', href=lambda x: x and '/company/' in x)
+                            for link in publisher_links:
+                                popover_data = link.get('data-popover')
+                                if popover_data:
+                                    try:
+                                        import json as json_lib
+                                        popover_info = json_lib.loads(popover_data)
+                                        platforms = popover_info.get('platforms', [])
+                                        if mobygames_system in platforms:
+                                            company_name = link.get_text(strip=True)
+                                            publishers.append(company_name)
+                                    except Exception:
+                                        continue
+                                else:
+                                    company_name = link.get_text(strip=True)
+                                    publishers.append(company_name)
+
+                    # Find Developers dt element
+                    developers_dt = metadata_dl.find('dt', string=lambda text: text and text.strip().lower() == 'developers')
+                    if developers_dt:
+                        developers_dd = developers_dt.find_next_sibling('dd')
+                        if developers_dd:
+                            developer_links = developers_dd.find_all('a', href=lambda x: x and '/company/' in x)
+                            for link in developer_links:
+                                popover_data = link.get('data-popover')
+                                if popover_data:
+                                    try:
+                                        import json as json_lib
+                                        popover_info = json_lib.loads(popover_data)
+                                        platforms = popover_info.get('platforms', [])
+                                        if mobygames_system in platforms:
+                                            company_name = link.get_text(strip=True)
+                                            developers.append(company_name)
+                                    except Exception as e:
+                                        self.logger.debug(f"Error parsing developer popover data: {e}")
+                                        continue
+                                else:
+                                    company_name = link.get_text(strip=True)
+                                    developers.append(company_name)
+
+                # Join multiple publishers/developers
+                if publishers:
+                    text_fields['publisher'] = ', '.join(publishers)
+                if developers:
+                    text_fields['developer'] = ', '.join(developers)
+
+                # Extract number of votes
+                reviews_links = soup.find_all('a', href=lambda x: x and '/reviews/' in x)
+                for reviews_link in reviews_links:
+                    votes_text = reviews_link.get_text(strip=True)
+                    try:
+                        votes = int(votes_text)
+                        text_fields['nbvotes'] = votes
+                        break
+                    except ValueError:
+                        continue
+
+                # Cache the results
+                self._cache_text_fields(game_id, text_fields)
+
+                return text_fields
+            else:
+                self.logger.warning(f"Failed to load game page for game {game_id}")
+                return {}
                     
         except Exception as e:
             self.logger.error(f"Error scraping additional text fields for game {game_id}: {e}")
