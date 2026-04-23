@@ -5140,6 +5140,15 @@ class GameCollectionManager {
         }
         document.getElementById('currentSystemName').textContent = this.currentSystem;
 
+        // Reset waiting/contents state in case previous move left it in waiting state
+        const waitingEl = document.getElementById('directoryMoveWaiting');
+        const contentsEl = document.getElementById('directoryContents');
+        const modalEl = document.getElementById('directoryExplorerModal');
+        const cancelBtn = modalEl ? modalEl.querySelector('.modal-footer .btn-secondary') : null;
+        if (waitingEl) waitingEl.classList.add('d-none');
+        if (contentsEl) contentsEl.classList.remove('d-none');
+        if (cancelBtn) cancelBtn.disabled = false;
+
         // Create and show the directory explorer modal
         const modal = new bootstrap.Modal(document.getElementById('directoryExplorerModal'));
         modal.show();
@@ -7471,6 +7480,7 @@ class GameCollectionManager {
                 credentials: 'include',
                 body: JSON.stringify({
                     game_name: game.name,
+                    rom_path: game.path,
                     media_type: mediaType,
                     system_name: this.currentSystem,
                     scrapers: selectedScraper
@@ -42033,7 +42043,7 @@ class GameCollectionManager {
                 },
                 body: JSON.stringify({
                     system_name: this.currentSystem,
-                    game_name: game.name,
+                    rom_path: game.path,
                     source_field: field,
                     target_field: targetField,
                     overwrite: overwrite
@@ -42064,7 +42074,7 @@ class GameCollectionManager {
                 await this.refreshGameGridWithData();
 
                 // Refresh media preview with updated game data
-                const updatedGame = this.games.find(g => g.name === game.name);
+                const updatedGame = this.games.find(g => g.path === game.path);
                 if (updatedGame) {
                     this.showMediaPreview(updatedGame);
                 }
