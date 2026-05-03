@@ -1871,6 +1871,7 @@ def delete_orphan_media_files(system_name):
         # Walk through the media directory and find orphaned files
         all_files = []
         for root_dir, dirs, files in os.walk(media_dir):
+            dirs[:] = [d for d in dirs if d != '.zfs']
             for file in files:
                 file_path = os.path.join(root_dir, file)
                 all_files.append(file_path)
@@ -4581,6 +4582,8 @@ def find_existing_rom(system_path, filename):
         # Skip media directory
         if 'media' in dirs:
             dirs.remove('media')
+        if '.zfs' in dirs:
+            dirs.remove('.zfs')
         
         # Check for exact filename match (case-sensitive filesystem)
         if filename_basename in files:
@@ -4609,6 +4612,8 @@ def find_existing_rom_by_stem(system_path, filename):
     for root, dirs, files in os.walk(system_path):
         if 'media' in dirs:
             dirs.remove('media')
+        if '.zfs' in dirs:
+            dirs.remove('.zfs')
 
         for file in files:
             file_stem, file_ext = os.path.splitext(file)
@@ -4701,6 +4706,7 @@ def run_import_roms_task(system_name, source_directory, task_id):
         # Walk source directory recursively to find all files
         rom_files = []
         for root, dirs, files in os.walk(source_dir):
+            dirs[:] = [d for d in dirs if d != '.zfs']
             for filename in files:
                 file_path = os.path.join(root, filename)
                 if os.path.isfile(file_path):
@@ -4916,6 +4922,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
         media_files = []
         directories_searched = set()
         for root, dirs, files in os.walk(source_dir):
+            dirs[:] = [d for d in dirs if d != '.zfs']
             directories_searched.add(os.path.relpath(root, source_dir))
             for filename in files:
                 file_path = os.path.join(root, filename)
@@ -11692,7 +11699,8 @@ def rom_system_gamelist(system_name):
                                 
                             # Check if any valid ROMs remain in this directory hierarchy
                             has_roms = False
-                            for root, _, files in os.walk(parent_dir):
+                            for root, dirs, files in os.walk(parent_dir):
+                                dirs[:] = [d for d in dirs if d != '.zfs']
                                 for file in files:
                                     if any(file.endswith(ext) for ext in rom_extensions):
                                         has_roms = True
