@@ -4594,6 +4594,34 @@ def find_existing_rom(system_path, filename):
     
     return None
 
+def find_existing_rom_by_stem(system_path, filename):
+    """Search for an existing ROM file or directory with the same stem but a different extension.
+
+    Excludes the media subdirectory. Used to detect cases where e.g. 'game.zip' should
+    replace an existing 'game.nes' or a directory named 'game'.
+
+    Returns:
+        Full path to the existing ROM (file or directory) if found, None otherwise
+    """
+    stem = os.path.splitext(os.path.basename(filename))[0].lower()
+    new_ext = os.path.splitext(filename)[1].lower()
+
+    for root, dirs, files in os.walk(system_path):
+        if 'media' in dirs:
+            dirs.remove('media')
+
+        for file in files:
+            file_stem, file_ext = os.path.splitext(file)
+            if file_stem.lower() == stem and file_ext.lower() != new_ext:
+                return os.path.join(root, file)
+
+        # Check for a directory whose name matches the stem (directory-based ROMs)
+        for d in dirs[:]:
+            if d.lower() == stem:
+                return os.path.join(root, d)
+
+    return None
+
 def create_minimal_game_entry(rom_path, system_name):
     """Create a minimal game entry for gamelist.xml (only for new ROMs, not replacements)
     
@@ -4645,13 +4673,12 @@ def run_import_roms_task(system_name, source_directory, task_id):
         
         task.update_progress(f"Supported ROM extensions: {', '.join(rom_extensions)}")
         
-        # Load gamelist from ROMs directory (since we're working with ROMs there)
+        # Load gamelist from var/gamelists (the app's authoritative gamelist)
         games = []  # Initialize games list
-        gamelist_path = get_roms_gamelist_path(system_name)
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             # Create empty gamelist if it doesn't exist
             os.makedirs(os.path.dirname(gamelist_path), exist_ok=True)
-            # Create empty gamelist
             root = ET.Element('gameList')
             tree = ET.ElementTree(root)
             tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
@@ -4707,20 +4734,63 @@ def run_import_roms_task(system_name, source_directory, task_id):
             try:
                 task.update_progress(f"Processing {i+1}/{len(rom_files)}: {filename}")
                 
-                # Search for existing ROM
+                # Search for existing ROM (exact filename match)
                 existing_rom_path = find_existing_rom(system_path, filename)
-                
+                # If no exact match, look for same stem with a different extension
+                existing_rom_by_stem = None if existing_rom_path else find_existing_rom_by_stem(system_path, filename)
+
                 if existing_rom_path:
-                    # ROM exists - replace it
+                    # Exact filename match - replace file in-place (no gamelist update needed)
                     try:
-                        # Delete old file
                         if os.path.exists(existing_rom_path):
                             os.remove(existing_rom_path)
-                        
-                        # Move new file to same location
                         shutil.move(file_path, existing_rom_path)
                         replaced_count += 1
                         task.update_progress(f"  ✅ Replaced: {filename}")
+                    except Exception as e:
+                        error_count += 1
+                        task.update_progress(f"  ❌ Error replacing {filename}: {str(e)}")
+                elif existing_rom_by_stem:
+                    # Same stem, different extension (or was a directory) - replace and update gamelist
+                    try:
+                        old_basename = os.path.basename(existing_rom_by_stem)
+                        existing_parent = os.path.dirname(existing_rom_by_stem)
+                        # Record before deletion so we can use it in path matching below
+                        is_dir_rom = os.path.isdir(existing_rom_by_stem)
+
+                        # Delete old ROM file or directory (media is untouched)
+                        if is_dir_rom:
+                            shutil.rmtree(existing_rom_by_stem)
+                        else:
+                            os.remove(existing_rom_by_stem)
+
+                        # Move new file into the same parent directory
+                        target_path = os.path.join(existing_parent, filename)
+                        shutil.move(file_path, target_path)
+
+                        # Compute relative paths from the system ROM folder (var gamelist convention)
+                        old_rel = os.path.relpath(existing_rom_by_stem, system_path).replace('\\', '/')
+                        new_rel = os.path.relpath(target_path, system_path).replace('\\', '/')
+
+                        def _norm(p):
+                            return p.replace('\\', '/').removeprefix('./').rstrip('/')
+
+                        old_norm = _norm(old_rel)
+
+                        # Update the gamelist entry.
+                        # For directory-based ROMs the stored path is inside the directory
+                        # (e.g. './DirName/file.sfc'), so we match any path that equals
+                        # old_norm OR starts with old_norm + '/'.
+                        for game in games:
+                            gp = game.get('path', '')
+                            gp_norm = _norm(gp)
+                            if gp_norm == old_norm or (is_dir_rom and gp_norm.startswith(old_norm + '/')):
+                                game['path'] = f"./{new_rel}"
+                                new_entries_added = True
+                                break
+
+                        replaced_count += 1
+                        task.update_progress(f"  ✅ Replaced (ext changed): {old_basename} → {filename}")
                     except Exception as e:
                         error_count += 1
                         task.update_progress(f"  ❌ Error replacing {filename}: {str(e)}")
@@ -4737,24 +4807,16 @@ def run_import_roms_task(system_name, source_directory, task_id):
                         
                         shutil.move(file_path, target_path)
                         
-                        # Create relative path for gamelist (relative to gamelist.xml location)
-                        gamelist_dir = os.path.dirname(gamelist_path)
-                        rel_rom_path = os.path.relpath(target_path, gamelist_dir)
-                        # Normalize path separators for cross-platform compatibility
-                        rel_rom_path = rel_rom_path.replace('\\', '/')
-                        
-                        # Also create alternative path formats for comparison
-                        rel_rom_path_alt1 = f"./{rel_rom_path}" if not rel_rom_path.startswith('./') else rel_rom_path
-                        rel_rom_path_alt2 = rel_rom_path.removeprefix('./')
-                        
+                        # Create relative path for gamelist (relative to system ROM folder, var gamelist convention)
+                        rel_rom_path = f"./{os.path.relpath(target_path, system_path)}".replace('\\', '/')
+                        rel_rom_path_bare = rel_rom_path.removeprefix('./')
+
                         # Check if game entry already exists in gamelist (check multiple path formats)
                         game_exists = False
                         for game in games:
-                            game_path = game.get('path', '')
+                            game_path = game.get('path', '').replace('\\', '/')
                             if game_path:
-                                # Normalize path for comparison
-                                game_path = game_path.replace('\\', '/')
-                                if game_path == rel_rom_path or game_path == rel_rom_path_alt1 or game_path == rel_rom_path_alt2:
+                                if game_path.removeprefix('./') == rel_rom_path_bare:
                                     game_exists = True
                                     break
                                 # Also check by filename (in case path format differs)
@@ -5946,7 +6008,6 @@ def run_image_download_task(system_name, data):
         
         # Extract parameters from data
         print(f"🔧 DEBUG: [TASK START] data parameter: {data}")
-        game_name = data.get('game_name') if data else None
         selected_games = data.get('selected_games') if data else None
         rom_paths = data.get('rom_paths') if data else None
         force_download = data.get('force_download', False) if data else False
@@ -5981,13 +6042,6 @@ def run_image_download_task(system_name, data):
                 task.complete(False, f'None of the selected ROM files found in gamelist')
                 return
             task.update_progress(f"🎯 Processing {len(games_to_process)} selected games out of {len(games)} total games")
-        elif game_name:
-            # Filter to single game if specified (legacy support)
-            games_to_process = [g for g in games if g.get('name') == game_name]
-            if not games_to_process:
-                task.complete(False, f'Game "{game_name}" not found')
-                return
-            task.update_progress(f"🎯 Processing single game: {game_name}")
         else:
             # Process all games if no selection specified
             task.update_progress(f"🎯 Processing all {len(games)} games")
@@ -12941,13 +12995,13 @@ def move_image():
             return jsonify({'error': 'No data provided'}), 400
         
         system_name = data.get('system_name')
-        game_name = data.get('game_name')
+        rom_path = data.get('rom_path')
         source_field = data.get('source_field')
         target_field = data.get('target_field')
         overwrite = data.get('overwrite', False)
         
-        if not all([system_name, game_name, source_field, target_field]):
-            return jsonify({'error': 'System name, game name, source field, and target field are required'}), 400
+        if not all([system_name, rom_path, source_field, target_field]):
+            return jsonify({'error': 'System name, rom_path, source field, and target field are required'}), 400
         
         # Load configuration to get media field directories
         config_path = os.path.join('var', 'config', 'config.json')
@@ -12988,15 +13042,10 @@ def move_image():
         if not games:
             return jsonify({'error': 'No games found in gamelist'}), 400
         
-        # Find the game
-        game = None
-        for g in games:
-            if g.get('name') == game_name:
-                game = g
-                break
-        
+        # Find the game by ROM path
+        game, lookup_error, lookup_status = resolve_game_for_media_request(games, rom_path=rom_path)
         if not game:
-            return jsonify({'error': f'Game "{game_name}" not found in gamelist'}), 404
+            return jsonify(lookup_error), lookup_status
         
         # Check if source field has an image
         if source_field not in game or not game[source_field] or not game[source_field].strip():
@@ -13355,12 +13404,13 @@ def multiscraper_search_endpoint():
             return jsonify({'error': 'No data provided'}), 400
         
         game_name = data.get('game_name')
+        rom_path = data.get('rom_path')
         media_type = data.get('media_type')
         system_name = data.get('system_name')
         scrapers_selection = data.get('scrapers', 'all_excluding_screenscraper')  # Default: exclude screenscraper
         
-        if not all([game_name, media_type, system_name]):
-            return jsonify({'error': 'Game name, media type, and system name are required'}), 400
+        if not all([rom_path, media_type, system_name]):
+            return jsonify({'error': 'rom_path, media type, and system name are required'}), 400
         
         print(f"🔧 DEBUG: Multiscraper search - Game: {game_name}, Media Type: {media_type}, System: {system_name}, Scrapers: {scrapers_selection}")
         
@@ -13387,12 +13437,14 @@ def multiscraper_search_endpoint():
             return jsonify({'error': 'Gamelist not found'}), 404
         
         games = parse_gamelist_xml(gamelist_path)
-        game = next((g for g in games if g.get('name') == game_name), None)
+        game, lookup_error, lookup_status = resolve_game_for_media_request(games, rom_path=rom_path)
         gamelist_end_time = time.time()
         print(f"⏱️ Gamelist parsing took {gamelist_end_time - gamelist_start_time:.3f} seconds")
         
         if not game:
-            return jsonify({'error': 'Game not found in gamelist'}), 404
+            return jsonify(lookup_error), lookup_status
+
+        game_name = game.get('name', game_name)
         
         # Get system configuration
         config_start_time = time.time()
@@ -20252,6 +20304,8 @@ def explore_directory(system_name):
                     relative_path = '/' + relative_path
                 
                 if os.path.isdir(item_path):
+                    if item == '.zfs':
+                        continue
                     directories.append({
                         'name': item,
                         'path': relative_path
@@ -26341,6 +26395,9 @@ def run_rom_scan_task(system_name):
             # Skip only the media directory (contains downloaded media, not ROMs)
             if 'media' in dirs:
                 dirs.remove('media')
+            # Skip ZFS snapshot directory
+            if '.zfs' in dirs:
+                dirs.remove('.zfs')
             
             # Skip hidden directories if configured
             if skip_hidden_dirs:
@@ -39481,34 +39538,35 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                         game = game_data['game']
                         game_name = game_data['name']
                         steam_id = game_data['steam_id']
+                        rom_path = game.get('path', '')
                         
                         # Initialize downloaded_media as empty dict
                         downloaded_media = {}
                         
-                        if game_name in batch_results:
-                            downloaded_media = batch_results[game_name]
+                        if rom_path in batch_results:
+                            downloaded_media = batch_results[rom_path]
+                        
+                        # Update game with downloaded media paths
+                        for media_field, media_path in downloaded_media.items():
+                            game[media_field] = media_path
+                        
+                        # Handle YouTube URL for games that already had Steam IDs
+                        if 'youtubeurl' in selected_fields:
+                            existing_youtube_url = game.get('youtubeurl', '')
+                            print(f"🎥 DEBUG: Processing YouTube URL for existing Steam ID game '{game_name}' (Steam ID: {steam_id})")
+                            print(f"🎥 DEBUG: Existing YouTube URL: '{existing_youtube_url}'")
+                            print(f"🎥 DEBUG: Overwrite text fields: {overwrite_text_fields}")
                             
-                            # Update game with downloaded media paths
-                            for media_field, media_path in downloaded_media.items():
-                                game[media_field] = media_path
-                            
-                            # Handle YouTube URL for games that already had Steam IDs
-                            if 'youtubeurl' in selected_fields:
-                                existing_youtube_url = game.get('youtubeurl', '')
-                                print(f"🎥 DEBUG: Processing YouTube URL for existing Steam ID game '{game_name}' (Steam ID: {steam_id})")
-                                print(f"🎥 DEBUG: Existing YouTube URL: '{existing_youtube_url}'")
-                                print(f"🎥 DEBUG: Overwrite text fields: {overwrite_text_fields}")
-                                
-                                # Only set YouTube URL if it doesn't exist or if overwrite is enabled
-                                if not existing_youtube_url or overwrite_text_fields:
-                                    # Extract actual video URL from Steam store page
-                                    video_url = await extract_steam_video_url(steam_id)
-                                    if video_url:
-                                        game['youtubeurl'] = video_url
-                                        print(f"✅ Set YouTube URL for '{game_name}': {video_url}")
-                                        t = get_task(task_id)
-                                        if t:
-                                            t.log_message(f"Set YouTube URL for '{game_name}': {video_url}")
+                            # Only set YouTube URL if it doesn't exist or if overwrite is enabled
+                            if not existing_youtube_url or overwrite_text_fields:
+                                # Extract actual video URL from Steam store page
+                                video_url = await extract_steam_video_url(steam_id)
+                                if video_url:
+                                    game['youtubeurl'] = video_url
+                                    print(f"✅ Set YouTube URL for '{game_name}': {video_url}")
+                                    t = get_task(task_id)
+                                    if t:
+                                        t.log_message(f"Set YouTube URL for '{game_name}': {video_url}")
                                     else:
                                         # Fallback to store page URL if no video found
                                         store_url = f"https://store.steampowered.com/app/{steam_id}"
@@ -39889,9 +39947,10 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                         for game_data in games_with_steam_ids:
                             game = game_data['game']
                             game_name = game_data['name']
+                            rom_path = game.get('path', '')
                             
-                            if game_name in batch_results:
-                                downloaded_media = batch_results[game_name]
+                            if rom_path in batch_results:
+                                downloaded_media = batch_results[rom_path]
                                 
                                 # Update game with downloaded media paths
                                 for media_field, media_path in downloaded_media.items():
@@ -40381,10 +40440,10 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
                         )
                         
                         # Update games with downloaded media paths
-                        for game_name, media_results in batch_results.items():
+                        for rom_path, media_results in batch_results.items():
                             # Find the corresponding game
                             for game in all_games_to_process:
-                                if game.get('name') == game_name:
+                                if game.get('path') == rom_path:
                                     for media_field, media_path in media_results.items():
                                         game[media_field] = media_path
                                         # Also update the corresponding game in all_games
