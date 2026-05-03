@@ -57,7 +57,7 @@ def find_unused_roms(roms_dir, system_name):
     
     for root, dirs, files in os.walk(system_roms_dir):
         # Skip media directories
-        dirs[:] = [d for d in dirs if d != 'media']
+        dirs[:] = [d for d in dirs if d not in ('media', '.zfs')]
         
         # Get relative path from system roms directory
         rel_root = os.path.relpath(root, system_roms_dir)
