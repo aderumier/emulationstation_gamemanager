@@ -663,6 +663,8 @@ class SteamService:
                     for j, result in enumerate(batch_results):
                         if j < len(batch):
                             game_name = batch[j].get('name', f'Game_{j}')
+                            game = batch[j].get('game', {})
+                            rom_path = game.get('path', f"/roms/{game_name}")
                             
                             if isinstance(result, Exception):
                                 logger.error(f"🔧 DEBUG: Error in batch task {j}: {result}")
@@ -670,7 +672,7 @@ class SteamService:
                                 if progress_callback:
                                     progress_callback(game_name, {})
                             elif result:
-                                results[game_name] = result
+                                results[rom_path] = result
                                 logger.info(f"🔧 DEBUG: Successfully processed Steam media for {game_name}: {result}")
                                 
                                 # Call progress callback for each completed game

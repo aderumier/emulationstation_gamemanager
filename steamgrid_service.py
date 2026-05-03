@@ -709,6 +709,8 @@ class SteamGridService:
                     for j, result in enumerate(batch_results):
                         if j < len(batch):
                             game_name = batch[j].get('name', f'Game_{j}')
+                            game_obj = batch[j].get('game', {})
+                            rom_path = game_obj.get('path', f"/roms/{game_name}")
                             
                             if isinstance(result, Exception):
                                 logger.error(f"🔧 DEBUG: Error in SteamGridDB batch task {j}: {result}")
@@ -716,7 +718,7 @@ class SteamGridService:
                                 if progress_callback:
                                     progress_callback(game_name, {})
                             elif result:
-                                results[game_name] = result
+                                results[rom_path] = result
                                 logger.info(f"🔧 DEBUG: Successfully processed SteamGridDB media for {game_name}")
                                 
                                 # Call progress callback for each completed game
