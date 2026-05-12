@@ -57,6 +57,7 @@ cp emumovies_service.py debian/opt/gamemanager/emumovies_service.py
 cp custom_scraper_service.py debian/opt/gamemanager/custom_scraper_service.py
 cp datscrapper_service.py debian/opt/gamemanager/datscrapper_service.py
 cp launchbox_service.py debian/opt/gamemanager/launchbox_service.py
+cp scan_launchbox_media_types.py debian/opt/gamemanager/scan_launchbox_media_types.py
 cp requirements.txt debian/opt/gamemanager/requirements.txt
 
 # Static files
@@ -260,6 +261,11 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/launchbox_service.py" ]; then
     echo "❌ ERROR: launchbox_service.py not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/scan_launchbox_media_types.py" ]; then
+    echo "❌ ERROR: scan_launchbox_media_types.py not found in package!"
     exit 1
 fi
 
