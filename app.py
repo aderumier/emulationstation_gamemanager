@@ -3619,6 +3619,7 @@ def process_next_queued_task():
         auto_crop = task_data.get('auto_crop', False)
         overwrite_existing = task_data.get('overwrite_existing', False)
         playlist_index = task_data.get('playlist_index', 1)
+        youtube_channel = task_data.get('youtube_channel', '')
         if system_name and selected_games:
             # Use the existing queued task (task_id already set as running in lock above)
             task_id = next_task.get('task_id')
@@ -3632,7 +3633,7 @@ def process_next_queued_task():
                 set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start YouTube download batch in background thread
-            thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index))
+            thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index, youtube_channel))
             thread.daemon = True
             thread.start()
     elif task_type == 'mobygames':
@@ -4666,7 +4667,7 @@ def run_import_roms_task(system_name, source_directory, task_id):
         # Load system configuration to get ROM extensions
         systems_config = load_systems_config()
         system_config = systems_config.get(system_name, {})
-        rom_extensions = system_config.get('extensions', [])
+        rom_extensions = list(system_config.get('extensions', []))
         
         if not rom_extensions:
             task.complete(False, f"System '{system_name}' is not configured with file extensions. Please configure the system first.")
@@ -17373,9 +17374,12 @@ def scan_media_files(system_name):
         
         task.update_progress(f"Found {len(games)} games in gamelist")
         
-        # Load media fields
-        media_fields = media_config.get('media_fields', {})
-        task.update_progress(f"Media fields: {media_fields}")
+        # Load media fields once. This is used for every game, so avoid re-reading
+        # config inside the per-game loop on large collections.
+        config_data = load_config()
+        media_fields = config_data.get('media_fields') or media_config.get('media_fields', {})
+        scraper_media_fields = list(media_fields.keys())
+        task.update_progress(f"Media fields loaded: {len(media_fields)} fields")
         
         # Track changes
         updated_games = 0
@@ -17384,8 +17388,38 @@ def scan_media_files(system_name):
         # Check media directory structure
         media_base_dir = os.path.join(system_path, 'media')
         task.update_progress(f"Media base directory: {media_base_dir}")
+        existing_media_paths = set()
+        media_files_by_type = {}
         if os.path.exists(media_base_dir):
-            task.update_progress(f"Media base directory exists, contents: {os.listdir(media_base_dir)}")
+            try:
+                media_contents = os.listdir(media_base_dir)
+                task.update_progress(f"Media base directory exists, contents: {media_contents}")
+
+                for root, dirs, files in os.walk(media_base_dir):
+                    if '.zfs' in dirs:
+                        dirs.remove('.zfs')
+
+                    for filename in files:
+                        full_path = os.path.join(root, filename)
+                        relative_path = os.path.relpath(full_path, system_path).replace('\\', '/')
+                        existing_media_paths.add(relative_path)
+
+                for field_data in media_fields.values():
+                    media_type = field_data.get('directory')
+                    if not media_type or media_type in media_files_by_type:
+                        continue
+
+                    media_dir = os.path.join(media_base_dir, media_type)
+                    try:
+                        media_files_by_type[media_type] = {
+                            entry.name for entry in os.scandir(media_dir) if entry.is_file()
+                        } if os.path.exists(media_dir) else set()
+                    except (OSError, PermissionError):
+                        media_files_by_type[media_type] = set()
+
+                task.update_progress(f"Indexed {len(existing_media_paths)} media files for fast lookup")
+            except (OSError, PermissionError) as e:
+                task.update_progress(f"Warning: failed to index media directory: {e}")
         else:
             task.update_progress(f"Media base directory does not exist: {media_base_dir}")
         
@@ -17400,11 +17434,8 @@ def scan_media_files(system_name):
             # Extract ROM filename without extension
             rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
             
-            # Ensure all expected media fields exist in the game data
-            # Use the same field names that the scraper expects (from consolidated config.json)
-            config = load_config()
-            media_fields = config.get('media_fields', {})
-            scraper_media_fields = list(media_fields.keys())
+            # Ensure all expected media fields exist in the game data.
+            # Use the same field names that the scraper expects (from consolidated config.json).
             missing_fields = []
             none_fields = []
             
@@ -17432,8 +17463,7 @@ def scan_media_files(system_name):
                     if current_media.startswith('./media/'):
                         # Extract the relative path and check if file exists
                         relative_path = current_media[2:]  # Remove './'
-                        full_path = os.path.join(system_path, relative_path)
-                        if not os.path.exists(full_path):
+                        if relative_path.replace('\\', '/') not in existing_media_paths:
                             # Media file doesn't exist, remove the reference
                             game[gamelist_field] = ''
                             game_updated = True
@@ -17447,17 +17477,14 @@ def scan_media_files(system_name):
                 # Only look for new media if the field is empty
                 if not current_media:
                     media_type = field_data['directory']
-                    media_dir = os.path.join(system_path, 'media', media_type)
-                    
                     # Look for media files with matching name
                     found_media = None
-                    if os.path.exists(media_dir):
-                        for ext in field_data.get('extensions', []):
-                            media_filename = create_media_filename(rom_path, ext)
-                            media_file = os.path.join(media_dir, media_filename)
-                            if os.path.exists(media_file):
-                                found_media = f'./media/{media_type}/{media_filename}'.replace('\\', '/')
-                                break
+                    media_files = media_files_by_type.get(media_type, set())
+                    for ext in field_data.get('extensions', []):
+                        media_filename = create_media_filename(rom_path, ext)
+                        if media_filename in media_files:
+                            found_media = f'./media/{media_type}/{media_filename}'.replace('\\', '/')
+                            break
                     
                     # Only add new media if field is empty and we found media
                     if found_media:
@@ -17467,20 +17494,14 @@ def scan_media_files(system_name):
             
             # Also check for orphaned media entries that might not be in the media_fields
             # This handles cases where the gamelist has media fields that aren't in the current config
-            # Get additional media fields from config that might not be in the current media_fields
-            config = load_config()
-            all_media_fields = config.get('media_fields', {})
-            orphaned_media_fields = list(all_media_fields.keys())
-            
-            for field in orphaned_media_fields:
+            for field in scraper_media_fields:
                 if field in game and game[field]:
                     # Check if this media file actually exists
                     media_path = game[field]
                     if media_path.startswith('./media/'):
                         # Extract the relative path and check if file exists
                         relative_path = media_path[2:]  # Remove './'
-                        full_path = os.path.join(system_path, relative_path)
-                        if not os.path.exists(full_path):
+                        if relative_path.replace('\\', '/') not in existing_media_paths:
                             # Media file doesn't exist, remove the reference
                             game[field] = ''
                             game_updated = True
@@ -25399,7 +25420,8 @@ def youtube_download_batch(system_name):
         auto_crop = data.get('auto_crop', False)
         overwrite_existing = data.get('overwrite_existing', False)
         playlist_index = data.get('playlist_index', 1)
-        
+        youtube_channel = data.get('youtube_channel', '').strip()
+
         if not selected_games:
             return jsonify({'error': 'No games selected for download'}), 400
         
@@ -25422,12 +25444,13 @@ def youtube_download_batch(system_name):
             'start_time': start_time,
             'auto_crop': auto_crop,
             'overwrite_existing': overwrite_existing,
-            'playlist_index': playlist_index
+            'playlist_index': playlist_index,
+            'youtube_channel': youtube_channel
         }
-        
+
         # Add task to queue instead of starting directly
         task = add_task_to_queue('youtube_download_batch', task_data)
-        
+
         return jsonify({
             'success': True,
             'message': f'YouTube download batch task started for {len(selected_games)} games',
@@ -26323,9 +26346,9 @@ def run_rom_scan_task(system_name):
         # Scan for ROM files (including subdirectories, excluding media folder)
         rom_files = []
         
-        # Pre-compile extension patterns for faster matching
-        import fnmatch
-        extension_patterns = [f"*{ext}" for ext in rom_extensions]
+        # Pre-normalize extensions for fast case-insensitive suffix checks.
+        # fnmatch is noticeably more expensive on large collections.
+        rom_extensions_lower = tuple(ext.lower() for ext in rom_extensions)
         
         # Use os.walk with optimizations and progress reporting
         scanned_dirs = 0
@@ -26368,34 +26391,18 @@ def run_rom_scan_task(system_name):
                 rom_detected = False
                 
                 
-                for ext in rom_extensions:
-                    ext_lower = ext.lower()
-                    ends_with = dir_lower.endswith(ext_lower)
-                    
-                    if ends_with:
+                for ext_lower in rom_extensions_lower:
+                    if dir_lower.endswith(ext_lower):
                         # This directory has a ROM extension, treat it as a ROM file
                         rel_path = os.path.relpath(root, system_path)
                         # Normalize path separators for Docker/Windows compatibility
                         rel_path = rel_path.replace('\\', '/')
                         rom_files.append(rel_path)
-                        task.update_progress(f"✅ Found ROM directory: {current_dir_name} (extension: {ext}) - SKIPPING subdirectories")
+                        task.update_progress(f"✅ Found ROM directory: {current_dir_name} (extension: {ext_lower}) - SKIPPING subdirectories")
                         # Clear dirs to skip scanning subdirectories
                         dirs.clear()
                         rom_detected = True
                         break
-                
-                if not rom_detected:
-                    # Also try pattern matching as fallback
-                    if any(fnmatch.fnmatch(current_dir_name, pattern) for pattern in extension_patterns):
-                        # This directory has a ROM extension, treat it as a ROM file
-                        rel_path = os.path.relpath(root, system_path)
-                        # Normalize path separators for Docker/Windows compatibility
-                        rel_path = rel_path.replace('\\', '/')
-                        rom_files.append(rel_path)
-                        task.update_progress(f"✅ Found ROM directory (pattern): {current_dir_name} - SKIPPING subdirectories")
-                        # Clear dirs to skip scanning subdirectories
-                        dirs.clear()
-                        rom_detected = True
                 
                 if rom_detected:
                     continue
@@ -26411,9 +26418,8 @@ def run_rom_scan_task(system_name):
             if skip_hidden_dirs:
                 dirs[:] = [d for d in dirs if not d.startswith('.')]
             
-            # Use fnmatch for faster pattern matching
             for filename in files:
-                if any(fnmatch.fnmatch(filename, pattern) for pattern in extension_patterns):
+                if filename.lower().endswith(rom_extensions_lower):
                     # Get relative path from system directory
                     rel_path = os.path.relpath(os.path.join(root, filename), system_path)
                     # Normalize path separators for Docker/Windows compatibility
@@ -26519,19 +26525,11 @@ def run_rom_scan_task(system_name):
                 # Normalize path for Windows/Docker compatibility
                 normalized_path_clean = normalized_path.replace('\\', '/')
 
-                # First check if path exists in filesystem set (case-sensitive)
+                # rom_files_set is built from os.walk with the exact filenames on disk,
+                # so a set lookup gives us a fast case-sensitive existence check without
+                # listing each parent directory again.
                 if normalized_path_clean not in rom_files_set:
-                    # Path not in filesystem, check if file exists with case-sensitive check
-                    rom_file_path = os.path.join(system_path, normalized_path_clean)
-                    if not case_sensitive_path_exists(rom_file_path):
-                        # File doesn't exist or case doesn't match - mark as missing
-                        missing_roms.append(game)
-                else:
-                    # Path exists in filesystem set, verify with case-sensitive file check
-                    rom_file_path = os.path.join(system_path, normalized_path_clean)
-                    if not case_sensitive_path_exists(rom_file_path):
-                        # Case doesn't match exactly - mark as missing
-                        missing_roms.append(game)
+                    missing_roms.append(game)
 
         # Detect moved ROMs
         moved_roms = []
@@ -26635,10 +26633,19 @@ def get_rom_scan_results(system_name):
         if not hasattr(task, 'scan_results'):
             return jsonify({'error': 'No scan results available'})
         
+        new_roms = task.scan_results.get('new_roms', [])
+        missing_roms = task.scan_results.get('missing_roms', [])
+        moved_roms = task.scan_results.get('moved_roms', [])
+        preview_limit = 200
+
         scan_summary = {
-            'new_roms': task.scan_results['new_roms'],
-            'missing_roms': [{'id': game.get('id'), 'name': game.get('name'), 'path': game.get('path')} for game in task.scan_results['missing_roms']],
-            'moved_roms': [{'name': m['game'].get('name', ''), 'old_path': m['old_path'], 'new_path': m['new_path']} for m in task.scan_results.get('moved_roms', [])],
+            'new_roms': new_roms[:preview_limit],
+            'missing_roms': [{'id': game.get('id'), 'name': game.get('name'), 'path': game.get('path')} for game in missing_roms[:preview_limit]],
+            'moved_roms': [{'name': m['game'].get('name', ''), 'old_path': m['old_path'], 'new_path': m['new_path']} for m in moved_roms[:preview_limit]],
+            'new_roms_count': len(new_roms),
+            'missing_roms_count': len(missing_roms),
+            'moved_roms_count': len(moved_roms),
+            'preview_limit': preview_limit,
             'total_existing': task.scan_results['total_existing'],
             'total_rom_files': task.scan_results['total_rom_files'],
             'is_initial_import': task.scan_results.get('is_initial_import', False),
@@ -26646,9 +26653,9 @@ def get_rom_scan_results(system_name):
         }
         
         # Determine message based on what was found
-        new_cnt = len(task.scan_results.get('new_roms', []))
-        miss_cnt = len(task.scan_results.get('missing_roms', []))
-        mov_cnt = len(task.scan_results.get('moved_roms', []))
+        new_cnt = len(new_roms)
+        miss_cnt = len(missing_roms)
+        mov_cnt = len(moved_roms)
 
         parts = []
         if new_cnt > 0:
@@ -27042,17 +27049,70 @@ def run_youtube_download_task(task_id, data):
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
 
-def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index=1):
+def resolve_youtube_channel_id(channel, api_key):
+    """Resolve a YouTube channel handle (@name) to a channel ID using the YouTube Data API."""
+    handle = channel.strip().lstrip('@')
+    try:
+        resp = requests.get(
+            "https://www.googleapis.com/youtube/v3/channels",
+            params={'part': 'id', 'forHandle': handle, 'key': api_key},
+            timeout=15
+        )
+        if resp.status_code == 200:
+            items = resp.json().get('items', [])
+            if items:
+                return items[0]['id']
+        print(f"Could not resolve channel handle @{handle}: HTTP {resp.status_code}")
+    except Exception as e:
+        print(f"Error resolving channel handle @{handle}: {e}")
+    return None
+
+
+def search_youtube_channel_for_video(channel_id, search_query, api_key):
+    """Search within a YouTube channel for a video using the YouTube Data API v3.
+    Returns the video URL of the first result, or None if not found."""
+    try:
+        resp = requests.get(
+            "https://www.googleapis.com/youtube/v3/search",
+            params={
+                'part': 'snippet',
+                'q': search_query,
+                'channelId': channel_id,
+                'type': 'video',
+                'maxResults': 1,
+                'order': 'relevance',
+                'key': api_key
+            },
+            timeout=15
+        )
+        if resp.status_code == 403:
+            mark_youtube_key_quota_exceeded(api_key)
+            print("YouTube API quota exceeded during channel search")
+            return None
+        if resp.status_code != 200:
+            print(f"YouTube channel search failed: HTTP {resp.status_code}")
+            return None
+        increment_youtube_key_usage(api_key)
+        items = resp.json().get('items', [])
+        if items:
+            video_id = items[0]['id']['videoId']
+            return f"https://www.youtube.com/watch?v={video_id}"
+    except Exception as e:
+        print(f"Error searching YouTube channel {channel_id}: {e}")
+    return None
+
+
+def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index=1, youtube_channel=''):
     """Run batch YouTube download task in background thread"""
     global current_task_id
-    
+
     try:
         if not task_id or task_id not in tasks:
             print(f"Error: Task {task_id} not found for YouTube download batch")
             return
-        
+
         task = tasks[task_id]
-        
+
         # Log the received parameters
         task.update_progress(f"Starting batch YouTube download:")
         task.update_progress(f"  System: {system_name}")
@@ -27061,6 +27121,8 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         task.update_progress(f"  Auto crop: {auto_crop}")
         task.update_progress(f"  Overwrite existing: {overwrite_existing}")
         task.update_progress(f"  Playlist index: {playlist_index}")
+        if youtube_channel:
+            task.update_progress(f"  YouTube channel: {youtube_channel}")
         
         # Validate system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -27079,37 +27141,29 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
             task.complete(False, 'No games found in gamelist.xml')
             return
         
-        # Filter games to process (those with YouTube URLs or Steam Store URLs)
+        # Filter games to process
         games_to_process = []
         print(f"🎥 DEBUG: Total games in gamelist: {len(all_games)}")
         print(f"🎥 DEBUG: Selected games to process: {len(selected_games)}")
         print(f"🎥 DEBUG: Selected game paths: {selected_games[:3]}...")  # Show first 3
-        
+
         for game in all_games:
             game_path = game.get('path', '')
             youtube_url = game.get('youtubeurl', '')
             has_youtube = youtube_url and 'youtube' in youtube_url.lower()
             has_steam_store = youtube_url and 'store.steampowered.com' in youtube_url.lower()
             has_valid_url = has_youtube or has_steam_store
-            
-            print(f"🎥 DEBUG: Checking game: {game_path}")
-            print(f"🎥 DEBUG:  - In selected_games: {game_path in selected_games}")
-            print(f"🎥 DEBUG:  - YouTube URL: {youtube_url}")
-            print(f"🎥 DEBUG:  - Has YouTube: {has_youtube}")
-            print(f"🎥 DEBUG:  - Has Steam Store: {has_steam_store}")
-            print(f"🎥 DEBUG:  - Has Valid URL: {has_valid_url}")
-            
+
             if game_path in selected_games:
-                if has_valid_url:
+                if youtube_channel or has_valid_url:
                     games_to_process.append(game)
-                    print(f"🎥 DEBUG:  - ✅ Added to process list")
                 else:
-                    print(f"🎥 DEBUG:  - ❌ No valid URL (YouTube or Steam Store)")
+                    print(f"🎥 DEBUG: Skipping {game_path} — no valid URL")
             else:
-                print(f"🎥 DEBUG:  - ❌ Not in selected games")
-        
+                pass  # not in selection
+
         if not games_to_process:
-            task.complete(False, 'No games with YouTube or Steam Store URLs found to process')
+            task.complete(False, 'No games found to process')
             return
         
         task.update_progress(f"Found {len(games_to_process)} games with YouTube or Steam Store URLs to process")
@@ -27117,11 +27171,26 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         # Create media/videos directory if it doesn't exist
         videos_dir = os.path.join(system_path, 'media', 'videos')
         os.makedirs(videos_dir, exist_ok=True)
-        
+
         # Create temp directory for video processing
         temp_videos_dir = os.path.join(VAR_TEMP_DIR, 'videos')
         os.makedirs(temp_videos_dir, exist_ok=True)
         task.update_progress(f"Created temp directory: {temp_videos_dir}")
+
+        # Resolve channel ID once before processing games
+        channel_id = None
+        youtube_api_key = None
+        if youtube_channel:
+            youtube_api_key = get_youtube_api_key()
+            if not youtube_api_key:
+                task.complete(False, 'YouTube API key is required for channel search. Please configure it in settings.')
+                return
+            task.update_progress(f"Resolving channel ID for {youtube_channel}...")
+            channel_id = resolve_youtube_channel_id(youtube_channel, youtube_api_key)
+            if not channel_id:
+                task.complete(False, f'Could not resolve YouTube channel: {youtube_channel}')
+                return
+            task.update_progress(f"Resolved channel ID: {channel_id}")
         
         # Process each game
         successful_downloads = 0
@@ -27149,15 +27218,28 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                 game_name = game.get('name', 'Unknown')
                 rom_path = game.get('path', '')
                 youtube_url = game.get('youtubeurl', '')
-                
+
                 # Calculate progress percentage
                 progress_percent = int(((i + 1) / total_games) * 100)
                 task.update_progress(f"Processing {i+1}/{total_games}: {game_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
-                
+
+                # Channel mode: search the channel for this game instead of using youtubeurl
+                if youtube_channel:
+                    search_query = game_name
+                    task.update_progress(f"  🔍 Searching channel {youtube_channel} for: {search_query}")
+                    found_url = search_youtube_channel_for_video(channel_id, search_query, youtube_api_key)
+                    if found_url:
+                        task.update_progress(f"  🔗 Found: {found_url}")
+                        youtube_url = found_url
+                    else:
+                        task.update_progress(f"  ⚠️ No result found in channel, skipping")
+                        failed_downloads += 1
+                        continue
+
                 # Generate output filename from ROM path
                 output_filename = create_media_filename(rom_path, '.mp4')
                 output_path = os.path.join(videos_dir, output_filename)
-                
+
                 # Check if video already exists
                 if os.path.exists(output_path) and not overwrite_existing:
                     task.update_progress(f"  Video already exists, skipping: {output_filename}")
@@ -27165,10 +27247,10 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                     continue
                 elif os.path.exists(output_path) and overwrite_existing:
                     task.update_progress(f"  Video already exists, overwriting: {output_filename}")
-                
+
                 # Download the video using the existing YouTube download logic
                 success = download_youtube_video_for_game(
-                    task, youtube_url, start_time, auto_crop, 
+                    task, youtube_url, start_time, auto_crop,
                     output_path, videos_dir, game_name, playlist_index, temp_videos_dir, rom_path
                 )
                 

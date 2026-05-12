@@ -18031,21 +18031,27 @@ class GameCollectionManager {
             const autoCrop = document.getElementById('youtubeAutoCrop').checked;
             const overwriteExisting = document.getElementById('youtubeOverwriteExisting').checked;
             const playlistIndex = parseInt(document.getElementById('youtubePlaylistIndex').value) || 1;
+            const youtubeChannel = document.getElementById('youtubeChannel').value.trim();
 
             // Determine which games to process
             const gamesToProcess = this.selectedGames.length > 0 ? this.selectedGames : this.games;
 
-            // Filter games that have YouTube URLs or Steam Store URLs
-            const gamesWithYoutube = gamesToProcess.filter(game => {
-                const youtubeUrl = game.youtubeurl || '';
-                const hasYoutube = youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('youtube');
-                const hasSteamStore = youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('store.steampowered.com');
-                const hasValidUrl = hasYoutube || hasSteamStore;
-                return hasValidUrl;
-            });
+            let gamesWithYoutube;
+            if (youtubeChannel) {
+                // Channel mode: process all games, backend will search the channel
+                gamesWithYoutube = gamesToProcess;
+            } else {
+                // Filter games that have YouTube URLs or Steam Store URLs
+                gamesWithYoutube = gamesToProcess.filter(game => {
+                    const youtubeUrl = game.youtubeurl || '';
+                    const hasYoutube = youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('youtube');
+                    const hasSteamStore = youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('store.steampowered.com');
+                    return hasYoutube || hasSteamStore;
+                });
+            }
 
             if (gamesWithYoutube.length === 0) {
-                this.showAlert('No games with YouTube or Steam Store URLs found to download', 'warning');
+                this.showAlert('No games found to download', 'warning');
                 return;
             }
 
@@ -18064,7 +18070,8 @@ class GameCollectionManager {
                 start_time: startTime,
                 auto_crop: autoCrop,
                 overwrite_existing: overwriteExisting,
-                playlist_index: playlistIndex
+                playlist_index: playlistIndex,
+                youtube_channel: youtubeChannel
             };
 
             // Make the API request
@@ -18531,7 +18538,7 @@ class GameCollectionManager {
     async waitForTaskCompletion() {
         // Wait for task to complete by polling task status
         let attempts = 0;
-        const maxAttempts = 60; // Wait up to 5 minutes
+        const maxAttempts = 300; // Wait up to 5 minutes
 
         while (attempts < maxAttempts) {
             try {
@@ -18550,8 +18557,9 @@ class GameCollectionManager {
             } catch (error) {
             }
 
-            // Wait 5 seconds before next check
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            // Poll frequently so the ROM confirmation popup appears promptly when
+            // the background task switches to waiting_confirmation.
+            await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
         }
 
@@ -18561,6 +18569,10 @@ class GameCollectionManager {
 
     showRomScanConfirmation(scanSummary) {
         const { new_roms, missing_roms, moved_roms = [], total_existing, total_rom_files, is_initial_import } = scanSummary;
+        const newRomsCount = scanSummary.new_roms_count ?? new_roms.length;
+        const missingRomsCount = scanSummary.missing_roms_count ?? missing_roms.length;
+        const movedRomsCount = scanSummary.moved_roms_count ?? moved_roms.length;
+        const previewLimit = scanSummary.preview_limit ?? Math.max(new_roms.length, missing_roms.length, moved_roms.length);
 
         // Create modal HTML
         const modalId = 'romScanConfirmationModal';
@@ -18577,9 +18589,9 @@ class GameCollectionManager {
                                 <div class="col-md-6">
                                     <h6 class="text-success">Summary</h6>
                                     <ul class="list-unstyled">
-                                        <li><strong>New ROMs found:</strong> <span class="badge bg-success">${new_roms.length}</span></li>
-                                        <li><strong>Games with missing ROMs:</strong> <span class="badge bg-danger">${missing_roms.length}</span></li>
-                                        <li><strong>Games with moved ROMs:</strong> <span class="badge bg-warning">${moved_roms.length}</span></li>
+                                        <li><strong>New ROMs found:</strong> <span class="badge bg-success">${newRomsCount}</span></li>
+                                        <li><strong>Games with missing ROMs:</strong> <span class="badge bg-danger">${missingRomsCount}</span></li>
+                                        <li><strong>Games with moved ROMs:</strong> <span class="badge bg-warning">${movedRomsCount}</span></li>
                                         <li><strong>Total existing games:</strong> <span class="badge bg-info">${total_existing}</span></li>
                                         <li><strong>Total ROM files:</strong> <span class="badge bg-primary">${total_rom_files}</span></li>
                                     </ul>
@@ -18589,7 +18601,7 @@ class GameCollectionManager {
                                     <div class="d-grid gap-2">`;
 
         // Show different buttons based on whether there are changes
-        if (new_roms.length > 0 || missing_roms.length > 0 || moved_roms.length > 0) {
+        if (newRomsCount > 0 || missingRomsCount > 0 || movedRomsCount > 0) {
             modalHTML += `
                                         <button type="button" class="btn btn-success btn-sm" onclick="window.gameManager.confirmRomScan('proceed')" data-bs-dismiss="modal">
                                             <i class="fas fa-check"></i> Proceed with Changes
@@ -18613,21 +18625,21 @@ class GameCollectionManager {
                             </div>`;
 
         // Only show detailed game lists if it's not an initial import
-        if (new_roms.length > 0 && !is_initial_import) {
+        if (newRomsCount > 0 && !is_initial_import) {
             modalHTML += `
                             <hr>
                             <div class="mb-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <h6 class="text-success mb-0">New ROMs to Add</h6>
-                                    ${new_roms.length > 10 ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="document.getElementById(&quot;newRomsTruncated&quot;).classList.toggle(&quot;d-none&quot;); document.getElementById(&quot;newRomsFull&quot;).classList.toggle(&quot;d-none&quot;); this.innerText = this.innerText === &quot;Show All&quot; ? &quot;Show Less&quot; : &quot;Show All&quot;">Show All</button>' : ''}
+                                    ${new_roms.length > 10 ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="document.getElementById(&quot;newRomsTruncated&quot;).classList.toggle(&quot;d-none&quot;); document.getElementById(&quot;newRomsFull&quot;).classList.toggle(&quot;d-none&quot;); this.innerText = this.innerText === &quot;Show Preview&quot; ? &quot;Show Less&quot; : &quot;Show Preview&quot;">Show Preview</button>' : ''}
                                 </div>
                                 <div id="newRomsTruncated" class="small text-muted">
                                     <div class="row">`;
             new_roms.slice(0, 10).forEach(rom => {
                 modalHTML += `<div class="col-md-6 text-truncate" title="${rom}">• ${rom}</div>`;
             });
-            if (new_roms.length > 10) {
-                modalHTML += `<div class="col-md-6 text-truncate">• ... and ${new_roms.length - 10} more</div>`;
+            if (newRomsCount > 10) {
+                modalHTML += `<div class="col-md-6 text-truncate">• ... and ${newRomsCount - 10} more</div>`;
             }
             modalHTML += `
                                     </div>
@@ -18637,27 +18649,30 @@ class GameCollectionManager {
             new_roms.forEach(rom => {
                 modalHTML += `<div class="col-md-6 text-truncate" title="${rom}">• ${rom}</div>`;
             });
+            if (newRomsCount > previewLimit) {
+                modalHTML += `<div class="col-12 text-muted">Showing first ${new_roms.length} of ${newRomsCount} ROMs.</div>`;
+            }
             modalHTML += `
                                     </div>
                                 </div>`;
         }
 
         // Only show detailed game lists if it's not an initial import
-        if (missing_roms.length > 0 && !is_initial_import) {
+        if (missingRomsCount > 0 && !is_initial_import) {
             modalHTML += `
                             <hr>
                             <div class="mb-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <h6 class="text-danger mb-0">Games to Remove (Missing ROMs)</h6>
-                                    ${missing_roms.length > 10 ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="document.getElementById(&quot;missingRomsTruncated&quot;).classList.toggle(&quot;d-none&quot;); document.getElementById(&quot;missingRomsFull&quot;).classList.toggle(&quot;d-none&quot;); this.innerText = this.innerText === &quot;Show All&quot; ? &quot;Show Less&quot; : &quot;Show All&quot;">Show All</button>' : ''}
+                                    ${missing_roms.length > 10 ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="document.getElementById(&quot;missingRomsTruncated&quot;).classList.toggle(&quot;d-none&quot;); document.getElementById(&quot;missingRomsFull&quot;).classList.toggle(&quot;d-none&quot;); this.innerText = this.innerText === &quot;Show Preview&quot; ? &quot;Show Less&quot; : &quot;Show Preview&quot;">Show Preview</button>' : ''}
                                 </div>
                                 <div id="missingRomsTruncated" class="small text-muted">
                                     <div class="row">`;
             missing_roms.slice(0, 10).forEach(game => {
                 modalHTML += `<div class="col-md-6 text-truncate" title="${game.name}">• ${game.name} <small class="text-muted">(${game.path})</small></div>`;
             });
-            if (missing_roms.length > 10) {
-                modalHTML += `<div class="col-md-6 text-truncate">• ... and ${missing_roms.length - 10} more</div>`;
+            if (missingRomsCount > 10) {
+                modalHTML += `<div class="col-md-6 text-truncate">• ... and ${missingRomsCount - 10} more</div>`;
             }
             modalHTML += `
                                     </div>
@@ -18667,27 +18682,30 @@ class GameCollectionManager {
             missing_roms.forEach(game => {
                 modalHTML += `<div class="col-md-6 text-truncate" title="${game.name}">• ${game.name} <small class="text-muted">(${game.path})</small></div>`;
             });
+            if (missingRomsCount > previewLimit) {
+                modalHTML += `<div class="col-12 text-muted">Showing first ${missing_roms.length} of ${missingRomsCount} missing ROMs.</div>`;
+            }
             modalHTML += `
                                     </div>
                                 </div>`;
         }
 
         // Show detailed game lists for moved ROMs
-        if (moved_roms.length > 0 && !is_initial_import) {
+        if (movedRomsCount > 0 && !is_initial_import) {
             modalHTML += `
                             <hr>
                             <div class="mb-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <h6 class="text-warning mb-0">Games with Moved ROMs</h6>
-                                    ${moved_roms.length > 10 ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="document.getElementById(&quot;movedRomsTruncated&quot;).classList.toggle(&quot;d-none&quot;); document.getElementById(&quot;movedRomsFull&quot;).classList.toggle(&quot;d-none&quot;); this.innerText = this.innerText === &quot;Show All&quot; ? &quot;Show Less&quot; : &quot;Show All&quot;">Show All</button>' : ''}
+                                    ${moved_roms.length > 10 ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="document.getElementById(&quot;movedRomsTruncated&quot;).classList.toggle(&quot;d-none&quot;); document.getElementById(&quot;movedRomsFull&quot;).classList.toggle(&quot;d-none&quot;); this.innerText = this.innerText === &quot;Show Preview&quot; ? &quot;Show Less&quot; : &quot;Show Preview&quot;">Show Preview</button>' : ''}
                                 </div>
                                 <div id="movedRomsTruncated" class="small text-muted">
                                     <div class="row">`;
             moved_roms.slice(0, 10).forEach(game => {
                 modalHTML += `<div class="col-12 text-truncate" title="${game.name}">• ${game.name} <small class="text-muted">(${game.old_path} → ${game.new_path})</small></div>`;
             });
-            if (moved_roms.length > 10) {
-                modalHTML += `<div class="col-12 text-truncate">• ... and ${moved_roms.length - 10} more</div>`;
+            if (movedRomsCount > 10) {
+                modalHTML += `<div class="col-12 text-truncate">• ... and ${movedRomsCount - 10} more</div>`;
             }
             modalHTML += `
                                     </div>
@@ -18697,17 +18715,20 @@ class GameCollectionManager {
             moved_roms.forEach(game => {
                 modalHTML += `<div class="col-12 text-truncate" title="${game.name}">• ${game.name} <small class="text-muted">(${game.old_path} → ${game.new_path})</small></div>`;
             });
+            if (movedRomsCount > previewLimit) {
+                modalHTML += `<div class="col-12 text-muted">Showing first ${moved_roms.length} of ${movedRomsCount} moved ROMs.</div>`;
+            }
             modalHTML += `
                                     </div>
                                 </div>`;
         }
 
         // Only show warning about removing games if there are missing ROMs and it's not an initial import
-        if (missing_roms.length > 0 && !is_initial_import) {
+        if (missingRomsCount > 0 && !is_initial_import) {
             modalHTML += `
                             <div class="alert alert-warning mt-3">
                                 <i class="fas fa-exclamation-triangle"></i>
-                                <strong>Warning:</strong> This action will remove ${missing_roms.length} games with missing ROM files from your gamelist.xml. This cannot be undone.
+                                <strong>Warning:</strong> This action will remove ${missingRomsCount} games with missing ROM files from your gamelist.xml. This cannot be undone.
                             </div>`;
         }
 
@@ -18717,7 +18738,7 @@ class GameCollectionManager {
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>`;
 
         // Show different button text based on whether there are changes
-        if (new_roms.length > 0 || missing_roms.length > 0 || moved_roms.length > 0) {
+        if (newRomsCount > 0 || missingRomsCount > 0 || movedRomsCount > 0) {
             modalHTML += `
                             <button type="button" class="btn btn-success" onclick="window.gameManager.confirmRomScan('proceed')" data-bs-dismiss="modal">
                                 <i class="fas fa-check"></i> Proceed with Changes
@@ -38242,8 +38263,10 @@ class GameCollectionManager {
         // Set game name for search (display the clean name)
         document.getElementById('youtubeGameName').textContent = cleanGameName;
 
-        // Pre-fill search input with game name (without parentheses content) and system name
-        const searchQuery = `${cleanGameName} ${this.currentSystem}`;
+        const cleanSystemName = String(this.currentSystem || '').replace(/_.*/, '').trim();
+
+        // Pre-fill search input with game name, normalized system name, and gameplay keyword
+        const searchQuery = `${cleanGameName} ${cleanSystemName} gameplay`.trim();
         document.getElementById('youtubeSearchInput').value = searchQuery;
 
         // Clean up any existing backdrops before opening new modal

@@ -893,7 +893,7 @@ class SteamService:
             for i, item in enumerate(partition_items):
                 # Calculate similarity using configured algorithm
                 similarity = calculate_similarity(normalized_name, item.normalized)
-                print(f"🔍 DEBUG: Steam Item {i+1}: '{item.name}' -> similarity: {similarity:.4f}")
+
             
                 # Only include matches with reasonable similarity (threshold of 0.3)
                 if similarity >= 0.3:
