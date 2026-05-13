@@ -475,6 +475,20 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
             print(f"❌ Error processing image: {error_msg}")
         return file_path, "failed"
 
+def is_solid_color_image(file_path: str) -> bool:
+    """
+    Returns True if the image contains exactly 1 unique color (solid placeholder image).
+    """
+    try:
+        cmd = get_imagemagick_cmd('identify') + ['-format', '%k', file_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        if result.returncode != 0:
+            return False
+        return result.stdout.strip() == '1'
+    except Exception:
+        return False
+
+
 def resize_image_replace(file_path: str, target_width: int = 0, target_height: int = 0) -> tuple[str, str]:
     """
     Resize an image file and return the new file path and status.

@@ -1649,6 +1649,14 @@ class ScreenScraperService:
                         async for chunk in response.aiter_bytes():
                             await f.write(chunk)
                     
+                    # Reject solid-color placeholder images (e.g. pure green screen from ScreenScraper)
+                    if not (content_type.startswith('video/') or media_type == 'video'):
+                        from game_utils import is_solid_color_image
+                        if is_solid_color_image(final_file_path):
+                            print(f"⚠️ Skipping solid single-color image (placeholder): {os.path.basename(final_file_path)}")
+                            os.remove(final_file_path)
+                            return False
+
                     # Check if this is a video file - skip image processing for videos
                     is_video = content_type.startswith('video/') or media_type == 'video'
                     

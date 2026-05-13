@@ -25846,6 +25846,12 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
             process_next_queued_task()
             return
 
+        # Check if source image is a solid single color
+        from game_utils import is_solid_color_image
+        source_is_solid = is_solid_color_image(source_image_path)
+        if source_is_solid:
+            task.update_progress(f"Source image is a solid single color — will match any candidate that is also solid", progress_percentage=22)
+
         task.update_progress(f"Scanning images in: {media_path}", progress_percentage=25)
 
         # Collect all other images with their game paths (excluding source game)
@@ -25854,7 +25860,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
             rom_path = game.get('path', '')
             if not rom_path or rom_path == source_game_path:
                 continue  # Skip source game
-            
+
             # Get media path from game
             media_file_path = game.get(media_field, '')
             if not media_file_path:
@@ -25862,7 +25868,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
 
             # Normalize path
             normalized_path = media_file_path.removeprefix('./')
-            
+
             # Build full path
             if normalized_path.startswith('media/'):
                 full_path = os.path.join(system_path, normalized_path)
@@ -25891,9 +25897,9 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
         # Compare source image to all other images
         similar_games = []
         threshold = 0.1  # Similarity threshold (0-1, lower = more strict)
-        
+
         total_images = len(image_files)
-        task.update_progress(f"Comparing source image to {total_images} images...", 
+        task.update_progress(f"Comparing source image to {total_images} images...",
                            progress_percentage=0, current_step=0, total_steps=total_images)
         comparisons_done = 0
 
@@ -25903,7 +25909,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
                 task.data['similar_games'] = similar_games
                 task.data['source_game_path'] = source_game_path
                 task.data['media_field'] = media_field
-                
+
                 progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
                 if task.status == TASK_STATUS_STOPPED:
                     task.update_progress(f"🛑 Task stopped: Found {len(similar_games)} similar images so far (compared {comparisons_done}/{total_images})",
@@ -25913,10 +25919,26 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
                     task.update_progress(f"✅ Comparison complete: Found {len(similar_games)} games with similar images",
                                        progress_percentage=100, current_step=total_images, total_steps=total_images)
                     task.complete(True, f"Found {len(similar_games)} games with similar images in {media_field} field")
-                
+
                 process_next_queued_task()
                 return
-                
+
+            # If source is solid single color, match any candidate that is also solid (skip size check)
+            if source_is_solid:
+                if is_solid_color_image(img_data['path']):
+                    similar_games.append({
+                        'path': img_data['rom_path'],
+                        'name': img_data['game'].get('name', 'Unknown'),
+                        'similarity': 1.0,
+                        'media_path': img_data['path']
+                    })
+                comparisons_done += 1
+                progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
+                if comparisons_done % 5 == 0 or comparisons_done == total_images:
+                    task.update_progress(f"Compared {comparisons_done}/{total_images} images, found {len(similar_games)} similar games",
+                                       progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
+                continue
+
             try:
                 img2 = Image.open(img_data['path']).convert('RGBA')
             except Exception as e:
@@ -25938,7 +25960,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
 
             # Create diff image
             diff_img = Image.new('RGBA', source_img.size)
-            
+
             # Compare images (they are guaranteed to be same size now)
             try:
                 mismatch = pixelmatch(
@@ -25946,11 +25968,11 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
                     threshold=threshold,
                     includeAA=True
                 )
-                
+
                 # Calculate similarity percentage
                 total_pixels = source_img.width * source_img.height
                 similarity = 1.0 - (mismatch / total_pixels) if total_pixels > 0 else 0.0
-                
+
                 # If similarity is high enough, mark game as similar
                 # Using 85% similarity threshold (0.85) to catch more similar images
                 if similarity >= 0.85:  # 85% similarity threshold
@@ -25960,15 +25982,15 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
                         'similarity': similarity,
                         'media_path': img_data['path']
                     })
-                
+
                 comparisons_done += 1
                 progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
-                
+
                 # Update progress every 5 images or on last image for smoother progress bar
                 if comparisons_done % 5 == 0 or comparisons_done == total_images:
                     task.update_progress(f"Compared {comparisons_done}/{total_images} images, found {len(similar_games)} similar games",
                                        progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
-                    
+
             except Exception as e:
                 comparisons_done += 1
                 progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
@@ -26114,6 +26136,12 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
             process_next_queued_task()
             return
 
+        # Check if source image is a solid single color
+        from game_utils import is_solid_color_image
+        source_is_solid = is_solid_color_image(source_image_path)
+        if source_is_solid:
+            task.update_progress(f"Source image is a solid single color — will match any candidate that is also solid", progress_percentage=22)
+
         task.update_progress(f"Scanning images in: {media_path}", progress_percentage=25)
 
         # Collect all other images with their game paths (excluding source game)
@@ -26122,7 +26150,7 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
             rom_path = game.get('path', '')
             if not rom_path or rom_path == source_game_path:
                 continue  # Skip source game
-            
+
             # Get media path from game
             media_file_path = game.get(media_field, '')
             if not media_file_path:
@@ -26130,7 +26158,7 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
 
             # Normalize path
             normalized_path = media_file_path.removeprefix('./')
-            
+
             # Build full path
             if normalized_path.startswith('media/'):
                 full_path = os.path.join(system_path, normalized_path)
@@ -26160,9 +26188,9 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
         # Compare source image to all other images and collect similar ones
         similar_images = []
         threshold = 0.1  # Similarity threshold (0-1, lower = more strict)
-        
+
         total_images = len(image_files)
-        task.update_progress(f"Comparing source image to {total_images} images...", 
+        task.update_progress(f"Comparing source image to {total_images} images...",
                            progress_percentage=30, current_step=0, total_steps=total_images)
         comparisons_done = 0
 
@@ -26178,10 +26206,21 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
                     task.update_progress(f"✅ Comparison complete: Found {len(similar_images)} similar images",
                                        progress_percentage=100, current_step=total_images, total_steps=total_images)
                     task.complete(True, f"Found {len(similar_images)} similar images in {media_field} field")
-                
+
                 process_next_queued_task()
                 return
-                
+
+            # If source is solid single color, match any candidate that is also solid (skip size check)
+            if source_is_solid:
+                if is_solid_color_image(img_data['path']):
+                    similar_images.append(img_data)
+                comparisons_done += 1
+                progress_pct = 30 + int((comparisons_done / total_images) * 70)
+                if comparisons_done % 5 == 0 or comparisons_done == total_images:
+                    task.update_progress(f"Compared {comparisons_done}/{total_images} images, found {len(similar_images)} similar",
+                                       progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
+                continue
+
             try:
                 img2 = Image.open(img_data['path']).convert('RGBA')
             except Exception as e:
@@ -26202,7 +26241,7 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
 
             # Create diff image
             diff_img = Image.new('RGBA', source_img.size)
-            
+
             # Compare images
             try:
                 mismatch = pixelmatch(
@@ -26210,22 +26249,22 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
                     threshold=threshold,
                     includeAA=True
                 )
-                
+
                 # Calculate similarity percentage
                 total_pixels = source_img.width * source_img.height
                 similarity = 1.0 - (mismatch / total_pixels) if total_pixels > 0 else 0.0
-                
+
                 # If similarity is high enough, mark for deletion
                 if similarity >= similarity_threshold:
                     similar_images.append(img_data)
-                
+
                 comparisons_done += 1
                 progress_pct = 30 + int((comparisons_done / total_images) * 70)
-                
+
                 if comparisons_done % 5 == 0 or comparisons_done == total_images:
                     task.update_progress(f"Compared {comparisons_done}/{total_images} images, found {len(similar_images)} similar",
                                        progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
-                    
+
             except Exception as e:
                 comparisons_done += 1
                 progress_pct = 30 + int((comparisons_done / total_images) * 70)
