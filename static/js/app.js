@@ -9147,7 +9147,7 @@ class GameCollectionManager {
         }
 
         // Handle favorite field (star icon)
-        const favoriteIcon = document.getElementById('editFavorite');
+        const favoriteIcon = document.querySelector('#editGameModal #editFavorite');
         if (favoriteIcon) {
             game.favorite = favoriteIcon.classList.contains('bi-star-fill');
         } else {
@@ -39533,7 +39533,7 @@ class GameCollectionManager {
 
     // Favorite and Kidgame Functions
     toggleFavorite() {
-        const favoriteIcon = document.getElementById('editFavorite');
+        const favoriteIcon = document.querySelector('#editGameModal #editFavorite');
         if (favoriteIcon.classList.contains('bi-star-fill')) {
             // Currently favorite, remove it
             favoriteIcon.className = 'bi bi-star text-muted';
@@ -39552,7 +39552,7 @@ class GameCollectionManager {
     }
 
     isFavoriteStarActive() {
-        const favoriteStar = document.getElementById('editFavorite');
+        const favoriteStar = document.querySelector('#editGameModal #editFavorite');
         if (favoriteStar) {
             return favoriteStar.classList.contains('bi-star-fill');
         }
@@ -39560,7 +39560,7 @@ class GameCollectionManager {
     }
 
     toggleKidgame() {
-        const kidgameIcon = document.getElementById('editKidgame');
+        const kidgameIcon = document.querySelector('#editGameModal #editKidgame');
         if (kidgameIcon.classList.contains('bi-emoji-smile-fill')) {
             // Currently kid game, remove it
             kidgameIcon.className = 'bi bi-emoji-smile text-muted';
@@ -39579,7 +39579,7 @@ class GameCollectionManager {
     }
 
     isKidgameActive() {
-        const kidgameIcon = document.getElementById('editKidgame');
+        const kidgameIcon = document.querySelector('#editGameModal #editKidgame');
         if (kidgameIcon) {
             return kidgameIcon.classList.contains('bi-emoji-smile-fill');
         }
