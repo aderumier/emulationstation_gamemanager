@@ -33313,8 +33313,43 @@ class GameCollectionManager {
 
         // Tab switching is now handled by Bootstrap tabs, no custom button handlers needed
 
-        // Re-attach release date field listeners for panel
+        // Re-attach favorite and kidgame click listeners for panel
         const panelContent = document.getElementById('rightPanelContent');
+        if (panelContent) {
+            const panelFavoriteIcon = panelContent.querySelector('#editFavorite');
+            if (panelFavoriteIcon) {
+                panelFavoriteIcon.onclick = () => {
+                    if (panelFavoriteIcon.classList.contains('bi-star-fill')) {
+                        panelFavoriteIcon.className = 'bi bi-star text-muted';
+                        panelFavoriteIcon.title = 'Click to add to favorites';
+                    } else {
+                        panelFavoriteIcon.className = 'bi bi-star-fill text-warning';
+                        panelFavoriteIcon.title = 'Click to remove from favorites';
+                    }
+                    panelFavoriteIcon.style.fontSize = '1.5rem';
+                    panelFavoriteIcon.style.cursor = 'pointer';
+                    panelFavoriteIcon.style.transition = 'all 0.2s ease';
+                };
+            }
+
+            const panelKidgameIcon = panelContent.querySelector('#editKidgame');
+            if (panelKidgameIcon) {
+                panelKidgameIcon.onclick = () => {
+                    if (panelKidgameIcon.classList.contains('bi-emoji-smile-fill')) {
+                        panelKidgameIcon.className = 'bi bi-emoji-smile text-muted';
+                        panelKidgameIcon.title = 'Click to mark as kid game';
+                    } else {
+                        panelKidgameIcon.className = 'bi bi-emoji-smile-fill text-success';
+                        panelKidgameIcon.title = 'Click to remove kid game mark';
+                    }
+                    panelKidgameIcon.style.fontSize = '1.5rem';
+                    panelKidgameIcon.style.cursor = 'pointer';
+                    panelKidgameIcon.style.transition = 'all 0.2s ease';
+                };
+            }
+        }
+
+        // Re-attach release date field listeners for panel
         if (panelContent) {
             const releasedateField = panelContent.querySelector('#editReleasedate');
             if (releasedateField) {
