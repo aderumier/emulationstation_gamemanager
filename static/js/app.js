@@ -5682,7 +5682,8 @@ class GameCollectionManager {
         setField('editMd5', game.md5);
         setField('editYoutubeurl', game.youtubeurl);
 
-        // Populate favorite and kidgame fields
+        // Populate favorite and kidgame fields and re-attach click handlers
+        // (forceRestoreModalBody replaces innerHTML each open, destroying prior listeners)
         if (favoriteIcon) {
             if (game.favorite === true || game.favorite === 'true') {
                 favoriteIcon.className = 'bi bi-star-fill text-warning';
@@ -5691,6 +5692,7 @@ class GameCollectionManager {
                 favoriteIcon.style.transition = 'all 0.2s ease';
                 favoriteIcon.title = 'Click to remove from favorites';
             }
+            favoriteIcon.onclick = () => this.toggleFavorite();
         }
         // Set kidgame smiley icon state
         if (kidgameIcon) {
@@ -5701,6 +5703,7 @@ class GameCollectionManager {
                 kidgameIcon.style.transition = 'all 0.2s ease';
                 kidgameIcon.title = 'Click to remove kid game mark';
             }
+            kidgameIcon.onclick = () => this.toggleKidgame();
         }
 
         // Populate the media tab with the same media display as the preview panel
@@ -9146,19 +9149,21 @@ class GameCollectionManager {
             return;
         }
 
-        // Handle favorite field (star icon)
-        const favoriteIcon = document.querySelector('#editGameModal #editFavorite');
+        // Handle favorite and kidgame fields — scope to whichever container is active
+        const _rightPanel = document.getElementById('rightPanel');
+        const _iconScope = (_rightPanel && _rightPanel.style.display !== 'none')
+            ? document.getElementById('rightPanelContent')
+            : document.getElementById('editGameModal');
+        const favoriteIcon = _iconScope ? _iconScope.querySelector('#editFavorite') : null;
         if (favoriteIcon) {
             game.favorite = favoriteIcon.classList.contains('bi-star-fill');
         } else {
             game.favorite = originalGame.favorite || false;
         }
-
-        // Handle kidgame field (smiley icon)
-        try {
-            game.kidgame = this.isKidgameActive();
-        } catch (e) {
-            console.warn('Could not get kidgame status, using original value:', e);
+        const kidgameIconSave = _iconScope ? _iconScope.querySelector('#editKidgame') : null;
+        if (kidgameIconSave) {
+            game.kidgame = kidgameIconSave.classList.contains('bi-emoji-smile-fill');
+        } else {
             game.kidgame = originalGame.kidgame || false;
         }
 
