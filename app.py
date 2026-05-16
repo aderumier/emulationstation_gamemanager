@@ -3617,6 +3617,7 @@ def process_next_queued_task():
         selected_games = task_data.get('selected_games', [])
         start_time = task_data.get('start_time', 0)
         auto_crop = task_data.get('auto_crop', False)
+        disable_audio = task_data.get('disable_audio', False)
         overwrite_existing = task_data.get('overwrite_existing', False)
         playlist_index = task_data.get('playlist_index', 1)
         youtube_channel = task_data.get('youtube_channel', '')
@@ -3633,7 +3634,7 @@ def process_next_queued_task():
                 set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start YouTube download batch in background thread
-            thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index, youtube_channel))
+            thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, disable_audio, overwrite_existing, playlist_index, youtube_channel))
             thread.daemon = True
             thread.start()
     elif task_type == 'mobygames':
@@ -27141,7 +27142,7 @@ def search_youtube_channel_for_video(channel_id, search_query, api_key):
     return None
 
 
-def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index=1, youtube_channel=''):
+def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, disable_audio=False, overwrite_existing=False, playlist_index=1, youtube_channel=''):
     """Run batch YouTube download task in background thread"""
     global current_task_id
 
@@ -27264,7 +27265,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
 
                 # Channel mode: search the channel for this game instead of using youtubeurl
                 if youtube_channel:
-                    search_query = game_name
+                    search_query = re.sub(r'\s*\(.*?\)', '', game_name).strip()
                     task.update_progress(f"  🔍 Searching channel {youtube_channel} for: {search_query}")
                     found_url = search_youtube_channel_for_video(channel_id, search_query, youtube_api_key)
                     if found_url:
@@ -27289,7 +27290,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
 
                 # Download the video using the existing YouTube download logic
                 success = download_youtube_video_for_game(
-                    task, youtube_url, start_time, auto_crop,
+                    task, youtube_url, start_time, auto_crop, disable_audio,
                     output_path, videos_dir, game_name, playlist_index, temp_videos_dir, rom_path
                 )
                 
