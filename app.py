@@ -3621,6 +3621,7 @@ def process_next_queued_task():
         overwrite_existing = task_data.get('overwrite_existing', False)
         playlist_index = task_data.get('playlist_index', 1)
         youtube_channel = task_data.get('youtube_channel', '')
+        youtube_playlist = task_data.get('youtube_playlist', '')
         if system_name and selected_games:
             # Use the existing queued task (task_id already set as running in lock above)
             task_id = next_task.get('task_id')
@@ -3634,7 +3635,7 @@ def process_next_queued_task():
                 set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start YouTube download batch in background thread
-            thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, disable_audio, overwrite_existing, playlist_index, youtube_channel))
+            thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, disable_audio, overwrite_existing, playlist_index, youtube_channel, youtube_playlist))
             thread.daemon = True
             thread.start()
     elif task_type == 'mobygames':
@@ -25422,6 +25423,7 @@ def youtube_download_batch(system_name):
         overwrite_existing = data.get('overwrite_existing', False)
         playlist_index = data.get('playlist_index', 1)
         youtube_channel = data.get('youtube_channel', '').strip()
+        youtube_playlist = data.get('youtube_playlist', '').strip()
 
         if not selected_games:
             return jsonify({'error': 'No games selected for download'}), 400
@@ -25446,7 +25448,8 @@ def youtube_download_batch(system_name):
             'auto_crop': auto_crop,
             'overwrite_existing': overwrite_existing,
             'playlist_index': playlist_index,
-            'youtube_channel': youtube_channel
+            'youtube_channel': youtube_channel,
+            'youtube_playlist': youtube_playlist
         }
 
         # Add task to queue instead of starting directly
@@ -27110,7 +27113,9 @@ def resolve_youtube_channel_id(channel, api_key):
 
 def search_youtube_channel_for_video(channel_id, search_query, api_key):
     """Search within a YouTube channel for a video using the YouTube Data API v3.
-    Returns the video URL of the first result, or None if not found."""
+    Returns the video URL of the first result whose normalized title contains the
+    normalized search_query, or None if not found."""
+    from game_utils import normalize_game_name
     try:
         resp = requests.get(
             "https://www.googleapis.com/youtube/v3/search",
@@ -27119,7 +27124,7 @@ def search_youtube_channel_for_video(channel_id, search_query, api_key):
                 'q': search_query,
                 'channelId': channel_id,
                 'type': 'video',
-                'maxResults': 1,
+                'maxResults': 10,
                 'order': 'relevance',
                 'key': api_key
             },
@@ -27134,15 +27139,64 @@ def search_youtube_channel_for_video(channel_id, search_query, api_key):
             return None
         increment_youtube_key_usage(api_key)
         items = resp.json().get('items', [])
-        if items:
-            video_id = items[0]['id']['videoId']
-            return f"https://www.youtube.com/watch?v={video_id}"
+        normalized_query = normalize_game_name(search_query, remove_paranthesis=True, remove_articles=False)
+        for item in items:
+            video_id = item['id']['videoId']
+            title = item['snippet'].get('title', '')
+            normalized_title = normalize_game_name(title, remove_paranthesis=True, remove_articles=False)
+            if normalized_query in normalized_title:
+                return f"https://www.youtube.com/watch?v={video_id}"
+        print(f"No channel result with title containing '{normalized_query}'")
     except Exception as e:
         print(f"Error searching YouTube channel {channel_id}: {e}")
     return None
 
 
-def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, disable_audio=False, overwrite_existing=False, playlist_index=1, youtube_channel=''):
+def fetch_youtube_playlist_videos(playlist_url):
+    """Fetch all video titles and IDs from a YouTube playlist using yt-dlp.
+    Returns a list of {'video_id': str, 'title': str} dicts, or [] on failure."""
+    try:
+        import subprocess, json
+        yt_dlp_path = get_yt_dlp_path()
+        cmd = [yt_dlp_path] + get_yt_dlp_js_runtime_args() + [
+            '--flat-playlist',
+            '--dump-single-json',
+            '--no-warnings',
+            playlist_url
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode != 0:
+            print(f"yt-dlp playlist fetch failed: {result.stderr[:200]}")
+            return []
+        data = json.loads(result.stdout)
+        entries = data.get('entries', [])
+        videos = []
+        for e in entries:
+            video_id = e.get('id') or e.get('url', '').split('v=')[-1]
+            title = e.get('title', '')
+            if video_id and title:
+                videos.append({'video_id': video_id, 'title': title})
+        return videos
+    except Exception as e:
+        print(f"Error fetching playlist {playlist_url}: {e}")
+        return []
+
+
+def search_playlist_for_game(playlist_videos, game_name):
+    """Find the first video in playlist_videos whose normalized title contains the normalized game_name.
+    Returns a YouTube URL if found, else None."""
+    from game_utils import normalize_game_name
+    normalized_query = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=False)
+    if not normalized_query:
+        return None
+    for video in playlist_videos:
+        normalized_title = normalize_game_name(video['title'], remove_paranthesis=True, remove_articles=False)
+        if normalized_query in normalized_title:
+            return f"https://www.youtube.com/watch?v={video['video_id']}"
+    return None
+
+
+def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, disable_audio=False, overwrite_existing=False, playlist_index=1, youtube_channel='', youtube_playlist=''):
     """Run batch YouTube download task in background thread"""
     global current_task_id
 
@@ -27163,6 +27217,8 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         task.update_progress(f"  Playlist index: {playlist_index}")
         if youtube_channel:
             task.update_progress(f"  YouTube channel: {youtube_channel}")
+        if youtube_playlist:
+            task.update_progress(f"  YouTube playlist: {youtube_playlist}")
         
         # Validate system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -27195,7 +27251,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
             has_valid_url = has_youtube or has_steam_store
 
             if game_path in selected_games:
-                if youtube_channel or has_valid_url:
+                if youtube_channel or youtube_playlist or has_valid_url:
                     games_to_process.append(game)
                 else:
                     print(f"🎥 DEBUG: Skipping {game_path} — no valid URL")
@@ -27217,20 +27273,24 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         os.makedirs(temp_videos_dir, exist_ok=True)
         task.update_progress(f"Created temp directory: {temp_videos_dir}")
 
-        # Resolve channel ID once before processing games
-        channel_id = None
-        youtube_api_key = None
+        # Fetch channel/playlist videos once via yt-dlp before processing games
+        playlist_videos = []
         if youtube_channel:
-            youtube_api_key = get_youtube_api_key()
-            if not youtube_api_key:
-                task.complete(False, 'YouTube API key is required for channel search. Please configure it in settings.')
+            channel_handle = youtube_channel.strip().lstrip('@')
+            channel_url = f"https://www.youtube.com/@{channel_handle}/videos"
+            task.update_progress(f"Fetching videos from channel {youtube_channel} via yt-dlp...")
+            playlist_videos = fetch_youtube_playlist_videos(channel_url)
+            if not playlist_videos:
+                task.complete(False, f'Could not fetch videos from channel: {youtube_channel}')
                 return
-            task.update_progress(f"Resolving channel ID for {youtube_channel}...")
-            channel_id = resolve_youtube_channel_id(youtube_channel, youtube_api_key)
-            if not channel_id:
-                task.complete(False, f'Could not resolve YouTube channel: {youtube_channel}')
+            task.update_progress(f"Fetched {len(playlist_videos)} videos from channel")
+        elif youtube_playlist:
+            task.update_progress(f"Fetching playlist videos from {youtube_playlist}...")
+            playlist_videos = fetch_youtube_playlist_videos(youtube_playlist)
+            if not playlist_videos:
+                task.complete(False, f'Could not fetch videos from playlist: {youtube_playlist}')
                 return
-            task.update_progress(f"Resolved channel ID: {channel_id}")
+            task.update_progress(f"Fetched {len(playlist_videos)} videos from playlist")
         
         # Process each game
         successful_downloads = 0
@@ -27263,16 +27323,18 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                 progress_percent = int(((i + 1) / total_games) * 100)
                 task.update_progress(f"Processing {i+1}/{total_games}: {game_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
 
-                # Channel mode: search the channel for this game instead of using youtubeurl
-                if youtube_channel:
-                    search_query = re.sub(r'\s*\(.*?\)', '', game_name).strip()
-                    task.update_progress(f"  🔍 Searching channel {youtube_channel} for: {search_query}")
-                    found_url = search_youtube_channel_for_video(channel_id, search_query, youtube_api_key)
+                search_query = re.sub(r'\s*\(.*?\)', '', game_name).strip()
+
+                # Channel/playlist mode: match normalized game name against fetched video titles
+                if youtube_channel or youtube_playlist:
+                    source_label = f"channel {youtube_channel}" if youtube_channel else "playlist"
+                    task.update_progress(f"  🔍 Searching {source_label} for: {search_query}")
+                    found_url = search_playlist_for_game(playlist_videos, search_query)
                     if found_url:
                         task.update_progress(f"  🔗 Found: {found_url}")
                         youtube_url = found_url
                     else:
-                        task.update_progress(f"  ⚠️ No result found in channel, skipping")
+                        task.update_progress(f"  ⚠️ No match found in {source_label} for: {search_query}, skipping")
                         failed_downloads += 1
                         continue
 
@@ -27421,9 +27483,15 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
         
         output_template = os.path.join(temp_rom_dir, f"{temp_filename}.%(ext)s")
         
+        # Clamp start_time to video duration - 30s if it exceeds the video length
+        duration = get_youtube_video_duration(video_url)
+        if duration and start_time >= duration:
+            start_time = max(0, int(duration) - 30)
+            task.update_progress(f"  ⏱️ start_time exceeds video duration ({int(duration)}s), adjusted to {start_time}s")
+
         # Calculate end time for the 30-second section
         end_time = start_time + 30
-        
+
         # Check if this is a Steam Store URL
         is_steam_store = 'store.steampowered.com' in video_url.lower()
         
