@@ -14672,6 +14672,7 @@ class GameCollectionManager {
                 select.innerHTML = '<option value="">Select template...</option>';
 
                 if (data.templates && data.templates.length > 0) {
+                    data.templates.sort((a, b) => a.name.localeCompare(b.name));
                     data.templates.forEach(template => {
                         const option = document.createElement('option');
                         option.value = template.name;
@@ -16758,6 +16759,7 @@ class GameCollectionManager {
                 select.innerHTML = '<option value="">Select template...</option>';
 
                 if (data.templates && data.templates.length > 0) {
+                    data.templates.sort((a, b) => a.name.localeCompare(b.name));
                     data.templates.forEach(template => {
                         const option = document.createElement('option');
                         option.value = template.name;
@@ -18036,14 +18038,14 @@ class GameCollectionManager {
             const autoCrop = document.getElementById('youtubeAutoCrop').checked;
             const overwriteExisting = document.getElementById('youtubeOverwriteExisting').checked;
             const playlistIndex = parseInt(document.getElementById('youtubePlaylistIndex').value) || 1;
-            const youtubeChannel = document.getElementById('youtubeChannel').value.trim();
+            const youtubePlaylistUrl = document.getElementById('youtubePlaylistUrl').value.trim();
 
             // Determine which games to process
             const gamesToProcess = this.selectedGames.length > 0 ? this.selectedGames : this.games;
 
             let gamesWithYoutube;
-            if (youtubeChannel) {
-                // Channel mode: process all games, backend will search the channel
+            if (youtubePlaylistUrl) {
+                // Playlist/channel mode: process all games, backend will search
                 gamesWithYoutube = gamesToProcess;
             } else {
                 // Filter games that have YouTube URLs or Steam Store URLs
@@ -18076,7 +18078,7 @@ class GameCollectionManager {
                 auto_crop: autoCrop,
                 overwrite_existing: overwriteExisting,
                 playlist_index: playlistIndex,
-                youtube_channel: youtubeChannel
+                youtube_playlist: youtubePlaylistUrl
             };
 
             // Make the API request
