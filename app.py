@@ -2207,17 +2207,6 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
                 old_value = game_data.get(gamelist_field, '')
                 new_value = best_match[launchbox_field]
                 
-                # Special handling for name field - preserve parentheses content from ROM filename
-                if launchbox_field == 'Name' and rom_filename:
-                    # Extract parentheses content from ROM filename
-                    import re
-                    parens_match = re.search(r'\(([^)]+)\)', rom_filename)
-                    if parens_match:
-                        parens_content = parens_match.group(0)  # Includes parentheses: "(USA)"
-                        # Add parentheses content to the name if not already present
-                        if parens_content not in new_value:
-                            new_value = f"{new_value} {parens_content}"
-                        print(f"🔧 DEBUG: Added parentheses from ROM filename: '{best_match[launchbox_field]}' -> '{new_value}'")
                 
                 # Special handling for CommunityRating - normalize to 0-5 scale with 2 decimals
                 if launchbox_field == 'CommunityRating' and gamelist_field == 'rating':
@@ -17123,12 +17112,12 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
         # Use region configuration (already loaded at task start)
         default_region_priority = region_config.get('priority', ['World', 'North America', 'Europe', 'Japan'])
         
-        # Try to extract region from game name and adjust priority
-        region_priority = get_region_priority_from_game_name(game_name, default_region_priority)
-        
+        # Extract region from ROM filename (authoritative source for region info)
+        region_priority = get_region_priority_from_game_name(rom_filename, default_region_priority)
+
         # Log region priority adjustment if it changed
         if region_priority != default_region_priority:
-            print(f"{game_prefix} 🌍 Region priority adjusted based on game name: {region_priority}")
+            print(f"{game_prefix} 🌍 Region priority adjusted based on ROM filename: {region_priority}")
         else:
             print(f"{game_prefix} 🌍 Using default region priority: {region_priority}")
         

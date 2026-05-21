@@ -189,20 +189,7 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None, 
                     break
         
         if screenscraper_name:
-            # Preserve parentheses text from ROM filename if present
-            if rom_filename:
-                import re
-                # Extract all text in parentheses from ROM filename
-                parentheses_matches = re.findall(r'\(([^)]+)\)', rom_filename)
-                if parentheses_matches:
-                    # Join all parentheses text with spaces
-                    parentheses_text = ' '.join(f"({match})" for match in parentheses_matches)
-                    # Append parentheses text to ScreenScraper name
-                    text_info['name'] = f"{screenscraper_name} {parentheses_text}"
-                else:
-                    text_info['name'] = screenscraper_name
-            else:
-                text_info['name'] = screenscraper_name
+            text_info['name'] = screenscraper_name
     
     # Extract publisher from editeur.text
     if 'editeur' in game_data and isinstance(game_data['editeur'], dict):
