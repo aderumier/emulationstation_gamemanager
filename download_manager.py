@@ -142,7 +142,11 @@ class DownloadManager:
             print("🛑 Download manager stopped")
             
     def add_task(self, task: Dict[str, Any]):
-        """Add a download task to the queue"""
+        """Add a download task to the queue, restarting the consumer thread if it died between tasks"""
+        if not self.consumer_thread or not self.consumer_thread.is_alive():
+            with self.lock:
+                self.is_running = False
+            self.start()
         self.task_queue.put(task)
     
     def get_queue_size(self) -> int:
@@ -158,37 +162,28 @@ class DownloadManager:
     def wait_for_completion(self, expected_count: int) -> List[Dict[str, Any]]:
         """Wait for all downloads to complete and return results"""
         results = []
-        for _ in range(expected_count):
+        collected = 0
+        while collected < expected_count:
+            # Check if we should stop (shutdown event is set)
+            if self.shutdown_event.is_set():
+                print(f"🛑 Download manager stopped - returning {len(results)} completed downloads")
+                break
+
+            # Check if the task has been explicitly stopped by the user
+            if self.check_task_status():
+                print(f"🛑 Task stopped by user - stopping download manager")
+                self.shutdown_event.set()
+                break
+
             try:
-                # Check if we should stop (shutdown event is set)
-                if self.shutdown_event.is_set():
-                    print(f"🛑 Download manager stopped - returning {len(results)} completed downloads")
-                    break
-                
-                # Check if the task has been stopped
-                if self.check_task_status():
-                    print(f"🛑 Task stopped by user - stopping download manager")
-                    self.shutdown_event.set()
-                    break
-                    
                 result = self.result_queue.get(timeout=1)  # Check every second for stop requests
+                collected += 1
                 if 'error' in result:
                     print(f"❌ Download error: {result['error']}")
                 else:
                     results.append(result)
             except queue.Empty:
-                # Check if we should stop during timeout
-                if self.shutdown_event.is_set():
-                    print(f"🛑 Download manager stopped - returning {len(results)} completed downloads")
-                    break
-                
-                # Check if the task has been stopped during timeout
-                if self.check_task_status():
-                    print(f"🛑 Task stopped by user - stopping download manager")
-                    self.shutdown_event.set()
-                    break
-                    
-                continue  # Continue waiting, don't break on timeout
+                continue  # No result yet, keep waiting
         return results
     
     def is_queue_empty_and_no_active_tasks(self) -> bool:
@@ -396,22 +391,6 @@ class DownloadManager:
                                     break
                             if queue_cleared > 0:
                                 print(f"🛑 Cleared {queue_cleared} pending tasks from queue")
-                            break
-                        
-                        # Check if task has been stopped by user
-                        if self.check_task_status():
-                            print("🛑 Task stopped by user - cancelling all active downloads")
-                            # Cancel all active tasks
-                            for task in list(active_tasks):
-                                if not task.done():
-                                    task.cancel()
-                            active_tasks.clear()
-                            # Clear the task queue
-                            while not self.task_queue.empty():
-                                try:
-                                    self.task_queue.get_nowait()
-                                except queue.Empty:
-                                    break
                             break
                         
                         # Start new downloads up to 20 parallel

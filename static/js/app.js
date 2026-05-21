@@ -1752,6 +1752,9 @@ class GameCollectionManager {
     }
 
     async checkAuthenticationAndStartRefresh() {
+        // Already running — don't start a second interval
+        if (this.taskRefreshInterval) return;
+
         try {
             const response = await fetch('/api/tasks', {
                 method: 'HEAD', // Just check if we can access the endpoint
@@ -1776,8 +1779,12 @@ class GameCollectionManager {
                     }, 100); // Small delay to debounce rapid calls
                 }, 1000);
             } else {
+                // Server returned an unexpected status (e.g. 500 during startup) — retry
+                setTimeout(() => this.checkAuthenticationAndStartRefresh(), 2000);
             }
         } catch (error) {
+            // Network error (server still starting up) — retry after a short delay
+            setTimeout(() => this.checkAuthenticationAndStartRefresh(), 2000);
         }
     }
 
@@ -22807,6 +22814,16 @@ class GameCollectionManager {
             } else {
                 this.showAlert(data.message || 'Import ROMs failed', 'error');
             }
+        }
+
+        // Check if this is a LaunchBox scraping task completion
+        if (data.task_type === 'launchbox_scraping') {
+            this.refreshTaskGrid();
+        }
+
+        // Check if this is an image download task completion
+        if (data.task_type === 'image_download') {
+            this.refreshTaskGrid();
         }
     }
 

@@ -348,9 +348,14 @@ def users_exist():
         return False
 
 def save_users(users):
-    """Save users to user.cfg file"""
-    with open('var/config/user.cfg', 'w') as f:
+    """Save users to user.cfg file (atomic write to prevent corruption on crash)"""
+    target = 'var/config/user.cfg'
+    tmp = target + '.tmp'
+    with open(tmp, 'w') as f:
         json.dump(users, f, indent=4)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, target)
 
 def save_config():
     """Save configuration to config.json file"""
@@ -359,7 +364,11 @@ def save_config():
 
 def get_user_by_id(user_id):
     """Get user by ID"""
-    users = load_users()
+    try:
+        users = load_users()
+    except Exception as e:
+        print(f"Error loading users: {e}")
+        return None
     user_data = users.get(user_id)
     if user_data:
         role = user_data.get('role', 'user')
@@ -379,7 +388,11 @@ def get_user_by_id(user_id):
 
 def get_user_by_username(username):
     """Get user by username"""
-    users = load_users()
+    try:
+        users = load_users()
+    except Exception as e:
+        print(f"Error loading users: {e}")
+        return None
     for user_id, user_data in users.items():
         if user_data['username'] == username:
             role = user_data.get('role', 'user')
@@ -399,7 +412,11 @@ def get_user_by_username(username):
 
 def get_user_by_discord_id(discord_id):
     """Get user by Discord ID"""
-    users = load_users()
+    try:
+        users = load_users()
+    except Exception as e:
+        print(f"Error loading users: {e}")
+        return None
     for user_id, user_data in users.items():
         if user_data.get('discord_id') == discord_id:
             role = user_data.get('role', 'user')
@@ -3276,8 +3293,8 @@ def process_next_queued_task():
                 task = create_task('image_download', task_data)
                 set_running_task_for_system(system_name, task.id)
                 task.start()
-            # Start image download in background thread
-            thread = threading.Thread(target=run_image_download_task, args=(system_name, task_data))
+            # Start image download in background thread, passing task.id directly to avoid global race
+            thread = threading.Thread(target=run_image_download_task, args=(system_name, task_data, task.id))
             thread.daemon = True
             thread.start()
     elif task_type == 'rom_scan':
@@ -3942,13 +3959,23 @@ def run_launchbox_scraper_task(system_name, task_id, selected_games, selected_fi
                 'force_download': force_download,
                 'selected_fields': selected_fields
             }, username=username)
-            
+
             # Mark task as completed
             task.complete(True, result)
+            emit_non_blocking('task_completed', {
+                'task_type': 'launchbox_scraping',
+                'success': True,
+                'system_name': system_name
+            })
         else:
             # Mark task as failed
             task.complete(False, result.get('error', 'Unknown error'))
-        
+            emit_non_blocking('task_completed', {
+                'task_type': 'launchbox_scraping',
+                'success': False,
+                'system_name': system_name
+            })
+
         # Process next task in queue if any
         process_next_queued_task()
         
@@ -6005,16 +6032,18 @@ def run_upload_media_task(system_name, selected_games, target_field, temp_file_p
         clear_running_task_for_system(system_name)
         process_next_queued_task()
 
-def run_image_download_task(system_name, data):
+def run_image_download_task(system_name, data, task_id=None):
     """Run image download task in background thread"""
     global current_task_id
-    
+
     try:
-        if not current_task_id or current_task_id not in tasks:
+        # Prefer the explicitly passed task_id to avoid race with current_task_id global
+        resolved_task_id = task_id if (task_id and task_id in tasks) else current_task_id
+        if not resolved_task_id or resolved_task_id not in tasks:
             print("Error: No active task found")
             return
-        
-        task = tasks[current_task_id]
+
+        task = tasks[resolved_task_id]
         
         # Extract parameters from data
         print(f"🔧 DEBUG: [TASK START] data parameter: {data}")
@@ -6552,13 +6581,24 @@ def run_image_download_task(system_name, data):
         
         # Complete task
         task.complete(True)
-        
+        emit_non_blocking('task_completed', {
+            'task_type': 'image_download',
+            'success': True,
+            'system_name': system_name
+        })
+
         # Process next task in queue if any
         process_next_queued_task()
-        
+
     except Exception as e:
-        if current_task_id and current_task_id in tasks:
-            tasks[current_task_id].complete(False, str(e))
+        resolved_task_id = task_id if (task_id and task_id in tasks) else current_task_id
+        if resolved_task_id and resolved_task_id in tasks:
+            tasks[resolved_task_id].complete(False, str(e))
+        emit_non_blocking('task_completed', {
+            'task_type': 'image_download',
+            'success': False,
+            'system_name': system_name
+        })
         print(f"Error in image download task: {e}")
 
 
