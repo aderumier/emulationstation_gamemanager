@@ -1606,6 +1606,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <button id="youtubeDownloadBtn" class="btn btn-primary">
                                     <i class="bi bi-youtube me-2"></i>YouTube Search
                                 </button>
+                                <button id="editVideoBtn" class="btn btn-secondary" disabled>
+                                    <i class="bi bi-film me-2"></i>Edit Video
+                                </button>
                                 <button id="manualCropBtn" class="btn btn-warning" disabled>
                                     <i class="bi bi-crop me-2"></i>Manual Crop
                                 </button>
@@ -4231,6 +4234,170 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- Video Editor Modal -->
+    <div class="modal fade" id="videoEditorModal" tabindex="-1" aria-labelledby="videoEditorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h5 class="modal-title" id="videoEditorModalLabel">
+                        <i class="bi bi-film me-2 text-primary"></i>Video Editor
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-2">
+
+                    <!-- Source | Preview side-by-side -->
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <div class="card h-100">
+                                <div class="card-header py-1 d-flex justify-content-between align-items-center">
+                                    <small class="fw-semibold">Source</small>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <small class="text-warning" id="videoEditorCropDimText" style="font-size:0.7rem;"></small>
+                                        <button id="videoEditorCropClear" class="btn btn-outline-danger py-0 px-1" style="font-size:0.7rem; line-height:1.2; display:none;" title="Clear crop">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                        <button id="videoEditorCropToggle" class="btn btn-outline-warning py-0 px-1" style="font-size:0.7rem; line-height:1.2;" title="Draw crop area on source video">
+                                            <i class="bi bi-crop me-1"></i>Crop
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body p-1 d-flex align-items-center justify-content-center"
+                                    style="min-height: 260px; background:#111;">
+                                    <div id="videoEditorPlayerWrapper" style="position:relative; display:inline-flex; max-width:100%;">
+                                        <video id="videoEditorPlayer" controls
+                                            style="max-width:100%; max-height:300px; border-radius:4px; display:block;">
+                                        </video>
+                                        <canvas id="videoEditorCropCanvas"
+                                            style="position:absolute; inset:0; width:100%; height:100%; border-radius:4px; display:none; cursor:crosshair;">
+                                        </canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="card h-100">
+                                <div class="card-header py-1 d-flex justify-content-between align-items-center">
+                                    <small class="fw-semibold">Preview</small>
+                                    <small class="text-muted" id="videoEditorPreviewInfo"></small>
+                                </div>
+                                <div class="card-body p-1 d-flex align-items-center justify-content-center"
+                                    style="min-height: 260px; background:#111;">
+                                    <div id="videoEditorPreviewPlaceholder" class="text-center text-secondary" style="cursor:pointer;">
+                                        <i class="bi bi-play-circle" style="font-size:3rem;"></i>
+                                        <div class="mt-2" style="font-size:0.8rem;">Click to generate preview</div>
+                                    </div>
+                                    <div id="videoEditorPreviewSpinner" style="display:none;" class="text-center text-secondary">
+                                        <div class="spinner-border" role="status"></div>
+                                        <div class="mt-2" style="font-size:0.8rem;">Generating…</div>
+                                    </div>
+                                    <video id="videoEditorPreviewPlayer" controls loop
+                                        style="max-width:100%; max-height:300px; border-radius:4px; display:none;">
+                                    </video>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Timeline Ribbon -->
+                    <div class="card mb-2">
+                        <div class="card-header py-1">
+                            <small class="fw-semibold"><i class="bi bi-rulers me-1"></i>Timeline — drag handles to set start / end</small>
+                        </div>
+                        <div class="card-body py-2 px-3">
+                            <div class="video-editor-timeline mb-2">
+                                <div class="timeline-container">
+                                    <div class="timeline-track-bg"></div>
+                                    <div class="timeline-selection" id="timelineSelection"></div>
+                                    <input type="range" id="videoEditorStart" class="timeline-range timeline-start-range"
+                                        min="0" max="1000" value="0" step="1">
+                                    <input type="range" id="videoEditorEnd" class="timeline-range timeline-end-range"
+                                        min="0" max="1000" value="1000" step="1">
+                                </div>
+                                <div class="d-flex justify-content-between mt-1">
+                                    <small class="text-muted" id="videoEditorStartLabel">0:00.0</small>
+                                    <small class="text-muted fw-semibold" id="videoEditorDurationLabel">Duration: 0:00.0</small>
+                                    <small class="text-muted" id="videoEditorEndLabel">0:00.0</small>
+                                </div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">Start (seconds)</label>
+                                    <input type="number" id="videoEditorStartInput" class="form-control form-control-sm"
+                                        min="0" step="0.1" value="0">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">End (seconds)</label>
+                                    <input type="number" id="videoEditorEndInput" class="form-control form-control-sm"
+                                        min="0" step="0.1" value="0">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">Clip Duration</label>
+                                    <input type="text" id="videoEditorClipDuration" class="form-control form-control-sm"
+                                        readonly value="0:00.0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Effects + Resolution -->
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header py-1">
+                                    <small class="fw-semibold"><i class="bi bi-magic me-1"></i>Effects</small>
+                                </div>
+                                <div class="card-body py-2">
+                                    <div class="d-flex gap-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="videoEditorFadeIn">
+                                            <label class="form-check-label" for="videoEditorFadeIn">
+                                                <i class="bi bi-brightness-high me-1"></i>Fade In (2s)
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="videoEditorFadeOut">
+                                            <label class="form-check-label" for="videoEditorFadeOut">
+                                                <i class="bi bi-brightness-low me-1"></i>Fade Out (2s)
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header py-1">
+                                    <small class="fw-semibold"><i class="bi bi-aspect-ratio me-1"></i>Output Resolution</small>
+                                </div>
+                                <div class="card-body py-2">
+                                    <select id="videoEditorResolution" class="form-select form-select-sm">
+                                        <option value="">Keep original</option>
+                                        <option value="480">480p</option>
+                                        <option value="720">720p</option>
+                                        <option value="1080">1080p</option>
+                                        <option value="1440">1440p</option>
+                                        <option value="2160">2160p (4K)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="videoEditorPreviewBtn">
+                        <i class="bi bi-play-circle me-1"></i>Generate Preview
+                    </button>
+                    <button type="button" class="btn btn-success btn-sm" id="videoEditorValidateBtn" disabled>
+                        <i class="bi bi-check-circle me-1"></i>Validate &amp; Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Gamelist Save Confirmation Modal -->
     <div class="modal fade" id="gamelistSaveModal" tabindex="-1" aria-labelledby="gamelistSaveModalLabel"
         aria-hidden="true">
@@ -6741,6 +6908,73 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             width: 16px;
             text-align: center;
         }
+
+        /* Video Editor Timeline Ribbon */
+        .video-editor-timeline .timeline-container {
+            position: relative;
+            height: 44px;
+            user-select: none;
+        }
+        .video-editor-timeline .timeline-track-bg {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 10px;
+            transform: translateY(-50%);
+            background: #dee2e6;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+        .video-editor-timeline .timeline-selection {
+            position: absolute;
+            top: 50%;
+            height: 10px;
+            transform: translateY(-50%);
+            background: #0d6efd;
+            border-radius: 2px;
+            pointer-events: none;
+        }
+        .video-editor-timeline .timeline-range {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            transform: translateY(-50%);
+            margin: 0;
+            padding: 0;
+            appearance: none;
+            -webkit-appearance: none;
+            background: transparent;
+            outline: none;
+            cursor: pointer;
+            pointer-events: none;
+            height: 44px;
+        }
+        .video-editor-timeline .timeline-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #0d6efd;
+            border: 3px solid #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+            cursor: grab;
+            pointer-events: all;
+        }
+        .video-editor-timeline .timeline-range::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #0d6efd;
+            border: 3px solid #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+            cursor: grab;
+            pointer-events: all;
+        }
+        .video-editor-timeline .timeline-range:active::-webkit-slider-thumb { cursor: grabbing; }
+        .video-editor-timeline .timeline-range:active::-moz-range-thumb { cursor: grabbing; }
+        .video-editor-timeline .timeline-start-range { z-index: 3; }
+        .video-editor-timeline .timeline-end-range { z-index: 4; }
     </style>
 
     <!-- Treejs for genre tree view -->

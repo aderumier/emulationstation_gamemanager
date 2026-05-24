@@ -5760,6 +5760,9 @@ class GameCollectionManager {
         this.initializeUploadVideoButton(game);
 
 
+        // Initialize edit video button
+        this.initializeEditVideoButton(game);
+
         // Initialize manual crop button
         this.initializeManualCropButton(game);
 
@@ -20975,6 +20978,21 @@ class GameCollectionManager {
         }
     }
 
+    initializeEditVideoButton(game) {
+        const btn = document.getElementById('editVideoBtn');
+        if (!btn) return;
+
+        const videoFields = ['video', 'video_mp4', 'video_avi', 'video_mov', 'video_mkv'];
+        const hasVideos = videoFields.some(field => game[field] && game[field].trim());
+        btn.disabled = !hasVideos;
+
+        if (btn._editVideoHandler) {
+            btn.removeEventListener('click', btn._editVideoHandler);
+        }
+        btn._editVideoHandler = () => this.openVideoEditorModal(game);
+        btn.addEventListener('click', btn._editVideoHandler);
+    }
+
     initializeTakeScreenshotButton(game) {
         const takeScreenshotBtn = document.getElementById('takeScreenshotBtn');
         if (takeScreenshotBtn) {
@@ -20997,6 +21015,619 @@ class GameCollectionManager {
             takeScreenshotBtn.addEventListener('click', takeScreenshotBtn._screenshotHandler);
         }
     }
+
+    // ── Video Editor ──────────────────────────────────────────────────────────
+
+    async openVideoEditorModal(game) {
+        const videoFields = ['video', 'video_mp4', 'video_avi', 'video_mov', 'video_mkv'];
+        const videoField = videoFields.find(field => game[field] && game[field].trim());
+        if (!videoField) {
+            this.showAlert('No video found for editing', 'error');
+            return;
+        }
+
+        const videoPath = game[videoField];
+        let absoluteVideoPath = videoPath;
+        if (videoPath.startsWith('./')) {
+            absoluteVideoPath = `/roms/${this.currentSystem}/${videoPath.substring(2)}`;
+        }
+
+        // Encode path segments
+        const pathParts = absoluteVideoPath.split('/').filter(p => p).map(p => encodeURIComponent(p));
+        const encodedPath = '/' + pathParts.join('/');
+
+        this.currentEditorGame = game;
+        this.currentEditorVideoField = videoField;
+        this.currentEditorVideoPath = absoluteVideoPath;
+        this.currentEditorTempFile = null;
+        this.videoEditorDuration = 0;
+
+        const player = document.getElementById('videoEditorPlayer');
+        player.src = encodedPath;
+        player.currentTime = 0;
+
+        // Reset controls
+        document.getElementById('videoEditorStart').value = 0;
+        document.getElementById('videoEditorEnd').value = 1000;
+        document.getElementById('videoEditorFadeIn').checked = false;
+        document.getElementById('videoEditorFadeOut').checked = false;
+        document.getElementById('videoEditorStartInput').value = 0;
+        document.getElementById('videoEditorEndInput').value = 0;
+        document.getElementById('videoEditorClipDuration').value = '0:00.0';
+        document.getElementById('videoEditorStartLabel').textContent = '0:00.0';
+        document.getElementById('videoEditorEndLabel').textContent = '0:00.0';
+        document.getElementById('videoEditorDurationLabel').textContent = 'Duration: 0:00.0';
+        this._updateTimelineSelection(0, 100);
+        this._resetVideoEditorPreview();
+        document.getElementById('videoEditorValidateBtn').disabled = true;
+        this.videoEditorCrop = null;
+
+        // Populate resolution combobox from video config
+        this._populateVideoEditorResolutions();
+
+        // Load duration from backend (more reliable than waiting for loadedmetadata)
+        try {
+            const resp = await fetch('/api/video-editor/duration', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_path: absoluteVideoPath })
+            });
+            const json = await resp.json();
+            if (json.success) {
+                this.videoEditorDuration = json.duration;
+                this._initVideoEditorTimeline(json.duration);
+            }
+        } catch (e) {
+            // Fall back to player metadata
+            player.addEventListener('loadedmetadata', () => {
+                this.videoEditorDuration = player.duration;
+                this._initVideoEditorTimeline(player.duration);
+            }, { once: true });
+        }
+
+        const editorModalEl = document.getElementById('videoEditorModal');
+        const modal = new bootstrap.Modal(editorModalEl);
+        modal.show();
+
+        // Clean up temp preview if modal is dismissed without validating
+        const onHide = () => {
+            if (this.currentEditorTempFile) {
+                this._deleteTempPreview(this.currentEditorTempFile);
+                this.currentEditorTempFile = null;
+            }
+            editorModalEl.removeEventListener('hidden.bs.modal', onHide);
+        };
+        editorModalEl.addEventListener('hidden.bs.modal', onHide);
+
+        this._setupVideoEditorListeners();
+    }
+
+    _initVideoEditorTimeline(duration) {
+        const fmt = s => this._fmtVideoTime(s);
+        document.getElementById('videoEditorStartInput').value = 0;
+        document.getElementById('videoEditorEndInput').value = parseFloat(duration.toFixed(1));
+        document.getElementById('videoEditorStartLabel').textContent = '0:00.0';
+        document.getElementById('videoEditorEndLabel').textContent = fmt(duration);
+        document.getElementById('videoEditorDurationLabel').textContent = `Duration: ${fmt(duration)}`;
+        document.getElementById('videoEditorClipDuration').value = fmt(duration);
+        document.getElementById('videoEditorStart').value = 0;
+        document.getElementById('videoEditorEnd').value = 1000;
+        this._updateTimelineSelection(0, 100);
+    }
+
+    _setupVideoEditorListeners() {
+        const startSlider = document.getElementById('videoEditorStart');
+        const endSlider = document.getElementById('videoEditorEnd');
+        const startInput = document.getElementById('videoEditorStartInput');
+        const endInput = document.getElementById('videoEditorEndInput');
+
+        // Remove old listeners by replacing with clones
+        const newStart = startSlider.cloneNode(true);
+        const newEnd = endSlider.cloneNode(true);
+        startSlider.parentNode.replaceChild(newStart, startSlider);
+        endSlider.parentNode.replaceChild(newEnd, endSlider);
+
+        const player = document.getElementById('videoEditorPlayer');
+
+        // Returns {s, e} after clamping and enforcing min gap; mutates slider values.
+        const calcTimes = (activeSlider) => {
+            const dur = this.videoEditorDuration;
+            if (!dur) return null;
+            let s = (parseInt(newStart.value) / 1000) * dur;
+            let e = (parseInt(newEnd.value) / 1000) * dur;
+            if (s >= e - 0.1) {
+                if (activeSlider === newStart) {
+                    s = Math.max(0, e - 0.1);
+                    newStart.value = Math.round((s / dur) * 1000);
+                } else {
+                    e = Math.min(dur, s + 0.1);
+                    newEnd.value = Math.round((e / dur) * 1000);
+                }
+            }
+            return { s, e, dur };
+        };
+
+        const updateUI = ({ s, e }) => {
+            startInput.value = parseFloat(s.toFixed(1));
+            endInput.value = parseFloat(e.toFixed(1));
+            document.getElementById('videoEditorStartLabel').textContent = this._fmtVideoTime(s);
+            document.getElementById('videoEditorEndLabel').textContent = this._fmtVideoTime(e);
+            document.getElementById('videoEditorClipDuration').value = this._fmtVideoTime(e - s);
+            const sPct = (parseInt(newStart.value) / 1000) * 100;
+            const ePct = (parseInt(newEnd.value) / 1000) * 100;
+            this._updateTimelineSelection(sPct, ePct);
+            if (parseInt(newStart.value) > 500) {
+                newStart.style.zIndex = 5;
+                newEnd.style.zIndex = 3;
+            } else {
+                newStart.style.zIndex = 3;
+                newEnd.style.zIndex = 5;
+            }
+        };
+
+        const seekPlayer = (time) => {
+            if (!player) return;
+            player.pause();
+            player.currentTime = time;
+        };
+
+        newStart.addEventListener('input', () => {
+            const t = calcTimes(newStart);
+            if (!t) return;
+            updateUI(t);
+            seekPlayer(t.s);
+        });
+
+        newEnd.addEventListener('input', () => {
+            const t = calcTimes(newEnd);
+            if (!t) return;
+            updateUI(t);
+            seekPlayer(t.e);
+        });
+
+        const syncFromInputs = (seekTarget) => {
+            const dur = this.videoEditorDuration;
+            if (!dur) return;
+            let s = parseFloat(startInput.value) || 0;
+            let e = parseFloat(endInput.value) || dur;
+            s = Math.max(0, Math.min(s, dur));
+            e = Math.max(s + 0.1, Math.min(e, dur));
+            startInput.value = parseFloat(s.toFixed(1));
+            endInput.value = parseFloat(e.toFixed(1));
+            newStart.value = Math.round((s / dur) * 1000);
+            newEnd.value = Math.round((e / dur) * 1000);
+            updateUI({ s, e, dur });
+            seekPlayer(seekTarget === 'start' ? s : e);
+        };
+
+        startInput.addEventListener('change', () => syncFromInputs('start'));
+        endInput.addEventListener('change', () => syncFromInputs('end'));
+
+        // Preview button — clone to remove stale listeners
+        const previewBtn = document.getElementById('videoEditorPreviewBtn');
+        if (previewBtn) {
+            const newBtn = previewBtn.cloneNode(true);
+            previewBtn.parentNode.replaceChild(newBtn, previewBtn);
+            newBtn.addEventListener('click', () => this._triggerVideoPreview());
+        }
+
+        // Preview placeholder — also triggers preview on click
+        const placeholder = document.getElementById('videoEditorPreviewPlaceholder');
+        if (placeholder) {
+            placeholder.style.cursor = 'pointer';
+            placeholder._previewHandler && placeholder.removeEventListener('click', placeholder._previewHandler);
+            placeholder._previewHandler = () => this._triggerVideoPreview();
+            placeholder.addEventListener('click', placeholder._previewHandler);
+        }
+
+        // Validate button — clone to remove stale listeners
+        const validateBtn = document.getElementById('videoEditorValidateBtn');
+        if (validateBtn) {
+            const newVal = validateBtn.cloneNode(true);
+            validateBtn.parentNode.replaceChild(newVal, validateBtn);
+            newVal.addEventListener('click', () => this._validateVideoEdit());
+        }
+
+        this._setupCropCanvas();
+    }
+
+    _setupCropCanvas() {
+        const video   = document.getElementById('videoEditorPlayer');
+        const canvas  = document.getElementById('videoEditorCropCanvas');
+        const toggle  = document.getElementById('videoEditorCropToggle');
+        const clearBtn = document.getElementById('videoEditorCropClear');
+        const dimText  = document.getElementById('videoEditorCropDimText');
+        if (!canvas || !video || !toggle) return;
+
+        let isCropMode = false;
+        let isDrawing  = false;
+        let startX = 0, startY = 0, curX = 0, curY = 0;
+
+        // ── helpers ──────────────────────────────────────────────────────────
+
+        const syncSize = () => {
+            // Match canvas bitmap size to its CSS display size
+            canvas.width  = canvas.offsetWidth  || video.offsetWidth;
+            canvas.height = canvas.offsetHeight || video.offsetHeight;
+        };
+
+        // Returns the rect of the actually-rendered video image within the canvas
+        // (accounts for object-fit:contain letterboxing)
+        const videoRenderRect = () => {
+            const vw = video.videoWidth  || canvas.width;
+            const vh = video.videoHeight || canvas.height;
+            const cw = canvas.width;
+            const ch = canvas.height;
+            const videoAR = vw / vh;
+            const boxAR   = cw / ch;
+            let dw, dh, ox, oy;
+            if (videoAR > boxAR) {
+                dw = cw;
+                dh = cw / videoAR;
+                ox = 0;
+                oy = (ch - dh) / 2;
+            } else {
+                dh = ch;
+                dw = ch * videoAR;
+                ox = (cw - dw) / 2;
+                oy = 0;
+            }
+            return { dw, dh, ox, oy };
+        };
+
+        const canvasToVideo = (cx, cy) => {
+            const { dw, dh, ox, oy } = videoRenderRect();
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
+            return {
+                x: Math.round((cx - ox) * vw / dw),
+                y: Math.round((cy - oy) * vh / dh)
+            };
+        };
+
+        const clientToCanvas = (e) => {
+            const r = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - r.left) * (canvas.width  / r.width),
+                y: (e.clientY - r.top)  * (canvas.height / r.height)
+            };
+        };
+
+        const clampToVideo = (cx, cy) => {
+            const { dw, dh, ox, oy } = videoRenderRect();
+            return {
+                x: Math.max(ox, Math.min(ox + dw, cx)),
+                y: Math.max(oy, Math.min(oy + dh, cy))
+            };
+        };
+
+        const redraw = () => {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const { dw, dh, ox, oy } = videoRenderRect();
+
+            // Helper to draw one rect on the canvas
+            const drawRect = (rx, ry, rw, rh, dashed) => {
+                // Dark mask over the video area, hole punched for selection
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(ox, oy, dw, dh);
+                ctx.clearRect(rx, ry, rw, rh);
+
+                // Border
+                ctx.save();
+                ctx.strokeStyle = '#ffc107';
+                ctx.lineWidth = 2;
+                ctx.setLineDash(dashed ? [5, 3] : []);
+                ctx.strokeRect(rx, ry, rw, rh);
+                ctx.restore();
+
+                // Corner handles (solid squares)
+                const hs = 7;
+                ctx.fillStyle = '#ffc107';
+                [[rx, ry], [rx + rw - hs, ry], [rx, ry + rh - hs], [rx + rw - hs, ry + rh - hs]]
+                    .forEach(([hx, hy]) => ctx.fillRect(hx, hy, hs, hs));
+            };
+
+            if (isDrawing) {
+                const x = Math.min(startX, curX), y = Math.min(startY, curY);
+                const w = Math.abs(curX - startX),  h = Math.abs(curY - startY);
+                if (w > 2 && h > 2) drawRect(x, y, w, h, true);
+            } else if (this.videoEditorCrop) {
+                const { dw: vdw, dh: vdh } = videoRenderRect();
+                const vw = video.videoWidth, vh = video.videoHeight;
+                const sx = ox + this.videoEditorCrop.x * (dw / vw);
+                const sy = oy + this.videoEditorCrop.y * (dh / vh);
+                const sw = this.videoEditorCrop.w * (dw / vw);
+                const sh = this.videoEditorCrop.h * (dh / vh);
+                drawRect(sx, sy, sw, sh, false);
+            }
+        };
+
+        // ── mouse events ─────────────────────────────────────────────────────
+
+        const onDown = (e) => {
+            const c = clientToCanvas(e);
+            const { dw, dh, ox, oy } = videoRenderRect();
+            if (c.x < ox || c.x > ox + dw || c.y < oy || c.y > oy + dh) return;
+            isDrawing = true;
+            startX = c.x; startY = c.y; curX = c.x; curY = c.y;
+            this.videoEditorCrop = null;
+            if (dimText) dimText.textContent = '';
+            if (clearBtn) clearBtn.style.display = 'none';
+        };
+
+        const onMove = (e) => {
+            if (!isDrawing) return;
+            const c = clampToCanvas(clientToCanvas(e));
+            curX = c.x; curY = c.y;
+            redraw();
+        };
+
+        // clamp a canvas-space point to the video render rect
+        const clampToCanvas = (c) => {
+            const clamped = clampToVideo(c.x, c.y);
+            return { x: clamped.x, y: clamped.y };
+        };
+
+        const onUp = () => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            const x1 = Math.min(startX, curX), y1 = Math.min(startY, curY);
+            const x2 = Math.max(startX, curX), y2 = Math.max(startY, curY);
+            if (x2 - x1 < 8 || y2 - y1 < 8) { redraw(); return; }
+
+            const p1 = canvasToVideo(x1, y1);
+            const p2 = canvasToVideo(x2, y2);
+            const vw = video.videoWidth, vh = video.videoHeight;
+            this.videoEditorCrop = {
+                x: Math.max(0, p1.x),
+                y: Math.max(0, p1.y),
+                w: Math.min(vw - Math.max(0, p1.x), p2.x - p1.x),
+                h: Math.min(vh - Math.max(0, p1.y), p2.y - p1.y)
+            };
+
+            if (dimText) dimText.textContent =
+                `${this.videoEditorCrop.w}×${this.videoEditorCrop.h}`;
+            if (clearBtn) clearBtn.style.display = '';
+            redraw();
+        };
+
+        // ── toggle button ─────────────────────────────────────────────────────
+
+        const newToggle = toggle.cloneNode(true);
+        toggle.parentNode.replaceChild(newToggle, toggle);
+
+        const enterCrop = () => {
+            isCropMode = true;
+            syncSize();
+            canvas.style.display = '';
+            canvas.style.pointerEvents = 'all';
+            video.style.pointerEvents  = 'none';
+            newToggle.classList.remove('btn-outline-warning');
+            newToggle.classList.add('btn-warning');
+            canvas.addEventListener('mousedown', onDown);
+            canvas.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+            redraw();
+        };
+
+        const exitCrop = () => {
+            isCropMode = false;
+            canvas.style.pointerEvents = 'none';
+            video.style.pointerEvents  = '';
+            newToggle.classList.remove('btn-warning');
+            newToggle.classList.add('btn-outline-warning');
+            canvas.removeEventListener('mousedown', onDown);
+            canvas.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            // Keep overlay visible if a crop is stored, hide otherwise
+            if (this.videoEditorCrop) {
+                redraw();
+            } else {
+                canvas.style.display = 'none';
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        };
+
+        newToggle.addEventListener('click', () => isCropMode ? exitCrop() : enterCrop());
+
+        // ── clear button ──────────────────────────────────────────────────────
+
+        const newClear = clearBtn.cloneNode(true);
+        clearBtn.parentNode.replaceChild(newClear, clearBtn);
+        newClear.addEventListener('click', () => {
+            this.videoEditorCrop = null;
+            if (dimText) dimText.textContent = '';
+            newClear.style.display = 'none';
+            if (!isCropMode) canvas.style.display = 'none';
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        // Re-draw overlay if window is resized (video size may change)
+        const onResize = () => { if (this.videoEditorCrop || isCropMode) { syncSize(); redraw(); } };
+        window.addEventListener('resize', onResize);
+        document.getElementById('videoEditorModal')
+            .addEventListener('hidden.bs.modal', () => window.removeEventListener('resize', onResize), { once: true });
+    }
+
+    _updateTimelineSelection(startPct, endPct) {
+        const sel = document.getElementById('timelineSelection');
+        if (sel) {
+            sel.style.left = startPct + '%';
+            sel.style.width = (endPct - startPct) + '%';
+        }
+    }
+
+    _fmtVideoTime(s) {
+        const m = Math.floor(s / 60);
+        const sec = (s % 60).toFixed(1).padStart(4, '0');
+        return `${m}:${sec}`;
+    }
+
+    // ── Video Editor: Resolution + Preview helpers ───────────────────────────
+
+    async _populateVideoEditorResolutions() {
+        const sel = document.getElementById('videoEditorResolution');
+        if (!sel) return;
+        try {
+            const resp = await fetch('/api/video-config');
+            if (!resp.ok) return;
+            const cfg = await resp.json();
+            sel.innerHTML = '';
+            Object.entries(cfg.available_resolutions).forEach(([value, label]) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = label;
+                sel.appendChild(opt);
+            });
+            // Pre-select the globally configured resolution as the default
+            if (cfg.force_video_resolution !== undefined) {
+                sel.value = cfg.force_video_resolution;
+            }
+        } catch (e) { /* leave static fallback options */ }
+    }
+
+    _resetVideoEditorPreview() {
+        document.getElementById('videoEditorPreviewPlaceholder').style.display = '';
+        document.getElementById('videoEditorPreviewSpinner').style.display = 'none';
+        const prev = document.getElementById('videoEditorPreviewPlayer');
+        prev.style.display = 'none';
+        prev.src = '';
+        document.getElementById('videoEditorPreviewInfo').textContent = '';
+    }
+
+    // ── Video Editor: Preview & Validate ─────────────────────────────────────
+
+    async _triggerVideoPreview() {
+        const dur = this.videoEditorDuration;
+        if (!dur) {
+            this.showAlert('Video duration not loaded yet', 'warning');
+            return;
+        }
+
+        const startVal = parseFloat(document.getElementById('videoEditorStartInput').value) || 0;
+        const endVal = parseFloat(document.getElementById('videoEditorEndInput').value) || dur;
+        const fadeIn = document.getElementById('videoEditorFadeIn').checked;
+        const fadeOut = document.getElementById('videoEditorFadeOut').checked;
+        const resolution = document.getElementById('videoEditorResolution')?.value || '';
+        const crop = this.videoEditorCrop || null;
+
+        // Delete any previous temp file
+        if (this.currentEditorTempFile) {
+            this._deleteTempPreview(this.currentEditorTempFile);
+            this.currentEditorTempFile = null;
+        }
+
+        // Show spinner in the preview panel
+        document.getElementById('videoEditorPreviewPlaceholder').style.display = 'none';
+        document.getElementById('videoEditorPreviewSpinner').style.display = '';
+        document.getElementById('videoEditorPreviewPlayer').style.display = 'none';
+        document.getElementById('videoEditorPreviewInfo').textContent = '';
+        document.getElementById('videoEditorValidateBtn').disabled = true;
+
+        try {
+            const resp = await fetch('/api/video-editor/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_path: this.currentEditorVideoPath,
+                    start_time: startVal,
+                    end_time: endVal,
+                    fade_in: fadeIn,
+                    fade_out: fadeOut,
+                    resolution: resolution,
+                    crop: crop
+                })
+            });
+            const json = await resp.json();
+
+            document.getElementById('videoEditorPreviewSpinner').style.display = 'none';
+
+            if (!json.success) {
+                document.getElementById('videoEditorPreviewPlaceholder').style.display = '';
+                document.getElementById('videoEditorPreviewInfo').textContent = `Error: ${json.error}`;
+                return;
+            }
+
+            this.currentEditorTempFile = json.temp_filename;
+
+            const previewPlayer = document.getElementById('videoEditorPreviewPlayer');
+            previewPlayer.src = `/api/video-editor/temp/${encodeURIComponent(json.temp_filename)}`;
+            previewPlayer.style.display = '';
+            previewPlayer.play().catch(() => {});
+
+            const clipDur = endVal - startVal;
+            let details = `${this._fmtVideoTime(startVal)} → ${this._fmtVideoTime(endVal)} (${this._fmtVideoTime(clipDur)})`;
+            if (crop) details += ` | Crop ${crop.w}×${crop.h}`;
+            if (resolution) details += ` | ${resolution}p`;
+            if (fadeIn) details += ' | Fade In';
+            if (fadeOut) details += ' | Fade Out';
+            document.getElementById('videoEditorPreviewInfo').textContent = details;
+
+            document.getElementById('videoEditorValidateBtn').disabled = false;
+
+        } catch (e) {
+            document.getElementById('videoEditorPreviewSpinner').style.display = 'none';
+            document.getElementById('videoEditorPreviewPlaceholder').style.display = '';
+            document.getElementById('videoEditorPreviewInfo').textContent = `Error: ${e.message}`;
+        }
+    }
+
+    async _validateVideoEdit() {
+        if (!this.currentEditorTempFile) return;
+
+        const game = this.currentEditorGame;
+        const videoField = this.currentEditorVideoField;
+        const originalVideoPath = game[videoField];
+        const originalFilename = originalVideoPath.replace(/\\/g, '/').split('/').pop();
+
+        const validateBtn = document.getElementById('videoEditorValidateBtn');
+        if (validateBtn) validateBtn.disabled = true;
+
+        try {
+            const resp = await fetch('/api/video-editor/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    temp_filename: this.currentEditorTempFile,
+                    system_name: this.currentSystem,
+                    rom_file: game.path || '',
+                    game_id: game.id || '',
+                    original_video_filename: originalFilename
+                })
+            });
+            const json = await resp.json();
+
+            this.currentEditorTempFile = null;
+            bootstrap.Modal.getInstance(document.getElementById('videoEditorModal'))?.hide();
+
+            if (json.success) {
+                this.showAlert('Video saved successfully!', 'success');
+                if (typeof this.showEditGameVideo === 'function') {
+                    this.showEditGameVideo(game);
+                }
+            } else {
+                this.showAlert(`Failed to save: ${json.error}`, 'error');
+            }
+        } catch (e) {
+            if (validateBtn) validateBtn.disabled = false;
+            this.showAlert(`Error: ${e.message}`, 'error');
+        }
+    }
+
+    async _deleteTempPreview(tempFilename) {
+        try {
+            await fetch('/api/video-editor/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ temp_filename: tempFilename })
+            });
+        } catch (e) { /* ignore */ }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     async takeVideoScreenshot(game) {
         try {
@@ -33302,6 +33933,7 @@ class GameCollectionManager {
         this.initializeUploadRomButton();
         this.initializeDeleteVideoButton(game);
         this.initializeUploadVideoButton(game);
+        this.initializeEditVideoButton(game);
         this.initializeManualCropButton(game);
         this.initializeTakeScreenshotButton(game);
     }

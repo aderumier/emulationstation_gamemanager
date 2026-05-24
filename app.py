@@ -19460,6 +19460,233 @@ def apply_manual_crop():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/video-editor/duration', methods=['POST'])
+@login_required
+def video_editor_get_duration():
+    """Get video duration using ffprobe"""
+    try:
+        data = request.get_json()
+        video_path = data.get('video_path')
+        if not video_path:
+            return jsonify({'error': 'Missing video_path'}), 400
+
+        if video_path.startswith('/roms/'):
+            video_path = os.path.join(ROMS_FOLDER, video_path[6:])
+
+        if not os.path.exists(video_path):
+            return jsonify({'error': f'Video file not found: {video_path}'}), 404
+
+        ffprobe_cmd = find_tool('ffprobe', 'ffprobe.exe')
+        result = subprocess.run([
+            ffprobe_cmd, '-v', 'quiet', '-show_entries', 'format=duration',
+            '-of', 'csv=p=0', video_path
+        ], capture_output=True, text=True, timeout=30)
+
+        if result.returncode != 0:
+            return jsonify({'error': 'ffprobe failed'}), 500
+
+        duration = float(result.stdout.strip())
+        return jsonify({'success': True, 'duration': duration})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/video-editor/temp/<path:filename>')
+@login_required
+def video_editor_serve_temp(filename):
+    """Serve a temp preview video file"""
+    temp_videos_dir = os.path.join(VAR_TEMP_DIR, 'videos')
+    safe_filename = os.path.basename(filename)
+    file_path = os.path.join(temp_videos_dir, safe_filename)
+    if not os.path.exists(file_path):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(file_path, mimetype='video/mp4')
+
+
+@app.route('/api/video-editor/preview', methods=['POST'])
+@login_required
+def video_editor_preview():
+    """Generate a trimmed/faded preview clip in the temp directory"""
+    try:
+        data = request.get_json()
+        video_path = data.get('video_path')
+        start_time = data.get('start_time', 0)
+        end_time = data.get('end_time')
+        fade_in = data.get('fade_in', False)
+        fade_out = data.get('fade_out', False)
+
+        if not video_path:
+            return jsonify({'error': 'Missing video_path'}), 400
+
+        if video_path.startswith('/roms/'):
+            video_path = os.path.join(ROMS_FOLDER, video_path[6:])
+
+        if not os.path.exists(video_path):
+            return jsonify({'error': f'Video file not found: {video_path}'}), 404
+
+        temp_videos_dir = os.path.join(VAR_TEMP_DIR, 'videos')
+        os.makedirs(temp_videos_dir, exist_ok=True)
+
+        import uuid
+        token = uuid.uuid4().hex[:8]
+        original_name = os.path.splitext(os.path.basename(video_path))[0]
+        temp_filename = f"preview_{token}_{original_name}.mp4"
+        temp_path = os.path.join(temp_videos_dir, temp_filename)
+
+        ffmpeg_cmd = find_tool('ffmpeg', 'ffmpeg.exe')
+
+        start_time = float(start_time)
+        if end_time is not None:
+            end_time = float(end_time)
+            cut_duration = end_time - start_time
+        else:
+            cut_duration = None
+
+        cmd = [ffmpeg_cmd]
+
+        if start_time > 0 and cut_duration is not None:
+            cmd.extend(['-ss', str(start_time), '-t', str(cut_duration)])
+        elif start_time > 0:
+            cmd.extend(['-ss', str(start_time)])
+        elif cut_duration is not None:
+            cmd.extend(['-t', str(cut_duration)])
+
+        cmd.extend(['-i', video_path])
+
+        resolution = data.get('resolution', '')
+        crop = data.get('crop')  # {x, y, w, h} in video pixels
+
+        video_filters = []
+        audio_filters = []
+
+        # Crop must come first in the filter chain
+        if crop:
+            cw = int(crop.get('w', 0))
+            ch = int(crop.get('h', 0))
+            cx = int(crop.get('x', 0))
+            cy = int(crop.get('y', 0))
+            if cw > 0 and ch > 0:
+                video_filters.append(f'crop={cw}:{ch}:{cx}:{cy}')
+
+        if resolution:
+            video_filters.append(f'scale=ceil(iw*{resolution}/ih/2)*2:{resolution}')
+
+        if fade_in:
+            video_filters.append('fade=t=in:st=0:d=2')
+            audio_filters.append('afade=t=in:st=0:d=2')
+
+        if fade_out and cut_duration is not None:
+            fade_out_start = max(0, cut_duration - 2)
+            video_filters.append(f'fade=t=out:st={fade_out_start}:d=2')
+            audio_filters.append(f'afade=t=out:st={fade_out_start}:d=2')
+
+        if video_filters:
+            cmd.extend(['-vf', ','.join(video_filters)])
+        if audio_filters:
+            cmd.extend(['-af', ','.join(audio_filters)])
+
+        cmd.extend(['-c:v', 'libx264', '-c:a', 'aac', '-y', temp_path])
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+        if result.returncode != 0 or not os.path.exists(temp_path):
+            return jsonify({'error': f'ffmpeg failed: {result.stderr[-500:]}'}), 500
+
+        return jsonify({'success': True, 'temp_filename': temp_filename})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/video-editor/validate', methods=['POST'])
+@login_required
+def video_editor_validate():
+    """Move validated preview to the final video destination and update gamelist.xml"""
+    try:
+        data = request.get_json()
+        temp_filename = data.get('temp_filename')
+        system_name = data.get('system_name')
+        rom_file = data.get('rom_file')
+        game_id = data.get('game_id')
+        original_video_filename = data.get('original_video_filename')
+
+        if not all([temp_filename, system_name, rom_file, original_video_filename]):
+            return jsonify({'error': 'Missing required parameters'}), 400
+
+        temp_videos_dir = os.path.join(VAR_TEMP_DIR, 'videos')
+        temp_path = os.path.join(temp_videos_dir, os.path.basename(temp_filename))
+
+        if not os.path.exists(temp_path):
+            return jsonify({'error': f'Temp file not found: {temp_filename}'}), 404
+
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': f'System not found: {system_name}'}), 404
+
+        videos_dir = os.path.join(system_path, 'media', 'videos')
+        os.makedirs(videos_dir, exist_ok=True)
+
+        # Keep same filename as original (overwrite)
+        final_filename = original_video_filename
+        output_path = os.path.join(videos_dir, final_filename)
+
+        shutil.move(temp_path, output_path)
+
+        # Update gamelist.xml
+        gamelist_path = os.path.join(system_path, 'gamelist.xml')
+        if os.path.exists(gamelist_path):
+            tree = ET.parse(gamelist_path)
+            root = tree.getroot()
+
+            for game in root.findall('game'):
+                path_elem = game.find('path')
+                if path_elem is not None and path_elem.text and rom_file in path_elem.text:
+                    video_elem = game.find('video')
+                    if video_elem is None:
+                        video_elem = ET.SubElement(game, 'video')
+                    video_elem.text = f"./media/videos/{final_filename}".replace('\\', '/')
+                    break
+
+            save_formatted_gamelist_xml(tree, gamelist_path)
+
+        emit_non_blocking('game_updated', {
+            'system': system_name,
+            'game_id': game_id,
+            'message': 'Video edited successfully'
+        })
+
+        return jsonify({'success': True, 'video_filename': final_filename})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/video-editor/cancel', methods=['POST'])
+@login_required
+def video_editor_cancel():
+    """Delete a temp preview file on cancel"""
+    try:
+        data = request.get_json()
+        temp_filename = data.get('temp_filename')
+        if not temp_filename:
+            return jsonify({'success': True})
+
+        temp_videos_dir = os.path.join(VAR_TEMP_DIR, 'videos')
+        temp_path = os.path.join(temp_videos_dir, os.path.basename(temp_filename))
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/apply-image-crop', methods=['POST'])
 @login_required
 def apply_image_crop():
