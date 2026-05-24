@@ -21059,8 +21059,14 @@ class GameCollectionManager {
         document.getElementById('videoEditorDurationLabel').textContent = 'Duration: 0:00.0';
         this._updateTimelineSelection(0, 100);
         this._resetVideoEditorPreview();
-        document.getElementById('videoEditorValidateBtn').disabled = true;
         this.videoEditorCrop = null;
+
+        // Reset validate button to its original state (may have a spinner from a previous session)
+        const validateBtn = document.getElementById('videoEditorValidateBtn');
+        if (validateBtn) {
+            validateBtn.disabled = false;
+            validateBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Validate &amp; Save';
+        }
 
         // Populate resolution combobox from video config
         this._populateVideoEditorResolutions();
@@ -21475,6 +21481,8 @@ class GameCollectionManager {
             const resp = await fetch('/api/video-config');
             if (!resp.ok) return;
             const cfg = await resp.json();
+
+            // Resolution combobox — populated from config
             sel.innerHTML = '';
             Object.entries(cfg.available_resolutions).forEach(([value, label]) => {
                 const opt = document.createElement('option');
@@ -21482,10 +21490,17 @@ class GameCollectionManager {
                 opt.textContent = label;
                 sel.appendChild(opt);
             });
-            // Pre-select the globally configured resolution as the default
             if (cfg.force_video_resolution !== undefined) {
                 sel.value = cfg.force_video_resolution;
             }
+
+            // Fade checkboxes — default to global setting
+            const fadeEnabled = cfg.enable_fadin_fadout || false;
+            const fadeIn  = document.getElementById('videoEditorFadeIn');
+            const fadeOut = document.getElementById('videoEditorFadeOut');
+            if (fadeIn)  fadeIn.checked  = fadeEnabled;
+            if (fadeOut) fadeOut.checked = fadeEnabled;
+
         } catch (e) { /* leave static fallback options */ }
     }
 
@@ -21514,9 +21529,9 @@ class GameCollectionManager {
         const resolution = document.getElementById('videoEditorResolution')?.value || '';
         const crop = this.videoEditorCrop || null;
 
-        // Delete any previous temp file
+        // Delete any previous temp file and wait for confirmation before proceeding
         if (this.currentEditorTempFile) {
-            this._deleteTempPreview(this.currentEditorTempFile);
+            await this._deleteTempPreview(this.currentEditorTempFile);
             this.currentEditorTempFile = null;
         }
 
@@ -21525,7 +21540,6 @@ class GameCollectionManager {
         document.getElementById('videoEditorPreviewSpinner').style.display = '';
         document.getElementById('videoEditorPreviewPlayer').style.display = 'none';
         document.getElementById('videoEditorPreviewInfo').textContent = '';
-        document.getElementById('videoEditorValidateBtn').disabled = true;
 
         try {
             const resp = await fetch('/api/video-editor/preview', {
@@ -21566,8 +21580,6 @@ class GameCollectionManager {
             if (fadeOut) details += ' | Fade Out';
             document.getElementById('videoEditorPreviewInfo').textContent = details;
 
-            document.getElementById('videoEditorValidateBtn').disabled = false;
-
         } catch (e) {
             document.getElementById('videoEditorPreviewSpinner').style.display = 'none';
             document.getElementById('videoEditorPreviewPlaceholder').style.display = '';
@@ -21576,17 +21588,52 @@ class GameCollectionManager {
     }
 
     async _validateVideoEdit() {
-        if (!this.currentEditorTempFile) return;
-
         const game = this.currentEditorGame;
-        const videoField = this.currentEditorVideoField;
-        const originalVideoPath = game[videoField];
-        const originalFilename = originalVideoPath.replace(/\\/g, '/').split('/').pop();
+        if (!game) return;
 
         const validateBtn = document.getElementById('videoEditorValidateBtn');
-        if (validateBtn) validateBtn.disabled = true;
+        const origBtnHTML = validateBtn?.innerHTML ?? '';
+        if (validateBtn) {
+            validateBtn.disabled = true;
+            validateBtn.innerHTML =
+                '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving…';
+        }
 
         try {
+            // If no preview has been generated yet, create the temp file now silently
+            if (!this.currentEditorTempFile) {
+                const dur = this.videoEditorDuration;
+                const startVal  = parseFloat(document.getElementById('videoEditorStartInput').value) || 0;
+                const endVal    = parseFloat(document.getElementById('videoEditorEndInput').value)   || dur;
+                const fadeIn    = document.getElementById('videoEditorFadeIn').checked;
+                const fadeOut   = document.getElementById('videoEditorFadeOut').checked;
+                const resolution = document.getElementById('videoEditorResolution')?.value || '';
+                const crop      = this.videoEditorCrop || null;
+
+                const previewResp = await fetch('/api/video-editor/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        video_path: this.currentEditorVideoPath,
+                        start_time: startVal,
+                        end_time: endVal,
+                        fade_in: fadeIn,
+                        fade_out: fadeOut,
+                        resolution: resolution,
+                        crop: crop
+                    })
+                });
+                const previewJson = await previewResp.json();
+                if (!previewJson.success) {
+                    throw new Error(previewJson.error || 'Preview generation failed');
+                }
+                this.currentEditorTempFile = previewJson.temp_filename;
+            }
+
+            const videoField = this.currentEditorVideoField;
+            const originalVideoPath = game[videoField];
+            const originalFilename = originalVideoPath.replace(/\\/g, '/').split('/').pop();
+
             const resp = await fetch('/api/video-editor/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -21600,19 +21647,45 @@ class GameCollectionManager {
             });
             const json = await resp.json();
 
-            this.currentEditorTempFile = null;
-            bootstrap.Modal.getInstance(document.getElementById('videoEditorModal'))?.hide();
-
-            if (json.success) {
-                this.showAlert('Video saved successfully!', 'success');
-                if (typeof this.showEditGameVideo === 'function') {
-                    this.showEditGameVideo(game);
+            if (!json.success) {
+                // Restore button so the user can retry
+                if (validateBtn) {
+                    validateBtn.disabled = false;
+                    validateBtn.innerHTML = origBtnHTML;
                 }
-            } else {
                 this.showAlert(`Failed to save: ${json.error}`, 'error');
+                return;
             }
+
+            // Success — temp file is gone (moved by backend)
+            this.currentEditorTempFile = null;
+
+            // Close the editor modal, then refresh the video once the animation ends
+            const editorModalEl = document.getElementById('videoEditorModal');
+            editorModalEl.addEventListener('hidden.bs.modal', () => {
+                this.showEditGameVideo(game);
+                // The file was overwritten with the same name; bust the browser cache
+                // so the video element fetches the new file instead of serving stale data
+                const cacheBust = `?t=${Date.now()}`;
+                [
+                    document.getElementById('editGameVideoContent'),
+                    document.querySelector('#rightPanelContent #editGameVideoContent')
+                ].filter(Boolean).forEach(container => {
+                    container.querySelectorAll('video').forEach(v => {
+                        v.src = v.src.split('?')[0] + cacheBust;
+                        v.load();
+                    });
+                });
+                this.showAlert('Video saved successfully!', 'success');
+            }, { once: true });
+
+            bootstrap.Modal.getInstance(editorModalEl)?.hide();
+
         } catch (e) {
-            if (validateBtn) validateBtn.disabled = false;
+            if (validateBtn) {
+                validateBtn.disabled = false;
+                validateBtn.innerHTML = origBtnHTML;
+            }
             this.showAlert(`Error: ${e.message}`, 'error');
         }
     }
