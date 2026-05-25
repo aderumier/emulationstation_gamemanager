@@ -3692,6 +3692,62 @@ class GameCollectionManager {
                 autoHeaderHeight: true
             },
             {
+                field: 'favorite',
+                headerName: '⭐',
+                editable: false,
+                sortable: true,
+                filter: true,
+                resizable: false,
+                initialWidth: 38,
+                minWidth: 38,
+                wrapHeaderText: wrapHeaderText,
+                autoHeaderHeight: true,
+                headerTooltip: 'Favorite — click to toggle',
+                cellStyle: { textAlign: 'center', cursor: 'pointer' },
+                valueGetter: (params) => {
+                    const val = params.data?.favorite;
+                    return val === true || val === 'true';
+                },
+                cellRenderer: (params) => {
+                    return params.value
+                        ? '<i class="bi bi-star-fill text-warning"></i>'
+                        : '<i class="bi bi-star text-muted"></i>';
+                },
+                comparator: (a, b) => (a === b ? 0 : a ? -1 : 1),
+                onCellClicked: (params) => {
+                    const current = params.data.favorite === true || params.data.favorite === 'true';
+                    params.node.setDataValue('favorite', String(!current));
+                }
+            },
+            {
+                field: 'kidgame',
+                headerName: '👶',
+                editable: false,
+                sortable: true,
+                filter: true,
+                resizable: false,
+                initialWidth: 38,
+                minWidth: 38,
+                wrapHeaderText: wrapHeaderText,
+                autoHeaderHeight: true,
+                headerTooltip: 'Kid game — click to toggle',
+                cellStyle: { textAlign: 'center', cursor: 'pointer' },
+                valueGetter: (params) => {
+                    const val = params.data?.kidgame;
+                    return val === true || val === 'true';
+                },
+                cellRenderer: (params) => {
+                    return params.value
+                        ? '<i class="bi bi-emoji-smile-fill text-success"></i>'
+                        : '<i class="bi bi-emoji-smile text-muted"></i>';
+                },
+                comparator: (a, b) => (a === b ? 0 : a ? -1 : 1),
+                onCellClicked: (params) => {
+                    const current = params.data.kidgame === true || params.data.kidgame === 'true';
+                    params.node.setDataValue('kidgame', String(!current));
+                }
+            },
+            {
                 field: 'video',
                 headerName: 'Video',
                 editable: false,
