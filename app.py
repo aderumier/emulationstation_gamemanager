@@ -3622,6 +3622,7 @@ def process_next_queued_task():
         system_name = task_data.get('system_name')
         selected_games = task_data.get('selected_games', [])
         start_time = task_data.get('start_time', 0)
+        batch_clip_duration = int(task_data.get('duration', config.get('video', {}).get('clip_duration', 30)))
         auto_crop = task_data.get('auto_crop', False)
         disable_audio = task_data.get('disable_audio', False)
         overwrite_existing = task_data.get('overwrite_existing', False)
@@ -3641,7 +3642,7 @@ def process_next_queued_task():
                 set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start YouTube download batch in background thread
-            thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, disable_audio, overwrite_existing, playlist_index, youtube_channel, youtube_playlist))
+            thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, disable_audio, overwrite_existing, playlist_index, youtube_channel, youtube_playlist, batch_clip_duration))
             thread.daemon = True
             thread.start()
     elif task_type == 'mobygames':
@@ -8324,6 +8325,7 @@ def manage_video_config():
                 'enable_youtube_po_token': video_config.get('enable_youtube_po_token', False),
                 'youtube_po_token_provider': video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416'),
                 'youtube_skip_cookie_for_video_duration_bigger_than': video_config.get('youtube_skip_cookie_for_video_duration_bigger_than', 60),
+                'clip_duration': video_config.get('clip_duration', 30),
                 'available_resolutions': available_resolutions,
                 'youtube_cookie_exists': youtube_cookie_exists,
                 'youtube_api_key_exists': youtube_api_key_exists,
@@ -8345,6 +8347,7 @@ def manage_video_config():
             config['video']['enable_youtube_po_token'] = new_config.get('enable_youtube_po_token', False)
             config['video']['youtube_po_token_provider'] = new_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
             config['video']['youtube_skip_cookie_for_video_duration_bigger_than'] = new_config.get('youtube_skip_cookie_for_video_duration_bigger_than', 60)
+            config['video']['clip_duration'] = int(new_config.get('clip_duration', 30))
             
             # Save configuration
             save_config()
@@ -25601,6 +25604,7 @@ def youtube_download():
         data = request.get_json()
         video_url = data.get('video_url')
         start_time = data.get('start_time', 0)
+        duration = int(data.get('duration', config.get('video', {}).get('clip_duration', 30)))
         auto_crop = data.get('auto_crop', False)
         disable_audio = data.get('disable_audio', False)
         output_filename = data.get('output_filename')
@@ -25630,6 +25634,7 @@ def youtube_download():
         task_data = {
             'video_url': video_url,
             'start_time': start_time,
+            'duration': duration,
             'output_filename': output_filename,
             'system_name': system_name,
             'rom_file': data.get('rom_file'),  # Include the ROM file path
@@ -25675,6 +25680,7 @@ def youtube_download_batch(system_name):
         data = request.get_json() or {}
         selected_games = data.get('selected_games', [])
         start_time = data.get('start_time', 0)
+        clip_duration = int(data.get('duration', config.get('video', {}).get('clip_duration', 30)))
         auto_crop = data.get('auto_crop', False)
         overwrite_existing = data.get('overwrite_existing', False)
         playlist_index = data.get('playlist_index', 1)
@@ -25701,6 +25707,7 @@ def youtube_download_batch(system_name):
             'system_name': system_name,
             'selected_games': selected_games,
             'start_time': start_time,
+            'duration': clip_duration,
             'auto_crop': auto_crop,
             'overwrite_existing': overwrite_existing,
             'playlist_index': playlist_index,
@@ -27231,7 +27238,7 @@ def update_gamelist_and_complete(task, system_path, output_filename, output_path
         task.update_progress(f"YouTube download completed successfully!")
         task.update_progress(f"Video saved to: {output_path}")
         task.update_progress(f"File size: {file_size} bytes")
-        task.update_progress(f"Duration: 30 seconds from {start_time}s to {end_time}s")
+        task.update_progress(f"Duration: {end_time - start_time} seconds from {start_time}s to {end_time}s")
         
         # Mark task as completed
         task.complete(True)
@@ -27260,6 +27267,7 @@ def run_youtube_download_task(task_id, data):
         # Extract parameters
         video_url = data.get('video_url')
         start_time = data.get('start_time', 0)
+        clip_duration = int(data.get('duration', config.get('video', {}).get('clip_duration', 30)))
         output_filename = data.get('output_filename')
         system_name = data.get('system_name')
         rom_file = data.get('rom_file')  # ROM file path (e.g., "./Pac-Man (USA).nes")
@@ -27273,6 +27281,7 @@ def run_youtube_download_task(task_id, data):
         task.update_progress(f"Received parameters:")
         task.update_progress(f"  Video URL: {video_url}")
         task.update_progress(f"  Start time: {start_time} seconds")
+        task.update_progress(f"  Duration: {clip_duration} seconds")
         task.update_progress(f"  Output filename: {output_filename}")
         task.update_progress(f"  System: {system_name}")
         task.update_progress(f"  ROM file: {rom_file}")
@@ -27328,13 +27337,14 @@ def run_youtube_download_task(task_id, data):
         # Use the common download helper function
         success = download_youtube_video_for_game(
             task, video_url, start_time, auto_crop, disable_audio,
-            output_path, videos_dir, output_filename, 1, temp_videos_dir, rom_file  # playlist_index=1 for single downloads
+            output_path, videos_dir, output_filename, 1, temp_videos_dir, rom_file,  # playlist_index=1 for single downloads
+            clip_duration=clip_duration
         )
-        
+
         if success:
             # Get final file size for gamelist update
             file_size = os.path.getsize(output_path)
-            end_time = start_time + 30
+            end_time = start_time + clip_duration
             
             # Update gamelist.xml and complete task
             update_gamelist_and_complete(task, system_path, output_filename, output_path, file_size, start_time, end_time, rom_file)
@@ -27452,7 +27462,7 @@ def search_playlist_for_game(playlist_videos, game_name):
     return None
 
 
-def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, disable_audio=False, overwrite_existing=False, playlist_index=1, youtube_channel='', youtube_playlist=''):
+def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, disable_audio=False, overwrite_existing=False, playlist_index=1, youtube_channel='', youtube_playlist='', clip_duration=None):
     """Run batch YouTube download task in background thread"""
     global current_task_id
 
@@ -27463,11 +27473,15 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
 
         task = tasks[task_id]
 
+        if clip_duration is None:
+            clip_duration = int(config.get('video', {}).get('clip_duration', 30))
+
         # Log the received parameters
         task.update_progress(f"Starting batch YouTube download:")
         task.update_progress(f"  System: {system_name}")
         task.update_progress(f"  Games to process: {len(selected_games)}")
         task.update_progress(f"  Start time: {start_time} seconds")
+        task.update_progress(f"  Duration: {clip_duration} seconds")
         task.update_progress(f"  Auto crop: {auto_crop}")
         task.update_progress(f"  Overwrite existing: {overwrite_existing}")
         task.update_progress(f"  Playlist index: {playlist_index}")
@@ -27609,7 +27623,8 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                 # Download the video using the existing YouTube download logic
                 success = download_youtube_video_for_game(
                     task, youtube_url, start_time, auto_crop, disable_audio,
-                    output_path, videos_dir, game_name, playlist_index, temp_videos_dir, rom_path
+                    output_path, videos_dir, game_name, playlist_index, temp_videos_dir, rom_path,
+                    clip_duration=clip_duration
                 )
                 
                 if success:
@@ -27700,9 +27715,12 @@ def get_video_duration(video_path):
         print(f"Error getting video duration: {e}")
         return None
 
-def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disable_audio, output_path, videos_dir, game_name, playlist_index=1, temp_videos_dir=None, rom_file=None):
+def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disable_audio, output_path, videos_dir, game_name, playlist_index=1, temp_videos_dir=None, rom_file=None, clip_duration=None):
     """Download a single YouTube video for a game (helper function)"""
     try:
+        if clip_duration is None:
+            clip_duration = int(config.get('video', {}).get('clip_duration', 30))
+
         # Check if yt-dlp is available
         import subprocess
         yt_dlp_path = get_yt_dlp_path()
@@ -27739,14 +27757,14 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
         
         output_template = os.path.join(temp_rom_dir, f"{temp_filename}.%(ext)s")
         
-        # Clamp start_time to video duration - 30s if it exceeds the video length
+        # Clamp start_time so clip fits within video duration
         duration = get_youtube_video_duration(video_url)
         if duration and start_time >= duration:
-            start_time = max(0, int(duration) - 30)
+            start_time = max(0, int(duration) - clip_duration)
             task.update_progress(f"  ⏱️ start_time exceeds video duration ({int(duration)}s), adjusted to {start_time}s")
 
-        # Calculate end time for the 30-second section
-        end_time = start_time + 30
+        # Calculate end time for the clip
+        end_time = start_time + clip_duration
 
         # Check if this is a Steam Store URL
         is_steam_store = 'store.steampowered.com' in video_url.lower()
@@ -28351,10 +28369,10 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disa
             task.update_progress(f"  ✂️ Video downloaded with sections, skipping additional cutting")
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, disable_audio)
         elif used_full_download_without_sections:
-            # Cut full video to 30-second section starting from start_time
+            # Cut full video to clip section starting from start_time
             cut_start_time = start_time
-            cut_end_time = start_time + 30
-            task.update_progress(f"  ✂️ Cutting full video to 30-second section ({cut_start_time}s-{cut_end_time}s)")
+            cut_end_time = start_time + clip_duration
+            task.update_progress(f"  ✂️ Cutting full video to {clip_duration}s section ({cut_start_time}s-{cut_end_time}s)")
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, disable_audio, cut_start_time, cut_end_time)
         else:
             # This should not happen - all downloads should be either sections or full

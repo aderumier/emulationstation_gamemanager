@@ -18087,6 +18087,12 @@ class GameCollectionManager {
             return;
         }
 
+        // Pre-fill duration from global config
+        const batchDurationEl = document.getElementById('youtubeBatchDuration');
+        if (batchDurationEl && this.globalClipDuration) {
+            batchDurationEl.value = this.globalClipDuration;
+        }
+
         // Open the YouTube download modal
         const modal = new bootstrap.Modal(document.getElementById('youtubeDownloadModal'));
         modal.show();
@@ -18101,6 +18107,8 @@ class GameCollectionManager {
         try {
             // Get form values
             const startTime = parseInt(document.getElementById('youtubeStartTime').value) || 0;
+            const batchDurationEl = document.getElementById('youtubeBatchDuration');
+            const batchDuration = batchDurationEl && batchDurationEl.value !== '' ? parseInt(batchDurationEl.value) : (this.globalClipDuration || 30);
             const autoCrop = document.getElementById('youtubeAutoCrop').checked;
             const overwriteExisting = document.getElementById('youtubeOverwriteExisting').checked;
             const playlistIndex = parseInt(document.getElementById('youtubePlaylistIndex').value) || 1;
@@ -18141,6 +18149,7 @@ class GameCollectionManager {
             const requestBody = {
                 selected_games: gamesWithYoutube.map(game => game.path),
                 start_time: startTime,
+                duration: batchDuration,
                 auto_crop: autoCrop,
                 overwrite_existing: overwriteExisting,
                 playlist_index: playlistIndex,
@@ -34614,6 +34623,21 @@ class GameCollectionManager {
                     currentYoutubeSkipCookieDuration.innerHTML = `<span class="badge bg-info">${duration} minutes</span>`;
                 }
 
+                // Update clip duration input
+                const clipDurationInput = document.getElementById('videoClipDuration');
+                if (clipDurationInput) {
+                    clipDurationInput.value = config.clip_duration || 30;
+                }
+
+                // Update current clip duration display
+                const currentClipDuration = document.getElementById('currentClipDuration');
+                if (currentClipDuration) {
+                    currentClipDuration.innerHTML = `<span class="badge bg-info">${config.clip_duration || 30} seconds</span>`;
+                }
+
+                // Cache globally for YouTube preview modal default
+                this.globalClipDuration = config.clip_duration || 30;
+
                 // Update YouTube cookie status
                 const cookieStatus = document.getElementById('youtubeCookieStatus');
                 if (cookieStatus) {
@@ -34664,13 +34688,17 @@ class GameCollectionManager {
             const youtubeSkipCookieDuration = document.getElementById('youtubeSkipCookieDuration');
             const youtubeSkipCookieDurationValue = youtubeSkipCookieDuration ? parseInt(youtubeSkipCookieDuration.value) || 60 : 60;
 
+            const clipDurationEl = document.getElementById('videoClipDuration');
+            const clipDurationValue = clipDurationEl ? parseInt(clipDurationEl.value) || 30 : 30;
+
             const configData = {
                 force_video_resolution: forceVideoResolution,
                 enable_fadin_fadout: enableFadeInFadeOut,
                 enable_cuda: enableCuda,
                 enable_youtube_po_token: enableYoutubePoToken,
                 youtube_po_token_provider: youtubePoTokenProviderUrl,
-                youtube_skip_cookie_for_video_duration_bigger_than: youtubeSkipCookieDurationValue
+                youtube_skip_cookie_for_video_duration_bigger_than: youtubeSkipCookieDurationValue,
+                clip_duration: clipDurationValue
             };
 
             const response = await fetch('/api/video-config', {
@@ -39375,6 +39403,12 @@ class GameCollectionManager {
         if (startTimeInputGroup) startTimeInputGroup.style.display = '';
         if (autoCropCheckboxContainer) autoCropCheckboxContainer.style.display = '';
 
+        // Pre-fill clip duration from global config
+        const clipDurationInputEl = document.getElementById('clipDurationInput');
+        if (clipDurationInputEl) {
+            clipDurationInputEl.value = this.globalClipDuration || 30;
+        }
+
         // Store video data and game context for download
         // Use video.game if available (e.g., from LaunchBox), otherwise use currentYouTubeGame
         const gameContext = video.game || this.currentYouTubeGame;
@@ -40120,6 +40154,7 @@ class GameCollectionManager {
             }
 
             const startTime = parseInt(document.getElementById('startTimeInput').value) || 0;
+            const clipDuration = parseInt(document.getElementById('clipDurationInput')?.value) || this.globalClipDuration || 30;
 
             if (!this.currentYouTubeVideo) {
                 this.showAlert('Missing video information', 'error');
@@ -40208,6 +40243,7 @@ class GameCollectionManager {
             const requestBody = {
                 video_url: this.currentYouTubeVideo.url,
                 start_time: startTime,
+                duration: clipDuration,
                 output_filename: outputFilename,
                 system_name: this.currentSystem,
                 rom_file: currentGame.path,  // Pass the ROM file path directly

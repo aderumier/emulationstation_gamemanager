@@ -4132,7 +4132,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 <i class="bi bi-clock me-2"></i>Get Current
                                             </button>
                                         </div>
-                                        <div class="form-text">Set the start time for the 30-second clip</div>
+                                        <div class="form-text">Set the start time for the clip</div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="clipDurationInput" class="form-label">Duration (sec)</label>
+                                        <input type="number" id="clipDurationInput" class="form-control" min="1" step="1" value="30">
+                                        <div class="form-text">Duration of the downloaded clip in seconds</div>
                                     </div>
 
                                     <div class="mb-3">
@@ -4158,7 +4164,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     </div>
 
                                     <button id="downloadVideoBtn" class="btn btn-success w-100">
-                                        <i class="bi bi-download me-2"></i>Download 30s Clip
+                                        <i class="bi bi-download me-2"></i>Download Clip
                                     </button>
                                 </div>
                             </div>
@@ -6273,6 +6279,24 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     </div>
                                 </div>
                             </div>
+
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="videoClipDuration" class="form-label">Video Duration (seconds)</label>
+                                        <input type="number" class="form-control" id="videoClipDuration" min="1" max="3600" placeholder="30">
+                                        <div class="form-text">Duration of the downloaded video clip in seconds</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Current Setting</label>
+                                        <div class="form-control-plaintext" id="currentClipDuration">
+                                            <span class="badge bg-secondary">Not loaded</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- YouTube Tab -->
@@ -6522,6 +6546,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <input type="number" class="form-control" id="youtubeStartTime" value="0" min="0"
                             placeholder="0">
                         <div class="form-text">Start downloading the video from this time in seconds</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="youtubeBatchDuration" class="form-label">Duration (sec)</label>
+                        <input type="number" class="form-control" id="youtubeBatchDuration" min="1" placeholder="30">
+                        <div class="form-text">Duration of each downloaded clip in seconds (leave empty to use global setting)</div>
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="youtubeAutoCrop">
