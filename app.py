@@ -42272,6 +42272,172 @@ def test_steamgriddb_connection():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'}), 500
 
+
+# ---------------------------------------------------------------------------
+# External API: add media to gamelist
+# ---------------------------------------------------------------------------
+
+def _check_external_api_token(request):
+    """Return True if the request carries a valid external API token."""
+    config = load_config()
+    expected_token = config.get('external_api_token', '').strip()
+    if not expected_token:
+        return False
+    # Accept token via Authorization header (Bearer <token>) or X-API-Token header
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        return auth_header[7:].strip() == expected_token
+    x_token = request.headers.get('X-API-Token', '').strip()
+    return x_token == expected_token
+
+
+@app.route('/api/external/add-media', methods=['POST'])
+def external_add_media():
+    """Add a media file reference to a system's var gamelist.xml.
+
+    Expected JSON body:
+        system        – system name (e.g. "snes")
+        romfile       – ROM path as stored in gamelist (e.g. "./Super Mario World.sfc")
+        mediatype     – gamelist field name (e.g. "image", "video", "marquee", …)
+        mediafilename – filename of the media file (e.g. "Super Mario World.png")
+                        The absolute path is resolved as:
+                        <ROMS_FOLDER>/<system>/media/<mediatype_directory>/<mediafilename>
+                        The relative gamelist path stored is:
+                        ./media/<mediatype_directory>/<mediafilename>
+
+    Authentication: Bearer token or X-API-Token header matching
+    config['external_api_token'].
+    """
+    if not _check_external_api_token(request):
+        return jsonify({'success': False, 'error': 'Unauthorized – invalid or missing API token'}), 401
+
+    try:
+        data = request.get_json(force=True) or {}
+    except Exception:
+        return jsonify({'success': False, 'error': 'Invalid JSON body'}), 400
+
+    system        = (data.get('system') or '').strip()
+    romfile       = (data.get('romfile') or '').strip()
+    mediatype     = (data.get('mediatype') or '').strip()
+    mediafilename = (data.get('mediafilename') or '').strip()
+
+    if not system:
+        return jsonify({'success': False, 'error': 'Missing field: system'}), 400
+    if not romfile:
+        return jsonify({'success': False, 'error': 'Missing field: romfile'}), 400
+    if not mediatype:
+        return jsonify({'success': False, 'error': 'Missing field: mediatype'}), 400
+    if not mediafilename:
+        return jsonify({'success': False, 'error': 'Missing field: mediafilename'}), 400
+
+    # Resolve the media directory from config
+    cfg = load_config()
+    media_fields_cfg = cfg.get('media_fields', {})
+    if mediatype not in media_fields_cfg:
+        return jsonify({'success': False, 'error': f'Unknown mediatype: {mediatype}. Valid types: {list(media_fields_cfg.keys())}'}), 400
+
+    media_directory = media_fields_cfg[mediatype].get('directory', mediatype)
+
+    # Sanitise filename – no path traversal
+    mediafilename = os.path.basename(mediafilename)
+
+    # Absolute path for existence check
+    abs_media_path = os.path.join(ROMS_FOLDER, system, 'media', media_directory, mediafilename)
+
+    if not os.path.isfile(abs_media_path):
+        return jsonify({'success': False, 'error': f'Media file not found: {abs_media_path}'}), 404
+
+    # Relative path stored in gamelist.xml  (EmulationStation convention)
+    gamelist_media_path = f'./media/{media_directory}/{mediafilename}'
+
+    gamelist_path = get_gamelist_path(system)
+    ensure_gamelist_exists(system)
+
+    # Use per-system write lock (same mechanism as rest of app)
+    with gamelist_locks_lock:
+        if system not in gamelist_write_locks:
+            gamelist_write_locks[system] = threading.Lock()
+        lock = gamelist_write_locks[system]
+
+    with lock:
+        games = parse_gamelist_xml(gamelist_path) if os.path.exists(gamelist_path) else []
+
+        # Find matching game by path
+        matched = None
+        for game in games:
+            if game.get('path', '') == romfile:
+                matched = game
+                break
+
+        if matched is None:
+            return jsonify({'success': False, 'error': f'ROM not found in gamelist: {romfile}'}), 404
+
+        old_value = matched.get(mediatype, '')
+        matched[mediatype] = gamelist_media_path
+
+        save_gamelist_xml(gamelist_path, games)
+
+    # Notify connected clients to refresh the grid
+    try:
+        notify_gamelist_updated(system, len(games), updated_count=1)
+    except Exception as e:
+        print(f'Warning: could not notify clients after external add-media: {e}')
+
+    # Sync to roms/<system>/gamelist.xml
+    roms_save_result = save_gamelist_to_roms(system)
+    if not roms_save_result.get('success'):
+        print(f'Warning: could not sync gamelist to roms for {system}: {roms_save_result.get("error")}')
+
+    return jsonify({
+        'success': True,
+        'message': f'Media updated for {romfile}',
+        'system': system,
+        'romfile': romfile,
+        'mediatype': mediatype,
+        'mediafilename': mediafilename,
+        'gamelist_path': matched[mediatype],
+        'previous_value': old_value,
+        'games_count': len(games),
+    })
+
+
+@app.route('/api/external/config', methods=['GET', 'POST'])
+def external_api_config():
+    """Get or set the external API token (requires regular app authentication)."""
+    if request.method == 'GET':
+        config = load_config()
+        token = config.get('external_api_token', '')
+        return jsonify({'has_token': bool(token), 'token_length': len(token)})
+
+    # POST – set a new token
+    try:
+        data = request.get_json(force=True) or {}
+    except Exception:
+        return jsonify({'success': False, 'error': 'Invalid JSON body'}), 400
+
+    new_token = (data.get('api_token') or '').strip()
+    if not new_token:
+        return jsonify({'success': False, 'error': 'api_token is required'}), 400
+
+    config_file = 'var/config/config.json'
+    try:
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                cfg = json.load(f)
+        else:
+            cfg = {}
+        cfg['external_api_token'] = new_token
+        with open(config_file, 'w') as f:
+            json.dump(cfg, f, indent=4)
+        # Invalidate config cache
+        global _config_cache, _config_file_mtime
+        _config_cache = None
+        _config_file_mtime = None
+        return jsonify({'success': True, 'message': 'External API token saved'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 def cleanup_on_exit():
     """Clean up resources when the application exits"""
     global _cleanup_in_progress
