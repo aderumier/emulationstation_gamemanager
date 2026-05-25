@@ -36261,7 +36261,10 @@ class GameCollectionManager {
             // Ensure the target row is visible in the viewport
             this.gridApi.ensureIndexVisible(targetIndex, 'middle');
 
-            // Show media preview for the navigated game (without selecting it)
+            // Select the row (deselects any previous selection)
+            node.setSelected(true, true);
+
+            // Show media preview for the navigated game
             this.showMediaPreview(node.data);
 
             // Update right panel if enabled
