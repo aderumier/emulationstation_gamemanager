@@ -3309,6 +3309,7 @@ def process_next_queued_task():
         # Start clean missing medias task
         system_name = task_data.get('system_name')
         media_field = task_data.get('media_field', 'any')
+        dry_run = task_data.get('dry_run', False)
         if system_name:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -3322,7 +3323,7 @@ def process_next_queued_task():
                 set_running_task_for_system(system_name, task.id)
                 task.start()
             # Start clean missing medias in background thread
-            thread = threading.Thread(target=run_clean_missing_medias_task, args=(system_name, media_field))
+            thread = threading.Thread(target=run_clean_missing_medias_task, args=(system_name, media_field, dry_run))
             thread.daemon = True
             thread.start()
     elif task_type == 'search_image_similarity':
@@ -4355,18 +4356,24 @@ def run_reencode_medias_task(system_name, media_field, selected_games, task_id, 
 def reencode_image(task, image_path, game_name, width, height, extension, system_path, game, field):
     """Reencode an image file using ImageMagick (not PIL)"""
     try:
-        from game_utils import convert_and_resize_image_replace
-        
+        from game_utils import convert_and_resize_image_replace, optimize_image_if_large
+
         # Convert extension format if needed
         target_extension = None
         if extension:
             target_extension = extension if extension.startswith('.') else f'.{extension}'
-        
+
         # Process the image
         processed_path, process_status = convert_and_resize_image_replace(
             image_path, target_extension, width, height
         )
-        
+
+        if process_status == "failed":
+            task.log_message(f"❌ Failed to process {game_name}: {process_status}")
+            return False
+
+        did_something = False
+
         if process_status in ["converted", "resized", "converted_and_resized"]:
             # Update gamelist if file path changed (extension change)
             if processed_path != image_path:
@@ -4374,13 +4381,21 @@ def reencode_image(task, image_path, game_name, width, height, extension, system
                 old_relative_path = game[field]
                 game[field] = new_relative_path
                 task.log_message(f"📝 Updated gamelist: {old_relative_path} → {new_relative_path}")
-            
+
             task.log_message(f"✅ Processed {game_name}: {process_status}")
-            return True
-        else:
-            task.log_message(f"❌ Failed to process {game_name}: {process_status}")
-            return False
-            
+            did_something = True
+
+        # Re-encode oversized images (>1MB), replacing the original only if smaller
+        optimized, opt_msg = optimize_image_if_large(processed_path)
+        if optimized:
+            task.log_message(f"🗜️ Optimized {game_name}: {opt_msg}")
+            did_something = True
+
+        if not did_something:
+            task.log_message(f"⏭️ Skipped {game_name}: nothing to do ({process_status}, {opt_msg})")
+
+        return did_something
+
     except Exception as e:
         task.log_message(f"❌ Error reencoding image for {game_name}: {e}")
         return False
@@ -17901,11 +17916,13 @@ def clean_missing_medias_endpoint(system_name):
         # Get media field from request
         data = request.get_json()
         media_field = data.get('media_field', 'any')
-        
+        dry_run = bool(data.get('dry_run', False))
+
         # Add task to queue
         task = add_task_to_queue('clean_missing_medias', {
             'system_name': system_name,
-            'media_field': media_field
+            'media_field': media_field,
+            'dry_run': dry_run
         })
         
         return jsonify({'success': True, 'message': 'Clean missing medias task started'})
@@ -25907,19 +25924,23 @@ def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_p
         task.update_progress(f"Error applying ROM scan changes: {e}")
         raise
 
-def run_clean_missing_medias_task(system_name, media_field):
+def run_clean_missing_medias_task(system_name, media_field, dry_run=False):
     """Run clean missing medias task in background thread"""
     global current_task_id
-    
+
     try:
         if not current_task_id or current_task_id not in tasks:
             print("Error: No active task found for clean missing medias")
             return
-        
+
         task = tasks[current_task_id]
-        
+
+        prefix = "[DRY RUN] " if dry_run else ""
+        if dry_run:
+            task.update_progress("🔍 DRY RUN: previewing changes only — no files will be renamed and the gamelist will not be modified")
+
         # Load gamelist
-        task.update_progress(f"Loading gamelist for system: {system_name}")
+        task.update_progress(f"{prefix}Loading gamelist for system: {system_name}")
         gamelist_path = get_gamelist_path(system_name)
         
         if not os.path.exists(gamelist_path):
@@ -25947,7 +25968,121 @@ def run_clean_missing_medias_task(system_name, media_field):
         
         games_updated = 0
         total_medias_cleaned = 0
-        
+        total_medias_renamed = 0
+
+        # Cache of directory listings ({dir: {lowercase_name: actual_name}}) to avoid
+        # repeated os.listdir() calls (important on network shares where case differences
+        # are common). The keys are lower-cased; values are the real on-disk names.
+        dir_listing_cache = {}
+
+        # Pattern of the temp files used for case-only renames, e.g.
+        #   .cmtmp_<pid>_<index>_<final name>
+        # Used to recover/complete renames left behind by an interrupted or failed run.
+        casetmp_re = re.compile(r'^\.cmtmp_\d+_\d+_(.+)$')
+
+        def _read_dir_raw(directory):
+            try:
+                return os.listdir(directory)
+            except OSError:
+                return []
+
+        def rename_media_file(directory, src_name, dst_name):
+            """Rename src_name -> dst_name inside `directory`, returning the real stored
+            name afterwards (verified against a fresh listing). Handles case-only renames
+            on case-insensitive but case-preserving shares (SMB/CIFS), where a direct
+            rename is a silent no-op and the kernel dir cache must be refreshed between a
+            two-step temp rename. Returns dst_name on success, src_name on failure."""
+            if src_name == dst_name:
+                return dst_name
+            src_full = os.path.join(directory, src_name)
+            dst_full = os.path.join(directory, dst_name)
+            case_only = src_name.lower() == dst_name.lower()
+            try:
+                if case_only:
+                    # Two-step via a temp name whose case does not collide with either side.
+                    tmp_name = f".cmtmp_{os.getpid()}_{int(time.time() * 1000) % 1000000}_{dst_name}"
+                    tmp_full = os.path.join(directory, tmp_name)
+                    os.rename(src_full, tmp_full)
+                    # Refresh the dir cache so the stale src dentry is dropped, then rename the
+                    # temp to the final name. SMB attribute caching can make this a no-op, so
+                    # verify against a fresh listing and retry a few times.
+                    for _ in range(4):
+                        _read_dir_raw(directory)
+                        try:
+                            os.rename(tmp_full, dst_full)
+                        except FileNotFoundError:
+                            pass  # temp already consumed by a previous attempt
+                        if {n.lower(): n for n in _read_dir_raw(directory)}.get(dst_name.lower()) == dst_name:
+                            break
+                        time.sleep(0.2)
+                else:
+                    os.rename(src_full, dst_full)
+            except OSError as rename_err:
+                task.update_progress(f"    ! rename error '{src_name}' -> '{dst_name}': [{getattr(rename_err, 'errno', '?')}] {rename_err}")
+                # Leave any temp file in place; it is recoverable by casetmp_re on a later run.
+                # Refresh our cached view from disk before returning.
+                fresh = {n.lower(): n for n in _read_dir_raw(directory)}
+                dir_listing_cache[directory] = fresh
+                return fresh.get(dst_name.lower(), src_name)
+
+            # Verify against a fresh listing (do not trust os.rename's return on SMB).
+            fresh = {n.lower(): n for n in _read_dir_raw(directory)}
+            dir_listing_cache[directory] = fresh
+            return fresh.get(dst_name.lower(), src_name)
+
+        def get_dir_listing(directory):
+            if directory not in dir_listing_cache:
+                names = _read_dir_raw(directory)
+                real = {n.lower(): n for n in names if not casetmp_re.match(n)}
+                # Recover/complete any case-rename temp files left by a previous run.
+                for tmp_name in [n for n in names if casetmp_re.match(n)]:
+                    final_name = casetmp_re.match(tmp_name).group(1)
+                    # Only complete it if no real file already occupies the final name.
+                    if final_name.lower() in real:
+                        continue
+                    if dry_run:
+                        task.update_progress(f"  - {prefix}Would recover leftover media file: {final_name}")
+                        real[final_name.lower()] = final_name  # reflect intended state in the preview
+                    else:
+                        result = rename_media_file(directory, tmp_name, final_name)
+                        task.update_progress(f"  - Recovered leftover media file: {final_name}" if result == final_name
+                                             else f"  - Could not recover leftover: {tmp_name}")
+                        real[final_name.lower()] = final_name if result == final_name else result
+                dir_listing_cache[directory] = real
+            return dir_listing_cache[directory]
+
+        def resolve_full_path(media_path):
+            np = media_path.removeprefix('./')
+            if not np:
+                return None
+            if np.startswith(os.sep):
+                return np
+            if np.startswith(system_name):
+                return os.path.join(ROMS_FOLDER, np)
+            return os.path.join(system_path, np)
+
+        # ---- Upfront sweep: recover leftover case-rename temp files (.cmtmp_*) from a
+        # previous interrupted/failed run, across every media directory referenced by the
+        # gamelist. Done before the per-game pass so the recovered files are visible to it.
+        media_dirs = set()
+        for game in games:
+            for field in fields_to_check:
+                mp = game.get(field, '')
+                if mp:
+                    fp = resolve_full_path(mp)
+                    if fp:
+                        media_dirs.add(os.path.dirname(fp))
+
+        task.update_progress(f"{prefix}Scanning {len(media_dirs)} media director{'y' if len(media_dirs) == 1 else 'ies'} for leftover temp files...")
+        leftover_total = 0
+        for d in sorted(media_dirs):
+            leftovers = [n for n in _read_dir_raw(d) if casetmp_re.match(n)]
+            if leftovers:
+                leftover_total += len(leftovers)
+                task.update_progress(f"  - {prefix}{d}: {len(leftovers)} leftover temp file(s)")
+                get_dir_listing(d)  # building the listing performs the recovery (or preview)
+        task.update_progress(f"{prefix}Leftover sweep done: {leftover_total} temp file(s) found")
+
         # Check each game
         for i, game in enumerate(games):
             task.update_progress(f"Checking game {i+1}/{len(games)}: {game.get('name', 'Unknown')}")
@@ -25972,22 +26107,92 @@ def run_clean_missing_medias_task(system_name, media_field):
                     else:
                         full_path = os.path.join(system_path, normalized_path)
                     
-                    if not os.path.exists(full_path):
-                        # File doesn't exist, clear the field
-                        game[field] = ''
-                        game_updated = True
+                    # Resolve the file via the directory listing rather than os.path.exists():
+                    # over SMB/CIFS (case-insensitive, case-preserving) os.path.exists() returns
+                    # True even when the stored case differs, so the listing is the only reliable
+                    # source for the real on-disk filename and its case.
+                    media_dir = os.path.dirname(full_path)
+                    ref_basename = os.path.basename(full_path)
+                    listing = get_dir_listing(media_dir)
+                    rom_path = game.get('path', '')
+                    rom_stem = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else ''
+
+                    # 1) Try the name the gamelist currently points at (any case).
+                    actual_basename = listing.get(ref_basename.lower())
+
+                    # 2) Fall back to a file already named after the ROM. This covers a stale
+                    #    gamelist path whose on-disk file was renamed to match the ROM, where the
+                    #    referenced name no longer resolves at all.
+                    if not actual_basename and rom_stem:
+                        ref_ext = os.path.splitext(ref_basename)[1]
+                        field_exts = media_fields.get(field, {}).get('extensions', []) or []
+                        # Prefer the referenced extension, then the field's configured ones.
+                        candidate_exts = [ref_ext] + [e for e in field_exts if e.lower() != ref_ext.lower()]
+                        for ce in candidate_exts:
+                            if not ce:
+                                continue
+                            cand = listing.get(f"{rom_stem}{ce}".lower())
+                            if cand:
+                                actual_basename = cand
+                                break
+
+                    if not actual_basename:
+                        # No file matches even case-insensitively -> truly missing, clear field
+                        if not dry_run:
+                            game[field] = ''
+                            game_updated = True
                         total_medias_cleaned += 1
-                        task.update_progress(f"  - Cleaned missing {field}: {media_path}")
-            
+                        task.update_progress(f"  - {prefix}Cleaned missing {field}: {media_path}")
+                    else:
+                        # File exists. Make sure both the on-disk filename and the gamelist
+                        # field use the canonical ROM-based name (correct case).
+                        ext = os.path.splitext(actual_basename)[1]
+                        correct_basename = create_media_filename(rom_path, ext) if rom_path else actual_basename
+
+                        if actual_basename != correct_basename:
+                            # A collision only exists if a *different* file already holds the
+                            # canonical name. A pure case-change of the same file is safe.
+                            if correct_basename.lower() in listing and correct_basename.lower() != actual_basename.lower():
+                                task.update_progress(f"  - Skipped rename for {field}: target '{correct_basename}' already exists")
+                                correct_basename = actual_basename
+                            elif dry_run:
+                                # Preview only: report the rename but leave the file untouched
+                                total_medias_renamed += 1
+                                task.update_progress(f"  - {prefix}Would rename {field}: {actual_basename} -> {correct_basename}")
+                            else:
+                                result_name = rename_media_file(media_dir, actual_basename, correct_basename)
+                                if result_name == correct_basename:
+                                    total_medias_renamed += 1
+                                    task.update_progress(f"  - Renamed {field}: {actual_basename} -> {correct_basename}")
+                                else:
+                                    # Rename did not take effect on disk; keep the field pointing
+                                    # at whatever name is actually present and move on.
+                                    task.update_progress(f"  - Failed to rename {field}: '{actual_basename}' -> '{correct_basename}' (still '{result_name}')")
+                                    correct_basename = result_name
+                                    continue
+
+                        # Update the gamelist field to point at the canonical filename
+                        prefix_dir = os.path.dirname(media_path)
+                        new_media_path = os.path.join(prefix_dir, correct_basename) if prefix_dir else correct_basename
+                        if new_media_path != media_path:
+                            if not dry_run:
+                                game[field] = new_media_path
+                                game_updated = True
+                            task.update_progress(f"  - {prefix}Update {field} path: {media_path} -> {new_media_path}")
+
             if game_updated:
                 games_updated += 1
-        
-        # Save updated gamelist
-        task.update_progress(f"Writing updated gamelist...")
-        write_gamelist_xml(games, gamelist_path)
-        
-        task.update_progress(f"✅ Cleanup complete: {games_updated} games updated, {total_medias_cleaned} media fields cleaned")
-        task.complete(True, f"Cleaned {total_medias_cleaned} missing media fields from {games_updated} games")
+
+        # Save updated gamelist (skipped on dry run)
+        if dry_run:
+            task.update_progress(f"🔍 DRY RUN complete: {total_medias_cleaned} media fields would be cleaned, {total_medias_renamed} media files would be renamed to match ROM. No changes were made.")
+            task.complete(True, f"[DRY RUN] Would clean {total_medias_cleaned} missing media fields and rename {total_medias_renamed} media files")
+        else:
+            task.update_progress(f"Writing updated gamelist...")
+            write_gamelist_xml(games, gamelist_path)
+
+            task.update_progress(f"✅ Cleanup complete: {games_updated} games updated, {total_medias_cleaned} media fields cleaned, {total_medias_renamed} media files renamed to match ROM")
+            task.complete(True, f"Cleaned {total_medias_cleaned} missing media fields and renamed {total_medias_renamed} media files from {games_updated} games")
         
         # Process next queued task
         process_next_queued_task()
@@ -26741,30 +26946,6 @@ def run_rom_scan_task(system_name):
         task.update_progress(f"Scan complete: {scanned_dirs} directories, {scanned_files} files scanned")
         task.update_progress(f"Found {len(rom_files)} ROM files in system directory (including subdirectories)")
         
-        # Process M3U files to find ROMs that should be hidden
-        m3u_files = [f for f in rom_files if f.lower().endswith('.m3u')]
-        hidden_roms = set()
-        
-        for m3u_file in m3u_files:
-            # Normalize m3u_file path for Windows/Docker compatibility
-            m3u_file_normalized = m3u_file.replace('\\', '/')
-            m3u_path = os.path.join(system_path, m3u_file_normalized)
-            # Also try with original path in case normalization breaks it
-            if not os.path.exists(m3u_path):
-                m3u_path = os.path.join(system_path, m3u_file)
-            if os.path.exists(m3u_path):
-                referenced_roms = parse_m3u_file(m3u_path)
-                task.update_progress(f"M3U file {m3u_file} references {len(referenced_roms)} ROM files")
-                
-                # Add referenced ROMs to hidden set
-                for rom_file in referenced_roms:
-                    # Normalize the path to match the format used in rom_files
-                    normalized_rom = rom_file.removeprefix('./')
-                    hidden_roms.add(normalized_rom)
-                    task.update_progress(f"Will mark as hidden: {normalized_rom} (referenced in {m3u_file})")
-        
-        task.update_progress(f"Found {len(hidden_roms)} ROM files referenced in M3U playlists that will be hidden")
-        
         # Load existing gamelist if it exists
         existing_games = []
         if os.path.exists(gamelist_path):
@@ -26787,7 +26968,7 @@ def run_rom_scan_task(system_name):
                     existing_games = []
             else:
                 task.update_progress(f"No existing gamelist found, will create new one with {len(rom_files)} ROM files")
-        
+
         # Create a mapping of ROM paths for case-sensitive lookup
         # Use full normalized path as key for exact case-sensitive matching
         existing_roms_by_path = {}
@@ -26800,7 +26981,41 @@ def run_rom_scan_task(system_name):
                 normalized_path_clean = normalized_path.replace('\\', '/')
                 # Store with exact case as it appears in gamelist
                 existing_roms_by_path[normalized_path_clean] = game
-        
+
+        # Process new M3U files to find new ROMs that should be hidden.
+        # Only process M3U files that are themselves new (not already in the gamelist).
+        # Referenced ROMs are only hidden if they too are new (checked at confirmation time).
+        m3u_files = [f for f in rom_files if f.lower().endswith('.m3u')]
+        hidden_roms = set()
+
+        for m3u_file in m3u_files:
+            normalized_m3u = m3u_file.replace('\\', '/')
+            # Skip M3U files already known in the gamelist
+            if normalized_m3u in existing_roms_by_path:
+                continue
+            m3u_path = os.path.join(system_path, normalized_m3u)
+            if not os.path.exists(m3u_path):
+                m3u_path = os.path.join(system_path, m3u_file)
+            if os.path.exists(m3u_path):
+                referenced_roms = parse_m3u_file(m3u_path)
+                task.update_progress(f"New M3U file {m3u_file} references {len(referenced_roms)} ROM files")
+                m3u_dir = os.path.dirname(normalized_m3u)
+                for rom_ref in referenced_roms:
+                    rom_ref_norm = rom_ref.replace('\\', '/')
+                    if os.path.isabs(rom_ref_norm):
+                        # Absolute path: make relative to system_path
+                        try:
+                            rel = os.path.relpath(rom_ref_norm, system_path).replace('\\', '/')
+                        except ValueError:
+                            continue
+                    else:
+                        # Relative path: resolve relative to the M3U file's directory
+                        rel = os.path.normpath(os.path.join(m3u_dir, rom_ref_norm)).replace('\\', '/')
+                    hidden_roms.add(rel)
+                    task.update_progress(f"Will mark as hidden (if new): {rel} (referenced in {m3u_file})")
+
+        task.update_progress(f"Found {len(hidden_roms)} ROM files referenced in new M3U playlists that will be hidden if also new")
+
         # Create a set of ROM files from filesystem for case-sensitive matching
         rom_files_set = set()
         # Also create a mapping by basename for moved ROM detection
@@ -27099,8 +27314,8 @@ def scan_rom_files_confirm(system_name):
         # Add new ROMs
         next_id = max([game.get('id', 0) for game in valid_games] + [0]) + 1
         for rom_file in new_roms:
-            # Check if this ROM should be hidden (referenced in M3U files)
-            should_hide = rom_file in hidden_roms
+            # Check if this ROM should be hidden (referenced in new M3U files)
+            should_hide = rom_file.replace('\\', '/') in hidden_roms
             new_game = {
                 'id': next_id,
                 'path': f'./{rom_file}',
@@ -37799,9 +38014,23 @@ def run_datscrapper_task(system_name, task_id, selected_games=None, selected_tex
                 print(f"🔧 DEBUG: ROM name without extension: {rom_name_without_ext}")
                 print(f"🔧 DEBUG: Selected text fields: {selected_text_fields}")
                 print(f"🔧 DEBUG: Text field mapping: {text_field_mapping}")
-                
-                # Find game in DAT file by ROM name
+
+                # Try name match first
                 dat_entry = service.find_game_by_rom_name(system_name, game_path)
+
+                # Fall back to SHA1 match (single-ROM games only, to avoid ambiguity)
+                if not dat_entry:
+                    rel_path = game_path[2:] if game_path.startswith('./') else game_path
+                    full_rom_path = os.path.join(ROMS_FOLDER, system_name, rel_path)
+                    if os.path.exists(full_rom_path):
+                        rom_sha1 = service.compute_file_sha1(full_rom_path)
+                        if rom_sha1:
+                            print(f"🔧 DEBUG: Computed SHA1: {rom_sha1}")
+                            dat_entry = service.find_game_by_sha1(system_name, rom_sha1)
+                            if dat_entry:
+                                print(f"✅ Found DAT match by SHA1 for '{display_name}'")
+                    else:
+                        print(f"⚠️ ROM file not found at: {full_rom_path}")
                 
                 if dat_entry:
                     print(f"✅ Found DAT match for '{display_name}': {dat_entry.name}")

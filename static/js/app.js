@@ -27478,6 +27478,8 @@ class GameCollectionManager {
 
     async startCleanMissingMediasTask() {
         const mediaField = document.getElementById('cleanMediaFieldSelect').value;
+        const dryRunEl = document.getElementById('cleanMissingMediasDryRun');
+        const dryRun = dryRunEl ? dryRunEl.checked : false;
 
         if (!mediaField) {
             this.showAlert('Please select a media field', 'warning');
@@ -27492,7 +27494,8 @@ class GameCollectionManager {
                 },
                 credentials: 'include',
                 body: JSON.stringify({
-                    media_field: mediaField
+                    media_field: mediaField,
+                    dry_run: dryRun
                 })
             });
 
@@ -27503,7 +27506,9 @@ class GameCollectionManager {
             const result = await response.json();
 
             if (result.success) {
-                this.showAlert('Clean missing medias task started successfully', 'success');
+                this.showAlert(dryRun
+                    ? 'Dry run started — check the task log for the planned changes (nothing will be modified)'
+                    : 'Clean missing medias task started successfully', 'success');
 
                 // Close modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('cleanMissingMediasModal'));
@@ -27514,9 +27519,11 @@ class GameCollectionManager {
                 // Refresh task grid to show the new task
                 setTimeout(() => this.refreshTasks(), 500);
 
-                // After task completes, fully reload gamelist and grid
+                // After task completes, reload gamelist and grid (only meaningful for a real run)
                 this.waitForTaskTypeCompletion('clean_missing_medias').then(() => {
-                    this.forceReloadCurrentSystem();
+                    if (!dryRun) {
+                        this.forceReloadCurrentSystem();
+                    }
                 });
             } else {
                 this.showAlert(result.error || 'Failed to start clean missing medias task', 'danger');

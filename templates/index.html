@@ -1107,8 +1107,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <div class="modal-body">
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
-                        This will scan all games in the current system and remove media field entries for files that
-                        don't exist.
+                        This scans all games in the current system. For each media field it will:
+                        <ul class="mb-0 mt-1">
+                            <li>Remove the entry when no matching file exists.</li>
+                            <li>Rename a file whose name/case differs to match the ROM filename and update the
+                                gamelist path accordingly.</li>
+                        </ul>
                     </div>
 
                     <div class="mb-3">
@@ -1120,10 +1124,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             fields.</div>
                     </div>
 
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="cleanMissingMediasDryRun" checked>
+                        <label class="form-check-label" for="cleanMissingMediasDryRun">
+                            <strong>Dry run</strong> — preview the planned renames/removals without modifying any file
+                            or the gamelist.
+                        </label>
+                    </div>
+
                     <div class="alert alert-warning">
                         <i class="bi bi-exclamation-triangle me-2"></i>
-                        <strong>Warning:</strong> This action will permanently remove missing media references from your
-                        gamelist.xml file.
+                        <strong>Warning:</strong> When dry run is unchecked, this permanently removes missing media
+                        references and renames files in your gamelist.xml / media folders.
                     </div>
                 </div>
                 <div class="modal-footer">
