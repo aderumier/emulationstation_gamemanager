@@ -25986,12 +25986,19 @@ def run_clean_missing_medias_task(system_name, media_field, dry_run=False):
             except OSError:
                 return []
 
+        def _list_real(directory):
+            # Real media files only: temp files (.cmtmp_*) are never exposed as media,
+            # so a temp name can never leak into the gamelist via the listing.
+            return {n.lower(): n for n in _read_dir_raw(directory) if not casetmp_re.match(n)}
+
         def rename_media_file(directory, src_name, dst_name):
-            """Rename src_name -> dst_name inside `directory`, returning the real stored
-            name afterwards (verified against a fresh listing). Handles case-only renames
-            on case-insensitive but case-preserving shares (SMB/CIFS), where a direct
-            rename is a silent no-op and the kernel dir cache must be refreshed between a
-            two-step temp rename. Returns dst_name on success, src_name on failure."""
+            """Rename src_name -> dst_name inside `directory`. A direct case-only rename is
+            a silent no-op on case-insensitive/case-preserving shares (SMB/CIFS), so those
+            go through an intermediate temp name; both sub-renames are non-case and thus
+            reliable. We trust os.rename when it does not raise (a listdir-based check is
+            unreliable on SMB due to attribute caching). On failure we roll back so no temp
+            orphan is left, and log the real errno. Returns dst_name on success, None on
+            failure."""
             if src_name == dst_name:
                 return dst_name
             src_full = os.path.join(directory, src_name)
@@ -25999,36 +26006,32 @@ def run_clean_missing_medias_task(system_name, media_field, dry_run=False):
             case_only = src_name.lower() == dst_name.lower()
             try:
                 if case_only:
-                    # Two-step via a temp name whose case does not collide with either side.
                     tmp_name = f".cmtmp_{os.getpid()}_{int(time.time() * 1000) % 1000000}_{dst_name}"
                     tmp_full = os.path.join(directory, tmp_name)
-                    os.rename(src_full, tmp_full)
-                    # Refresh the dir cache so the stale src dentry is dropped, then rename the
-                    # temp to the final name. SMB attribute caching can make this a no-op, so
-                    # verify against a fresh listing and retry a few times.
-                    for _ in range(4):
-                        _read_dir_raw(directory)
+                    os.rename(src_full, tmp_full)      # step 1 (non-case, reliable)
+                    _read_dir_raw(directory)           # drop stale src dentry from the cache
+                    try:
+                        os.rename(tmp_full, dst_full)  # step 2 (non-case, reliable)
+                    except OSError:
+                        # Roll the temp back to the original name so we never orphan it.
                         try:
-                            os.rename(tmp_full, dst_full)
-                        except FileNotFoundError:
-                            pass  # temp already consumed by a previous attempt
-                        if {n.lower(): n for n in _read_dir_raw(directory)}.get(dst_name.lower()) == dst_name:
-                            break
-                        time.sleep(0.2)
+                            os.rename(tmp_full, src_full)
+                        except OSError:
+                            pass
+                        raise
                 else:
                     os.rename(src_full, dst_full)
             except OSError as rename_err:
-                task.update_progress(f"    ! rename error '{src_name}' -> '{dst_name}': [{getattr(rename_err, 'errno', '?')}] {rename_err}")
-                # Leave any temp file in place; it is recoverable by casetmp_re on a later run.
-                # Refresh our cached view from disk before returning.
-                fresh = {n.lower(): n for n in _read_dir_raw(directory)}
-                dir_listing_cache[directory] = fresh
-                return fresh.get(dst_name.lower(), src_name)
+                task.update_progress(f"  ! Failed to rename '{src_name}' -> '{dst_name}': errno {getattr(rename_err, 'errno', '?')} ({rename_err.strerror or rename_err})")
+                return None
 
-            # Verify against a fresh listing (do not trust os.rename's return on SMB).
-            fresh = {n.lower(): n for n in _read_dir_raw(directory)}
-            dir_listing_cache[directory] = fresh
-            return fresh.get(dst_name.lower(), src_name)
+            # os.rename is synchronous to the server, so on success the file IS renamed even
+            # if a subsequent os.listdir() is briefly stale. Update the cached view directly
+            # from what we know happened rather than re-reading (which may be cached).
+            if directory in dir_listing_cache:
+                dir_listing_cache[directory].pop(src_name.lower(), None)
+                dir_listing_cache[directory][dst_name.lower()] = dst_name
+            return dst_name
 
         def get_dir_listing(directory):
             if directory not in dir_listing_cache:
@@ -26037,17 +26040,26 @@ def run_clean_missing_medias_task(system_name, media_field, dry_run=False):
                 # Recover/complete any case-rename temp files left by a previous run.
                 for tmp_name in [n for n in names if casetmp_re.match(n)]:
                     final_name = casetmp_re.match(tmp_name).group(1)
-                    # Only complete it if no real file already occupies the final name.
                     if final_name.lower() in real:
+                        # A real file already holds the final name -> the temp is redundant.
+                        if not dry_run:
+                            try:
+                                os.remove(os.path.join(directory, tmp_name))
+                            except OSError:
+                                pass
                         continue
                     if dry_run:
                         task.update_progress(f"  - {prefix}Would recover leftover media file: {final_name}")
                         real[final_name.lower()] = final_name  # reflect intended state in the preview
                     else:
                         result = rename_media_file(directory, tmp_name, final_name)
-                        task.update_progress(f"  - Recovered leftover media file: {final_name}" if result == final_name
-                                             else f"  - Could not recover leftover: {tmp_name}")
-                        real[final_name.lower()] = final_name if result == final_name else result
+                        if result == final_name:
+                            task.update_progress(f"  - Recovered leftover media file: {final_name}")
+                            real[final_name.lower()] = final_name
+                        else:
+                            # Do NOT map the final name to the temp; leave it out so the temp
+                            # name can never leak into the gamelist.
+                            task.update_progress(f"  - Could not recover leftover: {tmp_name}")
                 dir_listing_cache[directory] = real
             return dir_listing_cache[directory]
 
@@ -26165,10 +26177,9 @@ def run_clean_missing_medias_task(system_name, media_field, dry_run=False):
                                     total_medias_renamed += 1
                                     task.update_progress(f"  - Renamed {field}: {actual_basename} -> {correct_basename}")
                                 else:
-                                    # Rename did not take effect on disk; keep the field pointing
-                                    # at whatever name is actually present and move on.
-                                    task.update_progress(f"  - Failed to rename {field}: '{actual_basename}' -> '{correct_basename}' (still '{result_name}')")
-                                    correct_basename = result_name
+                                    # Rename failed (file rolled back to its original name);
+                                    # leave the gamelist field untouched and move on.
+                                    task.update_progress(f"  - Failed to rename {field}: '{actual_basename}' -> '{correct_basename}'")
                                     continue
 
                         # Update the gamelist field to point at the canonical filename
@@ -42540,20 +42551,26 @@ def _check_external_api_token(request):
 
 @app.route('/api/external/add-media', methods=['POST'])
 def external_add_media():
-    """Add a media file reference to a system's var gamelist.xml.
+    """Add one or more media file references to a system's var gamelist.xml.
 
-    Expected JSON body:
+    Authentication: Bearer token or X-API-Token header matching
+    config['external_api_token'].
+
+    Single-item JSON body (backward compatible):
         system        – system name (e.g. "snes")
         romfile       – ROM path as stored in gamelist (e.g. "./Super Mario World.sfc")
         mediatype     – gamelist field name (e.g. "image", "video", "marquee", …)
         mediafilename – filename of the media file (e.g. "Super Mario World.png")
-                        The absolute path is resolved as:
-                        <ROMS_FOLDER>/<system>/media/<mediatype_directory>/<mediafilename>
-                        The relative gamelist path stored is:
-                        ./media/<mediatype_directory>/<mediafilename>
 
-    Authentication: Bearer token or X-API-Token header matching
-    config['external_api_token'].
+    Batch JSON body (all items share the same system; gamelist.xml is parsed,
+    written and synced only once for the whole batch):
+        system        – system name
+        media         – list of objects, each with: romfile, mediatype, mediafilename
+
+    For every item the absolute path is resolved as:
+        <ROMS_FOLDER>/<system>/media/<mediatype_directory>/<mediafilename>
+    and the relative gamelist path stored is:
+        ./media/<mediatype_directory>/<mediafilename>
     """
     if not _check_external_api_token(request):
         return jsonify({'success': False, 'error': 'Unauthorized – invalid or missing API token'}), 401
@@ -42563,39 +42580,73 @@ def external_add_media():
     except Exception:
         return jsonify({'success': False, 'error': 'Invalid JSON body'}), 400
 
-    system        = (data.get('system') or '').strip()
-    romfile       = (data.get('romfile') or '').strip()
-    mediatype     = (data.get('mediatype') or '').strip()
-    mediafilename = (data.get('mediafilename') or '').strip()
-
+    system = (data.get('system') or '').strip()
     if not system:
         return jsonify({'success': False, 'error': 'Missing field: system'}), 400
-    if not romfile:
-        return jsonify({'success': False, 'error': 'Missing field: romfile'}), 400
-    if not mediatype:
-        return jsonify({'success': False, 'error': 'Missing field: mediatype'}), 400
-    if not mediafilename:
-        return jsonify({'success': False, 'error': 'Missing field: mediafilename'}), 400
 
-    # Resolve the media directory from config
+    # Determine whether this is a batch request or a single-item request.
+    raw_items = data.get('media')
+    if raw_items is not None:
+        if not isinstance(raw_items, list) or not raw_items:
+            return jsonify({'success': False, 'error': "Field 'media' must be a non-empty list"}), 400
+        is_batch = True
+    else:
+        raw_items = [data]
+        is_batch = False
+
     cfg = load_config()
     media_fields_cfg = cfg.get('media_fields', {})
-    if mediatype not in media_fields_cfg:
-        return jsonify({'success': False, 'error': f'Unknown mediatype: {mediatype}. Valid types: {list(media_fields_cfg.keys())}'}), 400
 
-    media_directory = media_fields_cfg[mediatype].get('directory', mediatype)
+    # Pre-validate and resolve every item before touching the gamelist.
+    items = []    # resolvable items ready to apply
+    results = []  # per-item outcome, same order as input
+    for entry in raw_items:
+        entry = entry or {}
+        romfile       = (entry.get('romfile') or '').strip()
+        mediatype     = (entry.get('mediatype') or '').strip()
+        mediafilename = (entry.get('mediafilename') or '').strip()
 
-    # Sanitise filename – no path traversal
-    mediafilename = os.path.basename(mediafilename)
+        result = {
+            'romfile': romfile,
+            'mediatype': mediatype,
+            'mediafilename': mediafilename,
+            'success': False,
+        }
+        results.append(result)
 
-    # Absolute path for existence check
-    abs_media_path = os.path.join(ROMS_FOLDER, system, 'media', media_directory, mediafilename)
+        missing = [name for name, val in (('romfile', romfile),
+                                          ('mediatype', mediatype),
+                                          ('mediafilename', mediafilename)) if not val]
+        if missing:
+            result['error'] = f"Missing field(s): {', '.join(missing)}"
+            result['_status'] = 400
+            continue
 
-    if not os.path.isfile(abs_media_path):
-        return jsonify({'success': False, 'error': f'Media file not found: {abs_media_path}'}), 404
+        if mediatype not in media_fields_cfg:
+            result['error'] = f'Unknown mediatype: {mediatype}. Valid types: {list(media_fields_cfg.keys())}'
+            result['_status'] = 400
+            continue
 
-    # Relative path stored in gamelist.xml  (EmulationStation convention)
-    gamelist_media_path = f'./media/{media_directory}/{mediafilename}'
+        media_directory = media_fields_cfg[mediatype].get('directory', mediatype)
+
+        # Sanitise filename – no path traversal
+        safe_filename = os.path.basename(mediafilename)
+        result['mediafilename'] = safe_filename
+
+        # Absolute path for existence check
+        abs_media_path = os.path.join(ROMS_FOLDER, system, 'media', media_directory, safe_filename)
+        if not os.path.isfile(abs_media_path):
+            result['error'] = f'Media file not found: {abs_media_path}'
+            result['_status'] = 404
+            continue
+
+        items.append({
+            'romfile': romfile,
+            'mediatype': mediatype,
+            # Relative path stored in gamelist.xml (EmulationStation convention)
+            'gamelist_media_path': f'./media/{media_directory}/{safe_filename}',
+            'result': result,
+        })
 
     gamelist_path = get_gamelist_path(system)
     ensure_gamelist_exists(system)
@@ -42606,45 +42657,77 @@ def external_add_media():
             gamelist_write_locks[system] = threading.Lock()
         lock = gamelist_write_locks[system]
 
+    applied_count = 0
     with lock:
         games = parse_gamelist_xml(gamelist_path) if os.path.exists(gamelist_path) else []
+        games_count = len(games)
 
-        # Find matching game by path
-        matched = None
+        # Index games by path for O(1) lookup across the batch
+        games_by_path = {}
         for game in games:
-            if game.get('path', '') == romfile:
-                matched = game
-                break
+            games_by_path.setdefault(game.get('path', ''), game)
 
-        if matched is None:
-            return jsonify({'success': False, 'error': f'ROM not found in gamelist: {romfile}'}), 404
+        for item in items:
+            result = item['result']
+            matched = games_by_path.get(item['romfile'])
+            if matched is None:
+                result['error'] = f"ROM not found in gamelist: {item['romfile']}"
+                result['_status'] = 404
+                continue
 
-        old_value = matched.get(mediatype, '')
-        matched[mediatype] = gamelist_media_path
+            result['previous_value'] = matched.get(item['mediatype'], '')
+            matched[item['mediatype']] = item['gamelist_media_path']
+            result['gamelist_path'] = item['gamelist_media_path']
+            result['success'] = True
+            applied_count += 1
 
-        save_gamelist_xml(gamelist_path, games)
+        # Parse, write and sync the gamelist only once for the whole batch
+        if applied_count > 0:
+            save_gamelist_xml(gamelist_path, games)
 
-    # Notify connected clients to refresh the grid
-    try:
-        notify_gamelist_updated(system, len(games), updated_count=1)
-    except Exception as e:
-        print(f'Warning: could not notify clients after external add-media: {e}')
+    if applied_count > 0:
+        # Notify connected clients to refresh the grid
+        try:
+            notify_gamelist_updated(system, games_count, updated_count=applied_count)
+        except Exception as e:
+            print(f'Warning: could not notify clients after external add-media: {e}')
 
-    # Sync to roms/<system>/gamelist.xml
-    roms_save_result = save_gamelist_to_roms(system)
-    if not roms_save_result.get('success'):
-        print(f'Warning: could not sync gamelist to roms for {system}: {roms_save_result.get("error")}')
+        # Sync to roms/<system>/gamelist.xml
+        roms_save_result = save_gamelist_to_roms(system)
+        if not roms_save_result.get('success'):
+            print(f'Warning: could not sync gamelist to roms for {system}: {roms_save_result.get("error")}')
+
+    # Pop internal status hints; remember the single-item one for the HTTP code
+    single_status = 200
+    for result in results:
+        single_status = result.pop('_status', single_status)
+
+    overall_success = applied_count > 0 and all(r['success'] for r in results)
+
+    if not is_batch:
+        # Backward-compatible flat response for single-item callers
+        single = results[0]
+        if single['success']:
+            return jsonify({
+                'success': True,
+                'message': f"Media updated for {single['romfile']}",
+                'system': system,
+                'romfile': single['romfile'],
+                'mediatype': single['mediatype'],
+                'mediafilename': single['mediafilename'],
+                'gamelist_path': single['gamelist_path'],
+                'previous_value': single['previous_value'],
+                'games_count': games_count,
+            })
+        return jsonify({'success': False, 'error': single.get('error', 'Failed')}), single_status
 
     return jsonify({
-        'success': True,
-        'message': f'Media updated for {romfile}',
+        'success': overall_success,
         'system': system,
-        'romfile': romfile,
-        'mediatype': mediatype,
-        'mediafilename': mediafilename,
-        'gamelist_path': matched[mediatype],
-        'previous_value': old_value,
-        'games_count': len(games),
+        'applied_count': applied_count,
+        'total': len(results),
+        'games_count': games_count,
+        'results': results,
     })
 
 
