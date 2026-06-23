@@ -6837,6 +6837,29 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
             # Handle covers
             for mobygames_type in mobygames_types:
                 covers = media_data.get('covers', [])
+
+                # Special handling for spine covers. MobyGames labels these
+                # e.g. "Spine/Sides Left" and "Spine/Sides Right". When more than
+                # one spine cover exists we want the "Left" one; when only a single
+                # spine cover exists we match on "spine" alone.
+                if mobygames_type.lower() == 'spine':
+                    spine_covers = [c for c in covers if 'spine' in c.get('description', '').lower()]
+                    if len(spine_covers) > 1:
+                        left_covers = [c for c in spine_covers if 'left' in c.get('description', '').lower()]
+                        # Fall back to all spine covers if none are explicitly "Left"
+                        matching_covers = left_covers if left_covers else spine_covers
+                    else:
+                        matching_covers = spine_covers
+
+                    for cover in matching_covers:
+                        media_options.append({
+                            'url': cover.get('thumbnail_url', ''),  # Use thumbnail for preview
+                            'description': cover.get('description', ''),
+                            'page_url': cover.get('page_url', ''),  # Use page_url for full-size download
+                            'type': mobygames_type
+                        })
+                    continue
+
                 for cover in covers:
                     description = cover.get('description', '').lower()
                     if mobygames_type.lower() in description:
