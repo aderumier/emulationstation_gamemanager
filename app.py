@@ -42811,6 +42811,7 @@ def external_list_games():
         result_games.append({
             'romfile': game.get('path', ''),
             'name': game.get('name', ''),
+            'hidden': game.get('hidden', ''),
             'media': media,
         })
 
