@@ -475,6 +475,68 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
             print(f"❌ Error processing image: {error_msg}")
         return file_path, "failed"
 
+def optimize_image_if_large(file_path: str, size_threshold: int = 1024 * 1024) -> tuple[bool, str]:
+    """
+    Re-encode an image to reduce its file size when it exceeds size_threshold bytes.
+    The original file is replaced only if the re-encoded version is actually smaller.
+    For JPEG, the sRGB color profile is used with 90% quality.
+
+    Args:
+        file_path: Path to the image file to optimize.
+        size_threshold: Size in bytes above which optimization is attempted (default 1MB).
+
+    Returns:
+        Tuple of (changed, message) where `changed` is True only if the original file
+        was replaced with a smaller re-encoded version.
+    """
+    import subprocess
+    import os
+
+    tmp_path = None
+    try:
+        if not os.path.exists(file_path):
+            return False, "file not found"
+
+        original_size = os.path.getsize(file_path)
+        if original_size <= size_threshold:
+            return False, "below threshold"
+
+        ext = os.path.splitext(file_path)[1].lower()
+        tmp_path = os.path.splitext(file_path)[0] + '.optimizing' + ext
+
+        cmd = get_imagemagick_cmd('convert') + [file_path]
+        if ext in ('.jpg', '.jpeg'):
+            # sRGB color profile with 90% quality, strip metadata
+            cmd.extend(['-colorspace', 'sRGB', '-strip', '-quality', '90'])
+        elif ext == '.png':
+            cmd.extend(['-strip', '-define', 'png:compression-level=9'])
+        else:
+            cmd.extend(['-strip'])
+        cmd.append(tmp_path)
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode != 0 or not os.path.exists(tmp_path):
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            return False, f"reencode failed: {result.stderr.strip()}"
+
+        new_size = os.path.getsize(tmp_path)
+        if new_size < original_size:
+            os.replace(tmp_path, file_path)
+            return True, f"{original_size // 1024}KB → {new_size // 1024}KB"
+
+        # No size gain - keep the original untouched
+        os.remove(tmp_path)
+        return False, f"no gain ({original_size // 1024}KB → {new_size // 1024}KB)"
+
+    except Exception as e:
+        try:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+        return False, f"error: {e}"
+
 def is_solid_color_image(file_path: str) -> bool:
     """
     Returns True if the image contains exactly 1 unique color (solid placeholder image).
