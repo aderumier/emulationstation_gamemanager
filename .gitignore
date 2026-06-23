@@ -159,6 +159,8 @@ var/
 !var/db/mobygames/*.json
 !var/db/custom/
 !var/db/custom/*.json
+!var/db/dats/
+!var/db/dats/*.xml
 !var/db/igdb/
 !var/db/igdb/igdb_db.pkl.gz
 !var/db/igdb/igdb_companies.pkl

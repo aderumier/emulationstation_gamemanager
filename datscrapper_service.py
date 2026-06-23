@@ -18,18 +18,20 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import hashlib
 import json
 import os
 import xml.etree.ElementTree as ET
 import time
 import logging
+import zipfile
 from typing import Dict, List, Optional, Any
 from difflib import SequenceMatcher
 from collections import namedtuple
 from game_utils import normalize_game_name, calculate_similarity
 
 # Lightweight namedtuple for DAT entries
-DATEntry = namedtuple('DATEntry', ['name', 'normalized', 'description', 'year', 'publisher', 'developer', 'manufacturer', 'genre'])
+DATEntry = namedtuple('DATEntry', ['name', 'normalized', 'description', 'year', 'publisher', 'developer', 'manufacturer', 'genre', 'rom_count'])
 
 class DATScrapperService:
     def __init__(self, config: Dict, scrappers_config: Dict = None, systems_config: Dict = None):
@@ -44,6 +46,7 @@ class DATScrapperService:
         # In-memory DAT data cache
         self.dat_cache = {}  # {system_name: {rom_name: DATEntry}}
         self.dat_cache_time = {}  # {system_name: timestamp}
+        self.sha1_cache = {}  # {system_name: {sha1_upper: DATEntry}}
         
         # Cache duration (30 minutes)
         self.cache_duration = 30 * 60
@@ -103,7 +106,8 @@ class DATScrapperService:
                 return tag.split('}')[-1] if tag and '}' in tag else (tag or '')
             
             dat_entries = {}
-            
+            sha1_entries = {}
+
             # Parse each machine/game entry (handle both formats and XML namespaces)
             entries = []
             for elem in root.iter():
@@ -154,7 +158,10 @@ class DATScrapperService:
                 
                 # Create normalized name for matching
                 normalized_name = normalize_game_name(description_text)
-                
+
+                # Collect inner <rom> children for SHA1 indexing
+                rom_children = [c for c in entry if local_name(c.tag) == 'rom']
+
                 date_entry = DATEntry(
                     name=description_text,
                     normalized=normalized_name,
@@ -163,14 +170,22 @@ class DATScrapperService:
                     publisher=publisher_text,
                     developer=developer_text,
                     manufacturer=manufacturer_text,
-                    genre=genre_text
+                    genre=genre_text,
+                    rom_count=len(rom_children)
                 )
-                
+
                 # Store by machine name without extension so ROM "cnonball.zip" matches machine name "cnonball.zip"
                 dat_entries[rom_key] = date_entry
-            
+
+                # Build SHA1 index from inner <rom> child elements
+                for rom_child in rom_children:
+                    sha1 = rom_child.get('sha1', '').strip().upper()
+                    if sha1 and sha1 != 'UNKNOWN':
+                        sha1_entries[sha1] = date_entry
+
             # Cache the results
             self.dat_cache[system_name] = dat_entries
+            self.sha1_cache[system_name] = sha1_entries
             self.dat_cache_time[system_name] = time.time()
             
             self.logger.info(f"Loaded {len(dat_entries)} entries from DAT file for {system_name}")
@@ -211,6 +226,38 @@ class DATScrapperService:
             print(f"❌ Error finding game by ROM name: {e}")
             return None
     
+    def find_game_by_sha1(self, system_name: str, sha1_hash: str) -> Optional[DATEntry]:
+        """Find a game entry by ROM SHA1 hash, only for single-ROM games to avoid ambiguity"""
+        try:
+            self.load_dat_file(system_name)
+            sha1_entries = self.sha1_cache.get(system_name, {})
+            entry = sha1_entries.get(sha1_hash.upper())
+            if entry and entry.rom_count == 1:
+                return entry
+            return None
+        except Exception as e:
+            self.logger.error(f"Error finding game by SHA1: {e}")
+            return None
+
+    @staticmethod
+    def compute_file_sha1(file_path: str) -> Optional[str]:
+        """Compute SHA1 of a ROM file, handling zip archives"""
+        try:
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext == '.zip':
+                with zipfile.ZipFile(file_path, 'r') as zf:
+                    names = [n for n in zf.namelist() if not n.endswith('/')]
+                    if not names:
+                        return None
+                    target = next((n for n in names if n.lower().endswith('.rom')), names[0])
+                    with zf.open(target) as f:
+                        return hashlib.sha1(f.read()).hexdigest().upper()
+            else:
+                with open(file_path, 'rb') as f:
+                    return hashlib.sha1(f.read()).hexdigest().upper()
+        except Exception as e:
+            return None
+
     def search_games(self, system_name: str, query: str, limit: int = 20) -> List[DATEntry]:
         """Search for games in DAT file by name similarity"""
         try:
@@ -244,10 +291,12 @@ class DATScrapperService:
         if system_name:
             self.dat_cache.pop(system_name, None)
             self.dat_cache_time.pop(system_name, None)
+            self.sha1_cache.pop(system_name, None)
             self.logger.info(f"Cleared DAT cache for {system_name}")
         else:
             self.dat_cache.clear()
             self.dat_cache_time.clear()
+            self.sha1_cache.clear()
             self.logger.info("Cleared all DAT cache")
     
     def get_cache_stats(self) -> Dict[str, Any]:

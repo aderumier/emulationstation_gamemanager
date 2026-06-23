@@ -811,7 +811,8 @@
         ],
         "launchbox": "Microsoft MSX",
         "igdb": 27,
-        "screenscraper": 113
+        "screenscraper": 113,
+        "dat_file": "msxromsdb.xml"
     },
     "msx2": {
         "extensions": [
