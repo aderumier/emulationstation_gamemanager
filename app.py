@@ -42731,6 +42731,74 @@ def external_add_media():
     })
 
 
+@app.route('/api/external/games', methods=['GET'])
+def external_list_games():
+    """Return the games of a system with their ROM path and media fields.
+
+    Authentication: Bearer token or X-API-Token header matching
+    config['external_api_token'].
+
+    Query parameters:
+        system    – system name (e.g. "snes")  [required]
+
+    Response JSON:
+        {
+          "success": true,
+          "system": "snes",
+          "games_count": N,
+          "games": [
+            {
+              "romfile": "./Super Mario World.sfc",
+              "name": "Super Mario World",
+              "media": {
+                "image": "./media/images/Super Mario World.png",
+                "video": "./media/videos/Super Mario World.mp4"
+              }
+            },
+            ...
+          ]
+        }
+
+    Only media fields defined in config['media_fields'] that have a non-empty
+    value are included in each game's "media" object.
+    """
+    if not _check_external_api_token(request):
+        return jsonify({'success': False, 'error': 'Unauthorized – invalid or missing API token'}), 401
+
+    system = (request.args.get('system') or '').strip()
+    if not system:
+        return jsonify({'success': False, 'error': 'Missing query parameter: system'}), 400
+
+    cfg = load_config()
+    media_field_names = list(cfg.get('media_fields', {}).keys())
+
+    gamelist_path = get_gamelist_path(system)
+    if not os.path.exists(gamelist_path):
+        return jsonify({'success': False, 'error': f'No gamelist found for system: {system}'}), 404
+
+    games = parse_gamelist_xml(gamelist_path)
+
+    result_games = []
+    for game in games:
+        media = {}
+        for field in media_field_names:
+            value = game.get(field)
+            if value:
+                media[field] = value
+        result_games.append({
+            'romfile': game.get('path', ''),
+            'name': game.get('name', ''),
+            'media': media,
+        })
+
+    return jsonify({
+        'success': True,
+        'system': system,
+        'games_count': len(result_games),
+        'games': result_games,
+    })
+
+
 @app.route('/api/external/config', methods=['GET', 'POST'])
 def external_api_config():
     """Get or set the external API token (requires regular app authentication)."""
