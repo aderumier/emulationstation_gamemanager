@@ -25830,37 +25830,46 @@ def scan_rom_endpoint(system_name):
     except Exception as e:
         return jsonify({'error': f'ROM scan failed: {str(e)}'}), 500
 
-def case_sensitive_path_exists(file_path):
+def case_sensitive_path_exists(file_path, dir_cache=None):
     """
     Check if a file exists with case-sensitive matching.
     On case-insensitive filesystems, this ensures the actual filename matches exactly.
     Returns True only if the file exists AND the case matches exactly.
+
+    dir_cache: optional dict mapping dir_path -> set of filenames (or None when the
+    directory could not be listed). Pass a shared dict when calling this repeatedly
+    (e.g. once per game) to avoid an os.listdir() syscall on every call, which turns
+    an O(n^2) scan over a large directory into O(n).
     """
-    # First check if any file exists at this path (case-insensitive check)
-    if not os.path.exists(file_path):
-        return False
-    
-    # On case-insensitive filesystems, os.path.exists() may return True even if case doesn't match
-    # Check the actual filename in the directory listing to ensure case matches
+    # Resolve the directory and filename
     dir_path = os.path.dirname(file_path)
     filename = os.path.basename(file_path)
-    
+
     # Handle root directory case
     if not dir_path or dir_path == file_path:
         dir_path = os.path.dirname(os.path.abspath(file_path))
         if not dir_path:
             dir_path = '.'
-    
-    try:
-        # List files in the directory and check for exact case match
-        actual_files = os.listdir(dir_path)
-        return filename in actual_files
-    except (OSError, PermissionError):
-        # If we can't list the directory, we can't verify case
-        # On case-sensitive filesystems, os.path.exists() is sufficient
-        # On case-insensitive filesystems, we'll assume it matches if it exists
+
+    # Resolve the directory listing, using the cache when provided
+    if dir_cache is not None and dir_path in dir_cache:
+        actual_files = dir_cache[dir_path]
+    else:
+        try:
+            actual_files = set(os.listdir(dir_path))
+        except (OSError, PermissionError):
+            actual_files = None
+        if dir_cache is not None:
+            dir_cache[dir_path] = actual_files
+
+    if actual_files is None:
+        # If we can't list the directory, we can't verify case.
+        # On case-sensitive filesystems, os.path.exists() is sufficient.
+        # On case-insensitive filesystems, we'll assume it matches if it exists.
         # (This is a fallback - ideally we should be able to list the directory)
         return os.path.exists(file_path)
+
+    return filename in actual_files
 
 def parse_m3u_file(m3u_path):
     """Parse M3U file and return list of ROM files referenced in it"""
@@ -27314,8 +27323,12 @@ def scan_rom_files_confirm(system_name):
                 task.update_progress("No changes detected, preserving all existing games")
             else:
                 # Find games with missing ROM files (only when there are changes)
-                # Use case-sensitive matching: check if ROM path exactly matches filesystem
+                # Use case-sensitive matching: check if ROM path exactly matches filesystem.
+                # Share a directory-listing cache across all games so we don't run an
+                # os.listdir() syscall per game (O(n^2) on large systems / slow mounts).
                 valid_games = []
+                dir_cache = {}
+                task.update_progress(f"Validating {len(existing_games)} existing games against the filesystem...")
                 for game in existing_games:
                     rom_path = game.get('path', '')
                     
@@ -27337,7 +27350,7 @@ def scan_rom_files_confirm(system_name):
                         rom_file_path = os.path.join(system_path, normalized_path_clean)
                         
                         # Use case-sensitive path existence check
-                        if not case_sensitive_path_exists(rom_file_path):
+                        if not case_sensitive_path_exists(rom_file_path, dir_cache):
                             task.update_progress(f"Removing game with missing ROM (case mismatch): {game.get('name', 'Unknown')} ({normalized_path})")
                         else:
                             valid_games.append(game)
