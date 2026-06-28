@@ -25888,6 +25888,22 @@ def parse_m3u_file(m3u_path):
         print(f"Error parsing M3U file {m3u_path}: {e}")
         return []
 
+def touch_rom_file(system_path, rom_file):
+    """Update the access/modification time of a newly imported ROM file to now.
+
+    rom_file is the system-relative path as stored in the gamelist (may use
+    backslashes and/or a leading ./). Returns True on success. Failures are
+    swallowed (best-effort) so they never abort a ROM import.
+    """
+    try:
+        normalized = rom_file.replace('\\', '/').removeprefix('./')
+        full_path = os.path.join(system_path, normalized)
+        os.utime(full_path, None)  # set atime and mtime to current time
+        return True
+    except (OSError, PermissionError) as e:
+        print(f"Could not update timestamp for new ROM '{rom_file}': {e}")
+        return False
+
 def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_path, system_path, hidden_roms):
     """Apply ROM scan changes directly (for initial import)"""
     try:
@@ -25917,7 +25933,9 @@ def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_p
             }
             existing_games.append(game_entry)
             new_games_added += 1
-        
+            # Update the ROM file's modification time to now so it sorts as newly added
+            touch_rom_file(system_path, rom_file)
+
         # Remove games with missing ROMs
         games_removed = 0
         # Create a set of missing game paths for efficient lookup
@@ -27381,6 +27399,8 @@ def scan_rom_files_confirm(system_name):
             }
             valid_games.append(new_game)
             next_id += 1
+            # Update the ROM file's modification time to now so it sorts as newly added
+            touch_rom_file(system_path, rom_file)
             if should_hide:
                 task.update_progress(f"Added new game (hidden): {rom_file} (referenced in M3U)")
             else:
