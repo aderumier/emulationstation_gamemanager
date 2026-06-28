@@ -14125,13 +14125,16 @@ def download_multiscraper_media_endpoint():
         is_local_path = normalized_local_path.startswith('roms/') or normalized_local_path.startswith('/roms/')
         print(f"🔧 DEBUG: Is local path? {is_local_path} (starts with 'roms/' or '/roms/')")
         if is_local_path:
-            # Remove leading slash if present
-            if normalized_local_path.startswith('/'):
-                normalized_local_path = normalized_local_path[1:]
-            print(f"🔧 DEBUG: Using local media file: {normalized_local_path}")
-            local_absolute_path = os.path.abspath(normalized_local_path)
+            # The '/roms/' prefix is a web URL mount served from ROMS_FOLDER
+            # (see serve_rom_file), which is not necessarily under the current
+            # working directory. Strip the prefix and resolve the remainder
+            # against ROMS_FOLDER so it works regardless of where roms live.
+            relative_to_roms = normalized_local_path.removeprefix('/').removeprefix('roms/')
+            print(f"🔧 DEBUG: Using local media file (relative to roms root): {relative_to_roms}")
             roms_root = os.path.abspath(ROMS_FOLDER)
-            if not local_absolute_path.startswith(roms_root):
+            local_absolute_path = os.path.abspath(os.path.join(roms_root, relative_to_roms))
+            # Guard against path traversal escaping the roms root
+            if local_absolute_path != roms_root and not local_absolute_path.startswith(roms_root + os.sep):
                 return jsonify({'error': 'Invalid local media path'}), 400
             if not os.path.exists(local_absolute_path):
                 return jsonify({'error': 'Local media file not found'}), 404
