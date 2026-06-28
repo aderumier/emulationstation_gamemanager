@@ -17836,6 +17836,8 @@ def format_releasedate_to_iso8601(date_input):
             '%Y/%m/%d',               # 1990/02/01
             '%m/%d/%Y',               # 02/01/1990
             '%d/%m/%Y',               # 01/02/1990
+            '%d-%m-%Y',               # 01-02-1990 (day-first, e.g. atarilegend)
+            '%d.%m.%Y',               # 01.02.1990
             '%d %b, %Y',              # 01 Feb, 1990 (Steam format)
             '%Y-%m',                  # 1990-02
             '%Y',                     # 1990
@@ -23278,7 +23280,11 @@ async def scrape_custom_manual(game, system_name, system_config, scraper_type='c
             if game_data.get('publisher'):
                 text_fields['publisher'] = game_data['publisher']
             if game_data.get('release_date'):
-                text_fields['releasedate'] = game_data['release_date']
+                # Normalize to gamelist ISO 8601 (YYYYMMDDTHHMMSS) like other scrapers;
+                # custom databases may use day-first formats (e.g. atarilegend DD-MM-YYYY).
+                formatted_releasedate = format_releasedate_to_iso8601(game_data['release_date'])
+                if formatted_releasedate:
+                    text_fields['releasedate'] = formatted_releasedate
             if game_data.get('genre'):
                 text_fields['genre'] = game_data['genre']
             if game_data.get('description'):
