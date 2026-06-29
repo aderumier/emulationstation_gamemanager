@@ -5980,7 +5980,10 @@ class GameCollectionManager {
         }
 
         if (!dateInput) {
-            return '';
+            // Element not found (form not loaded): signal "could not read" with null
+            // so the caller keeps the original value instead of clearing it. An empty
+            // string is reserved for a present-but-intentionally-cleared field.
+            return null;
         }
 
         // Try to get date from Flatpickr's selectedDates
@@ -9172,9 +9175,11 @@ class GameCollectionManager {
         game.family = getFieldValue('editFamily', originalGame.family || '');
         game.rating = getFieldValue('editRating', originalGame.rating || '');
         game.players = getFieldValue('editPlayers', originalGame.players || '');
-        // Get date from Flatpickr if available, otherwise parse the input value
+        // Get date from Flatpickr if available, otherwise parse the input value.
+        // Use the actual value (even empty string) so the user can clear the date;
+        // only fall back to the original when the field could not be read (null).
         const dateValue = this.getDateValueFromFlatpickr('editReleasedate');
-        game.releasedate = dateValue || originalGame.releasedate || '';
+        game.releasedate = (dateValue !== null && dateValue !== undefined) ? dateValue : (originalGame.releasedate || '');
         game.launchboxid = getFieldValue('editLaunchboxId', originalGame.launchboxid || '');
         game.igdbid = getFieldValue('editIgdbId', originalGame.igdbid || '');
         game.screenscraperid = getFieldValue('editScreenscraperId', originalGame.screenscraperid || '');
