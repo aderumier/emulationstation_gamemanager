@@ -2771,7 +2771,7 @@ class Task:
             print(f"Error writing final status to log file {self.log_file}: {e}")
         
         # Mark that grid refresh is needed for this task type
-        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias', 'import_roms', 'fanart_scrapper', 'upload_media']:
+        if self.type in ['scraping', 'screenscraper_scraping', 'custom_scrapper', 'custom2_scrapper', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias', 'import_roms', 'fanart_scrapper', 'upload_media']:
             self.grid_refresh_needed = True
         
         # Clear current task for this system and start next queued task
@@ -40000,21 +40000,22 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                 traceback.print_exc()
                 continue
         
-        # Complete the task
+        # Save the updated gamelist BEFORE completing/notifying so the grid
+        # refresh (driven by task completion and the event below) reads fresh data.
+        save_gamelist_xml(gamelist_path, all_games)
+        logger.info(f"💾 Saved gamelist for {system_name} (updated: {updated_count}, processed: {processed_count})")
+
+        # Notify clients of gamelist update
+        notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+
+        # Complete the task (after the gamelist is persisted and clients notified)
         t = get_task(task_id)
         if t:
             success_message = f"{scraper_type.capitalize()} Scrapper completed: {processed_count} games processed, {updated_count} games updated"
             t.complete(True, success_message)
-        
+
         logger.info(f"✅ {scraper_type.capitalize()} Scrapper task completed for {system_name}: {processed_count} processed, {updated_count} updated")
-        
-        # Save the updated gamelist
-        save_gamelist_xml(gamelist_path, all_games)
-        logger.info(f"💾 Saved gamelist for {system_name} (updated: {updated_count}, processed: {processed_count})")
-        
-        # Notify clients of gamelist update
-        notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
-        
+
         return True
         
     except Exception as e:
