@@ -3827,7 +3827,6 @@ class GameCollectionManager {
             // Apply custom row styling based on game properties using getRowClass
             getRowClass: (params) => {
                 if (params.data && params.data.hidden === 'true') {
-                    console.log(`Applying hidden-game-row class to: ${params.data.name}`);
                     return 'hidden-game-row';
                 }
                 return null;
@@ -3867,9 +3866,6 @@ class GameCollectionManager {
 
             // Enable column management features available in Community version
             suppressMovableColumns: false,
-            suppressMenuHide: true,
-            suppressRowHoverHighlight: false,
-            suppressCellFocus: false,
             // Context menu for Community version
             onCellContextMenu: (event) => {
                 console.log('onCellContextMenu triggered', event);
@@ -3961,9 +3957,6 @@ class GameCollectionManager {
             // Update Find Best Match button state
             this.updateFindBestMatchButtonState();
 
-
-            // Update Generator button state
-            this.updateGeneratorButtonState();
 
             // Update Generator button state
             this.updateGeneratorButtonState();
@@ -4079,11 +4072,7 @@ class GameCollectionManager {
         });
 
         // State persistence events are now handled in gridOptions
-
-        // Restore main grid state after initialization
-        setTimeout(() => {
-            this.restoreMainGridState();
-        }, 500);
+        // (main grid state is restored once in onGridReady)
 
         // Fallback: Enable state saving after a timeout even if restore fails
         setTimeout(() => {
