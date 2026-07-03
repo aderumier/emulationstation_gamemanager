@@ -13766,93 +13766,14 @@ def multiscraper_search_endpoint():
                     # Create a function to execute EmuMovies search inline
                     def search_emumovies_inline():
                         try:
-                            # Load EmuMovies index if not loaded
-                            global emumovies_index
-                            if not emumovies_index:
-                                load_emumovies_index()
-                            
-                            if not emumovies_index or emumovies_system not in emumovies_index:
-                                print(f"🔧 DEBUG: EmuMovies index not available for system '{emumovies_system}'")
-                                return None
-                            
-                            # Get EmuMovies media types for this gamelist media type
-                            emumovies_types = emumovies_image_mapping[media_type]
-                            if not isinstance(emumovies_types, list):
-                                emumovies_types = [emumovies_types]
-                            
-                            # Get ROM filename and game name
-                            rom_path = current_game.get('path', '')
-                            rom_filename_no_ext = None
-                            if rom_path:
-                                rom_filename = os.path.basename(rom_path)
-                                rom_filename_no_ext = os.path.splitext(rom_filename)[0]
-                            
-                            game_name_local = current_game.get('name', '')
-                            
-                            # Normalize names (without parentheses)
-                            from game_utils import normalize_game_name
-                            normalized_romname = normalize_game_name(rom_filename_no_ext, remove_paranthesis=True) if rom_filename_no_ext else None
-                            normalized_gamename = normalize_game_name(game_name_local, remove_paranthesis=True)
-                            
-                            # Search in EmuMovies index
-                            system_index = emumovies_index[emumovies_system]
-                            found_files = []
-                            seen_files = set()
-                            
-                            for emumovies_type in emumovies_types:
-                                if emumovies_type not in system_index:
-                                    continue
-                                
-                                media_type_index = system_index[emumovies_type]
-                                if not isinstance(media_type_index, dict) or len(media_type_index) == 0:
-                                    continue
-                                
-                                # Try normalized romname first
-                                matched_value = None
-                                if normalized_romname and normalized_romname in media_type_index:
-                                    matched_value = media_type_index[normalized_romname]
-                                # Try normalized gamename if romname didn't match
-                                elif normalized_gamename and normalized_gamename in media_type_index:
-                                    matched_value = media_type_index[normalized_gamename]
-                                
-                                if matched_value:
-                                    # Handle array of files
-                                    if isinstance(matched_value, list):
-                                        filename = matched_value[0]
-                                        file_key = f"{emumovies_type}:{filename}"
-                                        if file_key not in seen_files:
-                                            seen_files.add(file_key)
-                                            from urllib.parse import quote
-                                            encoded_filename = quote(filename)
-                                            download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
-                                            found_files.append({
-                                                'url': download_url,
-                                                'filename': filename,
-                                                'emumovies_type': emumovies_type,
-                                                'emumovies_system': emumovies_system
-                                            })
-                                    else:
-                                        # Single file
-                                        filename = matched_value
-                                        file_key = f"{emumovies_type}:{filename}"
-                                        if file_key not in seen_files:
-                                            seen_files.add(file_key)
-                                            from urllib.parse import quote
-                                            encoded_filename = quote(matched_value)
-                                            download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
-                                            found_files.append({
-                                                'url': download_url,
-                                                'filename': matched_value,
-                                                'emumovies_type': emumovies_type,
-                                                'emumovies_system': emumovies_system
-                                            })
-                            
-                            if found_files:
-                                return {
-                                    'media_fields': {
-                                        media_type: found_files
-                                    }
-                                }
+                            # Live search against the gamesdbase API (no local index)
+                            media_fields = emumovies_live_search_media(
+                                current_game, emumovies_system,
+                                {media_type: emumovies_image_mapping[media_type]},
+                                target_media_type=media_type
+                            )
+                            if media_fields:
+                                return {'media_fields': media_fields}
                             return None
                         except Exception as e:
                             print(f"🔧 DEBUG: emumovies scraper failed: {e}")
@@ -14336,43 +14257,44 @@ def download_multiscraper_media_endpoint():
         # For EmuMovies media, download via API
         elif media_url.startswith('/api/emumovies-download-media'):
             try:
-                from urllib.parse import parse_qs, urlparse
+                from urllib.parse import parse_qs, urlparse, unquote
                 parsed_url = urlparse(media_url)
                 params = parse_qs(parsed_url.query)
                 emumovies_system = params.get('system', [None])[0]
                 emumovies_type = params.get('mediaType', [None])[0]
-                filename = params.get('filename', [None])[0]
-                
-                if not all([emumovies_system, emumovies_type, filename]):
-                    return jsonify({'error': 'Missing EmuMovies parameters'}), 400
-                
-                print(f"📥 Downloading EmuMovies media - System: {emumovies_system}, Type: {emumovies_type}, File: {filename}")
-                
-                # Use the same download logic as the EmuMovies scraper
+                # Direct gamesdbase download URL resolved at search time
+                direct_url = params.get('url', [None])[0]
+                # Legacy/fallback: search term to resolve a URL live at download time
+                search_term = params.get('search', [None])[0] or params.get('filename', [None])[0]
+
                 from emumovies_service import EmuMoviesService
-                import httpx
                 import secrets
-                
+
                 service = EmuMoviesService()
-                token = run_async_safely(service.authenticate())
-                if not token:
-                    return jsonify({'error': 'Failed to authenticate with EmuMovies API'}), 500
-                
-                # Download media using API
-                download_url = f"{service.base_url}/api/Media/Download"
-                headers = run_async_safely(service._get_authenticated_headers())
-                
-                params = {
-                    'systemName': emumovies_system,
-                    'mediaType': emumovies_type,
-                    'mediaSet': 'default',
-                    'filename': filename
-                }
-                
-                # Use synchronous requests for Flask route
+
+                # Resolve the direct download URL (live search if not provided)
+                if direct_url:
+                    direct_url = unquote(direct_url)
+                elif emumovies_system and emumovies_type and search_term:
+                    matches = run_async_safely(service.search(unquote(search_term), emumovies_system, emumovies_type))
+                    direct_url = matches[0]['url'] if matches else None
+
+                if not direct_url:
+                    return jsonify({'error': 'EmuMovies media not found'}), 404
+
+                # The gamesdbase media URL is a direct, standalone download; use the
+                # Sync tool's User-Agent for parity.
+                filename = os.path.basename(urlparse(direct_url).path) or 'emumovies_media'
+                print(f"📥 Downloading EmuMovies media - System: {emumovies_system}, Type: {emumovies_type}, URL: {direct_url[:80]}")
+
                 import requests
-                response = requests.get(download_url, params=params, headers=headers, timeout=30, allow_redirects=True)
-                
+                response = requests.get(
+                    direct_url,
+                    headers={'User-Agent': service.USER_AGENT},
+                    timeout=120,
+                    allow_redirects=True,
+                )
+
                 if response.status_code == 200:
                     # Get media field configuration
                     config_path = os.path.join('var', 'config', 'config.json')
@@ -15429,87 +15351,31 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
             emumovies_system = system_config.get('emumovies', '')
             if not emumovies_system:
                 return results
-            
-            # Load EmuMovies index if not loaded
-            global emumovies_index
-            if not emumovies_index:
-                load_emumovies_index()
-            
-            if not emumovies_index or emumovies_system not in emumovies_index:
-                return results
-            
+
             # Get emumovies types from config mapping
             emumovies_types = None
             if scraper_config and 'image_type_mappings' in scraper_config:
                 emumovies_types = scraper_config['image_type_mappings'].get(media_type, [])
-            
             if not emumovies_types:
                 return results
-            
-            if not isinstance(emumovies_types, list):
-                emumovies_types = [emumovies_types]
-            
-            # Normalize game name for searching
-            from game_utils import normalize_game_name
-            normalized_gamename = normalize_game_name(game_name, remove_paranthesis=True)
-            
-            # Search in EmuMovies index
-            system_index = emumovies_index[emumovies_system]
-            found_files = []
-            seen_files = set()
-            
-            for emumovies_type in emumovies_types:
-                if emumovies_type not in system_index:
-                    continue
-                
-                media_type_index = system_index[emumovies_type]
-                if not isinstance(media_type_index, dict) or len(media_type_index) == 0:
-                    continue
-                
-                # Try normalized gamename
-                matched_value = None
-                if normalized_gamename and normalized_gamename in media_type_index:
-                    matched_value = media_type_index[normalized_gamename]
-                
-                if matched_value:
-                    # Handle array of files
-                    if isinstance(matched_value, list):
-                        for filename in matched_value:
-                            file_key = f"{emumovies_type}:{filename}"
-                            if file_key not in seen_files:
-                                seen_files.add(file_key)
-                                from urllib.parse import quote
-                                encoded_filename = quote(filename)
-                                download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
-                                found_files.append({
-                                    'url': download_url,
-                                    'filename': filename,
-                                    'emumovies_type': emumovies_type,
-                                    'emumovies_system': emumovies_system
-                                })
-                    else:
-                        # Single file
-                        filename = matched_value
-                        file_key = f"{emumovies_type}:{filename}"
-                        if file_key not in seen_files:
-                            seen_files.add(file_key)
-                            from urllib.parse import quote
-                            encoded_filename = quote(matched_value)
-                            download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
-                            found_files.append({
-                                'url': download_url,
-                                'filename': matched_value,
-                                'emumovies_type': emumovies_type,
-                                'emumovies_system': emumovies_system
-                            })
-            
+
+            # Live search against the gamesdbase API (no local index)
+            search_game = {'name': game_name, 'path': ''}
+            media_fields = emumovies_live_search_media(
+                search_game, emumovies_system,
+                {media_type: emumovies_types},
+                target_media_type=media_type
+            )
+            found_files = media_fields.get(media_type, [])
+
             if found_files:
                 urls = [f.get('url', '') for f in found_files if f.get('url')]
                 if urls:
+                    from game_utils import normalize_game_name
                     results.append({
                         'scraper': 'emumovies',
                         'game_name': game_name,
-                        'game_id': normalized_gamename,
+                        'game_id': normalize_game_name(game_name, remove_paranthesis=True),
                         'similarity_score': 1.0,
                         f'{media_type}_urls': urls,
                         'region': 'Unknown',
@@ -22043,45 +21909,41 @@ def apply_manual_scrap(system_name):
                     params = parse_qs(parsed_url.query)
                     emumovies_system = params.get('system', [None])[0]
                     emumovies_type = params.get('mediaType', [None])[0]
-                    emumovies_filename = params.get('filename', [None])[0]
-                    
-                    if not all([emumovies_system, emumovies_type, emumovies_filename]):
-                        download_stats['failed'] += 1
-                        print(f'❌ Missing EmuMovies parameters in URL: {selected_url}')
-                        continue
-                    
-                    # Download from EmuMovies API
+                    emumovies_direct_url = params.get('url', [None])[0]
+                    emumovies_search = params.get('search', [None])[0] or params.get('filename', [None])[0]
+
                     from emumovies_service import EmuMoviesService
-                    import asyncio
-                    
-                    # Determine extension from filename or target_extension
+                    from urllib.parse import unquote
+
+                    service = EmuMoviesService()
+
+                    # Resolve the direct gamesdbase download URL (live search if needed)
+                    if emumovies_direct_url:
+                        emumovies_direct_url = unquote(emumovies_direct_url)
+                    elif emumovies_system and emumovies_type and emumovies_search:
+                        matches = run_async_safely(service.search(unquote(emumovies_search), emumovies_system, emumovies_type))
+                        emumovies_direct_url = matches[0]['url'] if matches else None
+
+                    if not emumovies_direct_url:
+                        download_stats['failed'] += 1
+                        print(f'❌ EmuMovies media not found for URL: {selected_url}')
+                        continue
+
+                    # Determine extension from the resolved URL or target_extension
                     if not target_ext:
-                        _, file_ext = os.path.splitext(emumovies_filename)
+                        _, file_ext = os.path.splitext(urlparse(emumovies_direct_url).path)
                         target_ext = file_ext if file_ext else '.jpg'
-                    
+
                     target_filename = create_media_filename(rom_path, target_ext)
                     target_path = os.path.join(target_dir, target_filename)
-                    
-                    # Download the media file using EmuMovies API
-                    service = EmuMoviesService()
-                    token = run_async_safely(service.authenticate())
-                    if not token:
-                        download_stats['failed'] += 1
-                        print(f'❌ Failed to authenticate with EmuMovies API')
-                        continue
-                    
-                    download_url = f"{service.base_url}/api/Media/Download"
-                    headers = run_async_safely(service._get_authenticated_headers())
-                    
-                    params = {
-                        'systemName': emumovies_system,
-                        'mediaType': emumovies_type,
-                        'mediaSet': 'default',
-                        'filename': emumovies_filename
-                    }
-                    
-                    # Use synchronous requests for download (requests already imported at top of file)
-                    response = requests.get(download_url, params=params, headers=headers, timeout=30, allow_redirects=True)
+
+                    # Direct standalone download with the Sync tool's User-Agent
+                    response = requests.get(
+                        emumovies_direct_url,
+                        headers={'User-Agent': service.USER_AGENT},
+                        timeout=120,
+                        allow_redirects=True,
+                    )
                     success = False
                     
                     if response.status_code == 200:
@@ -23452,6 +23314,82 @@ async def scrape_custom_manual(game, system_name, system_config, scraper_type='c
         logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
+def emumovies_live_search_media(game, emumovies_system, image_mapping, target_media_type=None):
+    """Live EmuMovies (gamesdbase) media search for a single game.
+
+    Returns {media_type: [{url, filename, emumovies_type, emumovies_system, crc}, ...]}.
+    Each 'url' is the /api/emumovies-download-media proxy carrying the resolved
+    direct download URL, so the existing download pipeline is reused unchanged.
+    No local index is used — every call hits the API live.
+    """
+    if not emumovies_system or not image_mapping:
+        return {}
+
+    from urllib.parse import quote
+    from game_utils import normalize_game_name
+    from emumovies_service import EmuMoviesService
+
+    rom_path = game.get('path', '') or ''
+    rom_name = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else ''
+    game_name = game.get('name', '') or ''
+
+    # Search terms, most specific first; gamesdbase does its own fuzzy matching,
+    # but region/version tags in ROM names hurt it, so include cleaned variants.
+    terms = []
+    for t in [game_name, rom_name]:
+        if t and t not in terms:
+            terms.append(t)
+        nt = normalize_game_name(t, remove_paranthesis=True) if t else ''
+        if nt and nt not in terms:
+            terms.append(nt)
+
+    service = EmuMoviesService()
+    search_cache = {}
+
+    def do_search(term, emutype):
+        key = (term, emutype)
+        if key not in search_cache:
+            search_cache[key] = run_async_safely(service.search(term, emumovies_system, emutype)) or []
+        return search_cache[key]
+
+    media_fields = {}
+    for media_type, emutypes in image_mapping.items():
+        if target_media_type and media_type != target_media_type:
+            continue
+        if not isinstance(emutypes, list):
+            emutypes = [emutypes]
+
+        found = []
+        seen = set()
+        for emutype in emutypes:
+            matched = False
+            for term in terms:
+                for r in do_search(term, emutype):
+                    if r['url'] not in seen:
+                        seen.add(r['url'])
+                        proxy_url = (f"/api/emumovies-download-media"
+                                     f"?system={quote(emumovies_system)}"
+                                     f"&mediaType={quote(emutype)}"
+                                     f"&url={quote(r['url'], safe='')}")
+                        found.append({
+                            'url': proxy_url,
+                            'filename': os.path.basename(r['url']),
+                            'emumovies_type': emutype,
+                            'emumovies_system': emumovies_system,
+                            'crc': r.get('crc', ''),
+                        })
+                        matched = True
+                if matched:
+                    break  # first term that yields a hit for this emutype wins
+            if matched:
+                break  # first emutype that yields a hit for this media_type wins
+
+        if found:
+            media_fields[media_type] = found
+
+    return media_fields
+
+
 async def scrape_emumovies_manual(game, system_name, system_config, target_media_type=None):
     """Scrape EmuMovies data for manual scrap (returns data without writing files)"""
     try:
@@ -23464,122 +23402,23 @@ async def scrape_emumovies_manual(game, system_name, system_config, target_media
             print(f"🔧 DEBUG: EmuMovies config not found")
             return None
         
-        # Get EmuMovies system name
+        # Get EmuMovies system name (gamesdbase Lookup value)
         emumovies_system = system_config.get('emumovies', '')
         if not emumovies_system:
             print(f"🔧 DEBUG: EmuMovies system not configured for {system_name}")
             return None
-        
+
         print(f"🔧 DEBUG: EmuMovies system: {emumovies_system}")
-        
-        # Load EmuMovies index if not loaded
-        global emumovies_index
-        if not emumovies_index:
-            print(f"🔧 DEBUG: Loading EmuMovies index...")
-            load_emumovies_index()
-        
-        if not emumovies_index or emumovies_system not in emumovies_index:
-            print(f"🔧 DEBUG: EmuMovies index not available for system '{emumovies_system}'")
-            return None
-        
-        print(f"🔧 DEBUG: EmuMovies index loaded, system '{emumovies_system}' found")
-        
+
         # Get image type mappings
         emumovies_image_mapping = emumovies_config.get('image_type_mappings', {})
         print(f"🔧 DEBUG: EmuMovies image mappings: {list(emumovies_image_mapping.keys())}")
-        
-        # Get ROM filename and game name
-        rom_path = game.get('path', '')
-        rom_filename_no_ext = None
-        if rom_path:
-            rom_filename = os.path.basename(rom_path)
-            rom_filename_no_ext = os.path.splitext(rom_filename)[0]
-        
-        game_name = game.get('name', '')
-        
-        # Normalize names (without parentheses)
-        from game_utils import normalize_game_name
-        normalized_romname = normalize_game_name(rom_filename_no_ext, remove_paranthesis=True) if rom_filename_no_ext else None
-        normalized_gamename = normalize_game_name(game_name, remove_paranthesis=True)
-        
-        print(f"🔧 DEBUG: Searching EmuMovies - romname: '{normalized_romname}', gamename: '{normalized_gamename}'")
-        
-        # Search in EmuMovies index
-        system_index = emumovies_index[emumovies_system]
-        media_fields = {}
-        
-        # Process all media types that EmuMovies supports
-        for media_type, emumovies_types in emumovies_image_mapping.items():
-            # Skip if target_media_type is specified and doesn't match
-            if target_media_type and media_type != target_media_type:
-                continue
-            
-            if not isinstance(emumovies_types, list):
-                emumovies_types = [emumovies_types]
-            
-            found_files = []
-            seen_files = set()  # Track seen files to avoid duplicates
-            
-            for emumovies_type in emumovies_types:
-                if emumovies_type not in system_index:
-                    print(f"🔧 DEBUG: EmuMovies type '{emumovies_type}' not in system index")
-                    continue
-                
-                media_type_index = system_index[emumovies_type]
-                if not isinstance(media_type_index, dict) or len(media_type_index) == 0:
-                    print(f"🔧 DEBUG: EmuMovies type '{emumovies_type}' has empty index")
-                    continue
-                
-                # Try normalized romname first
-                matched_value = None
-                if normalized_romname and normalized_romname in media_type_index:
-                    matched_value = media_type_index[normalized_romname]
-                    print(f"🔧 DEBUG: Found match for romname '{normalized_romname}' in {emumovies_type}")
-                # Try normalized gamename if romname didn't match
-                elif normalized_gamename and normalized_gamename in media_type_index:
-                    matched_value = media_type_index[normalized_gamename]
-                    print(f"🔧 DEBUG: Found match for gamename '{normalized_gamename}' in {emumovies_type}")
-                
-                if matched_value:
-                    # Handle array of files
-                    if isinstance(matched_value, list):
-                        for filename in matched_value:
-                            file_key = f"{emumovies_type}:{filename}"
-                            if file_key not in seen_files:
-                                seen_files.add(file_key)
-                                from urllib.parse import quote
-                                encoded_filename = quote(filename)
-                                # Use relative URL - frontend will handle it
-                                download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
-                                found_files.append({
-                                    'url': download_url,
-                                    'filename': filename,
-                                    'emumovies_type': emumovies_type,
-                                    'emumovies_system': emumovies_system
-                                })
-                                print(f"🔧 DEBUG: Added EmuMovies file: {filename} for {media_type}")
-                    else:
-                        # Single file
-                        filename = matched_value
-                        file_key = f"{emumovies_type}:{filename}"
-                        if file_key not in seen_files:
-                            seen_files.add(file_key)
-                            from urllib.parse import quote
-                            encoded_filename = quote(matched_value)
-                            # Use relative URL - frontend will handle it
-                            download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
-                            found_files.append({
-                                'url': download_url,
-                                'filename': matched_value,
-                                'emumovies_type': emumovies_type,
-                                'emumovies_system': emumovies_system
-                            })
-                            print(f"🔧 DEBUG: Added EmuMovies file: {matched_value} for {media_type}")
-            
-            if found_files:
-                media_fields[media_type] = found_files
-                print(f"🔧 DEBUG: Added {len(found_files)} files for media type '{media_type}'")
-        
+
+        # Live search against the gamesdbase API (no local index)
+        media_fields = emumovies_live_search_media(
+            game, emumovies_system, emumovies_image_mapping, target_media_type=target_media_type
+        )
+
         if media_fields:
             print(f"🔧 DEBUG: EmuMovies manual scrap returning {len(media_fields)} media types")
             return {
@@ -41625,56 +41464,45 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
             
             print(f"🔧 DEBUG: Final selected_fields to process: {local_selected_fields}")
             
-            # Load emumovies index
-            print(f"🔧 DEBUG: Loading EmuMovies index...")
-            global emumovies_index
-            if not emumovies_index:
-                print(f"🔧 DEBUG: Index not loaded, calling load_emumovies_index()...")
-                load_emumovies_index()
-            
-            print(f"🔧 DEBUG: Index loaded, has {len(emumovies_index) if emumovies_index else 0} systems")
-            if not emumovies_index:
-                error_msg = "EmuMovies index not loaded. Please generate it first."
-                print(f"❌ {error_msg}")
-                t = get_task(task_id)
-                if t:
-                    t.complete(False, error_msg)
-                return
-            
-            # Check if emumovies system exists in index
-            print(f"🔧 DEBUG: Checking if emumovies_system '{emumovies_system}' exists in index...")
-            print(f"🔧 DEBUG: Available systems in index: {list(emumovies_index.keys())[:10]}...")  # Show first 10
-            if emumovies_system not in emumovies_index:
-                error_msg = f"EmuMovies system '{emumovies_system}' not found in index"
-                print(f"❌ {error_msg}")
-                t = get_task(task_id)
-                if t:
-                    t.complete(False, error_msg)
-                return
-            
-            system_index = emumovies_index[emumovies_system]
-            print(f"🔧 DEBUG: Found system index with {len(system_index)} media types")
-            print(f"🔧 DEBUG: Media types in system_index: {list(system_index.keys())[:10]}...")
- 
-            
+            # Live search against gamesdbase (no local index)
+            print(f"🔧 DEBUG: Using live EmuMovies (gamesdbase) search for system '{emumovies_system}'")
+
+            # Cache live searches within this task run: (term, emutype) -> [results]
+            emumovies_search_cache = {}
+
+            async def emumovies_lookup_url(game_name, rom_name, emutypes):
+                """Return the first direct URL matching any (term, emutype)."""
+                terms = []
+                for t_ in [game_name, rom_name]:
+                    if t_ and t_ not in terms:
+                        terms.append(t_)
+                    nt = normalize_game_name(t_, remove_paranthesis=True) if t_ else ''
+                    if nt and nt not in terms:
+                        terms.append(nt)
+                for emutype in emutypes:
+                    for term in terms:
+                        key = (term, emutype)
+                        if key not in emumovies_search_cache:
+                            emumovies_search_cache[key] = await service.search(term, emumovies_system, emutype)
+                        for r in (emumovies_search_cache[key] or []):
+                            if r.get('url'):
+                                return r['url'], emutype
+                return None, None
+
             # Process games in batches of 10
             print(f"🔧 DEBUG: Starting to process {len(games_to_process)} games in batches of 10...")
             media_downloaded_count = 0
             skipped_count = 0
             processed_count = 0
             batch_size = 10  # Process 10 games at a time
-            
+
             # Initialize total_steps for the task
             t = get_task(task_id)
             if t:
                 t.total_steps = total_games
                 t.current_step = 0
                 t.update_progress(f"Starting EmuMovies processing for {total_games} games", progress_percentage=0, current_step=0, total_steps=total_games)
-            
-            # Get authenticated headers once for all downloads
-            headers = await service._get_authenticated_headers()
-            download_url = f"{service.base_url}/api/Media/Download"
-            
+
             # Process games in batches
             for batch_start in range(0, len(games_to_process), batch_size):
                 # Check for cancellation before each batch
@@ -41756,111 +41584,20 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                         if not emumovies_types:
                             print(f"⚠️ DEBUG: No EmuMovies types mapped for {media_field}, skipping")
                             continue
-                        
-                        # Try to find match in index for each media type (in priority order)
-                        matched_filename = None
-                        matched_media_type = None
-                        
-                        for emumovies_type in emumovies_types:
-                            print(f"🔧 DEBUG: Checking media type: {emumovies_type}")
-                            if emumovies_type not in system_index:
-                                print(f"⚠️ DEBUG: Media type {emumovies_type} not in system_index")
-                                continue
-                            
-                            media_type_index = system_index[emumovies_type]
-                            index_len = len(media_type_index) if isinstance(media_type_index, dict) else 0
-                            print(f"🔧 DEBUG: Media type index type: {type(media_type_index)}, has {index_len} entries")
-                            
-                            if index_len == 0:
-                                print(f"⚠️ WARNING: {emumovies_type} index is EMPTY - database may need to be rebuilt or this media type may not be available for {emumovies_system}")
-                                continue
-                            
-                            # Try normalized romname first
-                            if normalized_romname and normalized_romname in media_type_index:
-                                matched_value = media_type_index[normalized_romname]
-                                matched_media_type = emumovies_type
-                                
-                                # Handle array of files (multiple files normalize to same key)
-                                if isinstance(matched_value, list):
-                                    print(f"🔧 DEBUG: Found {len(matched_value)} files for normalized key '{normalized_romname}'")
-                                    # Try to find perfect match with romfilename or gamename
-                                    matched_filename = None
-                                    
-                                    # Check for perfect match with rom filename (without extension)
-                                    if rom_filename_no_ext:
-                                        for filename in matched_value:
-                                            filename_no_ext = os.path.splitext(filename)[0]
-                                            if filename_no_ext == rom_filename_no_ext or filename_no_ext.lower() == rom_filename_no_ext.lower():
-                                                matched_filename = filename
-                                                print(f"✅ DEBUG: Perfect match with rom filename: '{matched_filename}'")
-                                                break
-                                    
-                                    # Check for perfect match with game name
-                                    if not matched_filename and game_name:
-                                        for filename in matched_value:
-                                            filename_no_ext = os.path.splitext(filename)[0]
-                                            if filename_no_ext == game_name or filename_no_ext.lower() == game_name.lower():
-                                                matched_filename = filename
-                                                print(f"✅ DEBUG: Perfect match with game name: '{matched_filename}'")
-                                                break
-                                    
-                                    # If no perfect match, use first file from array
-                                    if not matched_filename:
-                                        matched_filename = matched_value[0]
-                                        print(f"✅ DEBUG: Using first file from array: '{matched_filename}'")
-                                else:
-                                    # Single file (backward compatibility)
-                                    matched_filename = matched_value
-                                    print(f"✅ DEBUG: Found match with romname '{normalized_romname}' -> '{matched_filename}'")
-                                
-                                break  # Found match, exit emumovies_type loop
-                            
-                            # Try normalized gamename if romname didn't match
-                            if not matched_filename and normalized_gamename and normalized_gamename in media_type_index:
-                                matched_value = media_type_index[normalized_gamename]
-                                matched_media_type = emumovies_type
-                                
-                                # Handle array of files (multiple files normalize to same key)
-                                if isinstance(matched_value, list):
-                                    print(f"🔧 DEBUG: Found {len(matched_value)} files for normalized key '{normalized_gamename}'")
-                                    # Try to find perfect match with romfilename or gamename
-                                    matched_filename = None
-                                    
-                                    # Check for perfect match with rom filename (without extension)
-                                    if rom_filename_no_ext:
-                                        for filename in matched_value:
-                                            filename_no_ext = os.path.splitext(filename)[0]
-                                            if filename_no_ext == rom_filename_no_ext or filename_no_ext.lower() == rom_filename_no_ext.lower():
-                                                matched_filename = filename
-                                                print(f"✅ DEBUG: Perfect match with rom filename: '{matched_filename}'")
-                                                break
-                                    
-                                    # Check for perfect match with game name
-                                    if not matched_filename and game_name:
-                                        for filename in matched_value:
-                                            filename_no_ext = os.path.splitext(filename)[0]
-                                            if filename_no_ext == game_name or filename_no_ext.lower() == game_name.lower():
-                                                matched_filename = filename
-                                                print(f"✅ DEBUG: Perfect match with game name: '{matched_filename}'")
-                                                break
-                                    
-                                    # If no perfect match, use first file from array
-                                    if not matched_filename:
-                                        matched_filename = matched_value[0]
-                                        print(f"✅ DEBUG: Using first file from array: '{matched_filename}'")
-                                else:
-                                    # Single file (backward compatibility)
-                                    matched_filename = matched_value
-                                    print(f"✅ DEBUG: Found match with gamename '{normalized_gamename}' -> '{matched_filename}'")
-                                
-                                break  # Found match, exit emumovies_type loop
-                        
+                        if not isinstance(emumovies_types, list):
+                            emumovies_types = [emumovies_types]
+
+                        # Live search for a direct download URL
+                        matched_url, matched_media_type = await emumovies_lookup_url(
+                            game_name, rom_filename_no_ext, emumovies_types
+                        )
+
                         # Check if we found a match for this media field
-                        if not matched_filename or not matched_media_type:
+                        if not matched_url or not matched_media_type:
                             print(f"⚠️ DEBUG: No match found for {media_field}, skipping")
                             continue
-                        
-                        print(f"🔧 DEBUG: Proceeding to download {matched_media_type} -> {media_field} (filename: {matched_filename})")
+
+                        print(f"🔧 DEBUG: Proceeding to download {matched_media_type} -> {media_field} (url: {matched_url[:70]})")
                         
                         # Get media directory from config.json media_fields
                         media_fields_config = config.get('media_fields', {})
@@ -41881,7 +41618,7 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                             'rom_filename_no_ext': rom_filename_no_ext,
                             'media_field': media_field,
                             'matched_media_type': matched_media_type,
-                            'matched_filename': matched_filename,
+                            'matched_url': matched_url,
                             'media_dir': media_dir,
                             'media_subdirectory': media_subdirectory,
                             'overwrite_media_fields': overwrite_media_fields
@@ -41910,34 +41647,30 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                             rom_filename_no_ext = download_task['rom_filename_no_ext']
                             media_field = download_task['media_field']
                             matched_media_type = download_task['matched_media_type']
-                            matched_filename = download_task['matched_filename']
+                            matched_url = download_task['matched_url']
                             media_dir = download_task['media_dir']
                             media_subdirectory = download_task['media_subdirectory']
                             overwrite_media_fields = download_task['overwrite_media_fields']
-                            
-                            print(f"🔧 DEBUG: Starting download for {matched_filename} -> {media_field} for {game_name}")
-                            
-                            params = {
-                                'systemName': emumovies_system,
-                                'mediaType': matched_media_type,
-                                'mediaSet': 'default',
-                                'filename': matched_filename
-                            }
-                            
-                            async with httpx.AsyncClient(timeout=30.0) as client:
+
+                            from urllib.parse import urlparse
+                            matched_filename = os.path.basename(urlparse(matched_url).path) or 'emumovies_media'
+                            print(f"🔧 DEBUG: Starting download for {media_field} for {game_name} ({matched_url[:70]})")
+
+                            async with httpx.AsyncClient(timeout=120.0, follow_redirects=True,
+                                                         headers={'User-Agent': service.USER_AGENT}) as client:
                                 print(f"🔧 DEBUG: Sending download request...")
-                                response = await client.get(download_url, params=params, headers=headers, follow_redirects=True)
+                                response = await client.get(matched_url)
                                 print(f"🔧 DEBUG: Download response status: {response.status_code}")
-                                
+
                                 if response.status_code == 200:
                                     print(f"✅ DEBUG: Download successful, processing file...")
                                     # Determine file extension from content-type or filename
                                     content_type = response.headers.get('content-type', '').lower()
-                                    
+
                                     # Determine if this is a video or PDF (manual)
                                     is_video = 'video' in content_type or matched_media_type.startswith('Video') or media_field == 'video'
                                     is_pdf = 'pdf' in content_type or matched_media_type == 'Manual' or media_field == 'manual' or matched_filename.lower().endswith('.pdf')
-                                    
+
                                     # Get extension from filename first, then content-type
                                     ext = os.path.splitext(matched_filename)[1]
                                     if not ext or ext == '':
@@ -42590,46 +42323,45 @@ def get_emumovies_database_status():
 
 @app.route('/api/emumovies-download-media', methods=['GET'])
 def emumovies_download_media_endpoint():
-    """Download media from EmuMovies API and return as file response"""
+    """Proxy an EmuMovies (gamesdbase) media file as a streamed response.
+
+    Accepts either a resolved direct URL (?url=) or a live search
+    (?system=&mediaType=&search=). Used to preview/serve media in the UI.
+    """
     try:
+        from urllib.parse import unquote, urlparse
         system = request.args.get('system')
         media_type = request.args.get('mediaType')
-        filename = request.args.get('filename')
-        
-        if not all([system, media_type, filename]):
-            return jsonify({'error': 'Missing parameters: system, mediaType, and filename are required'}), 400
-        
-        print(f"📥 EmuMovies download request - System: {system}, Type: {media_type}, File: {filename}")
-        
-        # Authenticate and download from EmuMovies API
+        direct_url = request.args.get('url')
+        search_term = request.args.get('search') or request.args.get('filename')
+
         from emumovies_service import EmuMoviesService
-        import asyncio
-        
         service = EmuMoviesService()
-        token = run_async_safely(service.authenticate())
-        if not token:
-            return jsonify({'error': 'Failed to authenticate with EmuMovies API'}), 500
-        
-        # Download media using API
-        download_url = f"{service.base_url}/api/Media/Download"
-        headers = run_async_safely(service._get_authenticated_headers())
-        
-        params = {
-            'systemName': system,
-            'mediaType': media_type,
-            'mediaSet': 'default',
-            'filename': filename
-        }
-        
-        # Use synchronous requests for Flask route
+
+        # Resolve the direct gamesdbase URL (live search if not provided)
+        if direct_url:
+            direct_url = unquote(direct_url)
+        elif system and media_type and search_term:
+            matches = run_async_safely(service.search(unquote(search_term), system, media_type))
+            direct_url = matches[0]['url'] if matches else None
+
+        if not direct_url:
+            return jsonify({'error': 'EmuMovies media not found'}), 404
+
+        filename = os.path.basename(urlparse(direct_url).path) or 'emumovies_media'
+        print(f"📥 EmuMovies download request - System: {system}, Type: {media_type}, URL: {direct_url[:80]}")
+
         import requests
-        response = requests.get(download_url, params=params, headers=headers, timeout=30, allow_redirects=True, stream=True)
-        
+        response = requests.get(
+            direct_url,
+            headers={'User-Agent': service.USER_AGENT},
+            timeout=120,
+            allow_redirects=True,
+            stream=True,
+        )
+
         if response.status_code == 200:
-            # Determine content type
             content_type = response.headers.get('content-type', 'application/octet-stream')
-            
-            # Create response with file data
             from flask import Response
             return Response(
                 response.iter_content(chunk_size=8192),
@@ -42643,7 +42375,7 @@ def emumovies_download_media_endpoint():
             )
         else:
             return jsonify({'error': f'Failed to download from EmuMovies: HTTP {response.status_code}'}), response.status_code
-        
+
     except Exception as e:
         print(f"❌ Error in EmuMovies download endpoint: {e}")
         import traceback
