@@ -32,7 +32,6 @@ class GameCollectionManager {
         this.selectedMedia = []; // Track selected media for deletion (array for multiple selection)
         this.selectedThumbnails = []; // Track selected thumbnails for deletion
         this.thumbnailViewEnabled = false; // Track thumbnail view state
-        this.lazyLoadingObserver = null; // Track lazy loading observer
         this.mediaFieldsCache = null; // Cache for media fields from config (array of field names)
         this.mediaFieldsConfigCache = null; // Cache for full media fields config with extensions
         this.pendingBestMatchResults = null;
@@ -767,12 +766,6 @@ class GameCollectionManager {
             // Update the games counter to reflect displayed rows
             this.updateSelectionDisplay();
 
-            // Setup lazy loading for thumbnail view if enabled
-            if (this.thumbnailViewEnabled) {
-                setTimeout(() => {
-                    this.setupLazyLoading();
-                }, 100);
-            }
             return;
         }
 
@@ -827,12 +820,6 @@ class GameCollectionManager {
             this.updateSelectionDisplay();
         }
 
-        // Setup lazy loading for thumbnail view if enabled
-        if (this.thumbnailViewEnabled) {
-            setTimeout(() => {
-                this.setupLazyLoading();
-            }, 100);
-        }
 
         // Refresh the right panel if it's open and showing a game
         const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
@@ -3920,10 +3907,6 @@ class GameCollectionManager {
             event.stopPropagation();
         });
 
-        // Setup lazy loading for thumbnail view
-        setTimeout(() => {
-            this.setupLazyLoading();
-        }, 100);
 
         // Focus on first row when grid is first loaded
         this.focusFirstRow();
@@ -4175,14 +4158,6 @@ class GameCollectionManager {
             this.ensureGridVisibility();
         });
 
-        // Add grid refresh event listener for lazy loading
-        this.gridApi.addEventListener('gridReady', () => {
-            if (this.thumbnailViewEnabled) {
-                setTimeout(() => {
-                    this.setupLazyLoading();
-                }, 100);
-            }
-        });
     }
 
     // Get filtered data based on current grid filters
@@ -37459,17 +37434,6 @@ class GameCollectionManager {
         // Suppress automatic row selection on click - we'll handle it manually for name/checkbox columns
         this.gridApi.setGridOption('suppressRowClickSelection', true);
 
-        // Setup lazy loading immediately and after delays
-        this.setupLazyLoading();
-        setTimeout(() => {
-            this.setupLazyLoading();
-        }, 100);
-        setTimeout(() => {
-            this.setupLazyLoading();
-        }, 500);
-        setTimeout(() => {
-            this.setupLazyLoading();
-        }, 1000);
     }
 
     async refreshGridWithNormalView() {
@@ -37503,12 +37467,18 @@ class GameCollectionManager {
             }
 
             const imagePath = params.data[fieldName];
-            let imageUrl = imagePath.startsWith('./') ? imagePath.substring(2) : imagePath;
+            let cleanPath = imagePath.startsWith('./') ? imagePath.substring(2) : imagePath;
 
-            // Add system path if not already present
-            if (this.currentSystem && !imageUrl.startsWith(`roms/${this.currentSystem}/`)) {
-                imageUrl = `roms/${this.currentSystem}/${imageUrl}`;
+            // Strip an existing roms/<system>/ prefix so both URL forms resolve
+            const systemPrefix = `roms/${this.currentSystem}/`;
+            if (this.currentSystem && cleanPath.startsWith(systemPrefix)) {
+                cleanPath = cleanPath.substring(systemPrefix.length);
             }
+            const encodedPath = cleanPath.split('/').map(part => part ? encodeURIComponent(part) : '').join('/');
+            const encodedSystem = encodeURIComponent(this.currentSystem);
+            // Downscaled server-side thumbnail for the cell; full-size image for hover preview
+            const thumbUrl = `/api/thumbnail/${encodedSystem}/${encodedPath}`;
+            const fullImageUrl = `/roms/${encodedSystem}/${encodedPath}`;
 
             // Create a unique ID for this thumbnail
             const thumbnailId = `thumb_${fieldName}_${params.data.path || Math.random().toString(36).substr(2, 9)}`;
@@ -37518,158 +37488,28 @@ class GameCollectionManager {
             const escapedFieldName = this.escapeForHtmlAttribute(fieldName);
             const escapedPath = this.escapeForHtmlAttribute(params.data.path);
             const escapedImagePath = this.escapeForHtmlAttribute(imagePath);
-            const escapedImageUrl = this.escapeForHtmlAttribute(imageUrl);
+            const escapedFullImageUrl = this.escapeForHtmlAttribute(fullImageUrl);
 
-            // Try loading the image directly first
-            const img = new Image();
-            img.onload = () => {
-                const container = document.getElementById(thumbnailId);
-                if (container) {
-                    // Check if thumbnail was already selected before replacing HTML
-                    const wasSelected = container.classList.contains('selected');
+            // Restore selection state across cell re-renders
+            const isSelected = (this.selectedThumbnails || []).some(item => item.thumbnailId === thumbnailId);
 
-                    container.innerHTML = `
-                        <div class="thumbnail-checkbox">
-                            <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${escapedThumbnailId}', '${escapedFieldName}', '${escapedPath}', '${escapedImagePath}', event);" />
-                        </div>
-                        <img src="${imageUrl}" alt="${fieldName}" 
-                            style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
-                            onmouseenter="gameManager.showThumbnailHover(event, '${escapedImageUrl}', '${escapedFieldName}')" 
-                            onmouseleave="gameManager.hideThumbnailHover()" />
-                    `;
-                    container.classList.remove('thumbnail-loading');
-
-                    // Restore selection state and checkbox if it was selected
-                    if (wasSelected) {
-                        container.classList.add('selected');
-                        const checkbox = container.querySelector('.thumbnail-checkbox-input');
-                        if (checkbox) {
-                            checkbox.checked = true;
-                        }
-                    }
-                }
-            };
-            img.onerror = () => {
-                const container = document.getElementById(thumbnailId);
-                if (container) {
-                    container.innerHTML = 'Error';
-                    container.classList.remove('thumbnail-loading');
-                }
-            };
-            img.src = imageUrl;
-
+            // The <img loading="lazy"> defers loading offscreen cells to the
+            // browser; no manual observer or eager Image() preloading needed
             return `
-                <div id="${thumbnailId}" class="thumbnail-image thumbnail-loading" data-src="${imageUrl}" data-field="${fieldName}" 
-                     data-game-path="${params.data.path}" data-media-path="${imagePath}"
-                     onmouseenter="gameManager.showThumbnailHover(event, '${escapedImageUrl}', '${escapedFieldName}')" 
+                <div id="${thumbnailId}" class="thumbnail-image${isSelected ? ' selected' : ''}" data-field="${escapedFieldName}"
+                     data-game-path="${escapedPath}" data-media-path="${escapedImagePath}"
+                     onmouseenter="gameManager.showThumbnailHover(event, '${escapedFullImageUrl}', '${escapedFieldName}')"
                      onmouseleave="gameManager.hideThumbnailHover()"
                      onclick="gameManager.selectThumbnail('${escapedThumbnailId}', '${escapedFieldName}', '${escapedPath}', '${escapedImagePath}', event)">
                     <div class="thumbnail-checkbox">
-                        <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${escapedThumbnailId}', '${escapedFieldName}', '${escapedPath}', '${escapedImagePath}', event);" />
+                        <input type="checkbox" class="thumbnail-checkbox-input" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); gameManager.selectThumbnail('${escapedThumbnailId}', '${escapedFieldName}', '${escapedPath}', '${escapedImagePath}', event);" />
                     </div>
-                    Loading...
+                    <img src="${thumbUrl}" alt="${escapedFieldName}" loading="lazy"
+                        style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
+                        onerror="this.parentElement.classList.add('thumbnail-error'); this.remove();" />
                 </div>
             `;
         };
-    }
-
-    setupLazyLoading() {
-        if (!this.gridApi) return;
-
-        // Clear any existing observer
-        if (this.lazyLoadingObserver) {
-            this.lazyLoadingObserver.disconnect();
-        }
-
-        // Use a simpler approach - load all visible images immediately
-        // and use a MutationObserver to watch for new cells
-        this.loadVisibleThumbnails();
-
-        // Watch for new cells being added to the grid
-        const gridContainer = document.getElementById('gamesGrid');
-        if (gridContainer) {
-            this.lazyLoadingObserver = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.type === 'childList') {
-                        mutation.addedNodes.forEach((node) => {
-                            if (node.nodeType === Node.ELEMENT_NODE) {
-                                const thumbnailContainers = node.querySelectorAll ?
-                                    node.querySelectorAll('.thumbnail-image[data-src]') : [];
-                                thumbnailContainers.forEach(container => {
-                                    this.loadThumbnailImage(container,
-                                        container.getAttribute('data-src'),
-                                        container.getAttribute('data-field'));
-                                });
-                            }
-                        });
-                    }
-                });
-            });
-
-            this.lazyLoadingObserver.observe(gridContainer, {
-                childList: true,
-                subtree: true
-            });
-        }
-    }
-
-    loadVisibleThumbnails() {
-        const thumbnailContainers = document.querySelectorAll('.thumbnail-image[data-src]');
-
-        thumbnailContainers.forEach(container => {
-            const src = container.getAttribute('data-src');
-            const field = container.getAttribute('data-field');
-            if (src && !container.querySelector('img')) {
-                this.loadThumbnailImage(container, src, field);
-            }
-        });
-    }
-
-    loadThumbnailImage(container, src, field) {
-
-        // Check if already loaded
-        if (container.querySelector('img')) {
-            return;
-        }
-
-        // Get data attributes from container
-        const thumbnailId = container.id;
-        const gamePath = container.getAttribute('data-game-path');
-        const mediaPath = container.getAttribute('data-media-path');
-
-        // Escape values for use in HTML attributes
-        const escapedThumbnailId = this.escapeForHtmlAttribute(thumbnailId);
-        const escapedField = this.escapeForHtmlAttribute(field);
-        const escapedGamePath = this.escapeForHtmlAttribute(gamePath);
-        const escapedMediaPath = this.escapeForHtmlAttribute(mediaPath);
-        const escapedSrc = this.escapeForHtmlAttribute(src);
-
-        const img = new Image();
-        img.onload = () => {
-            // Include checkbox when loading the image
-            container.innerHTML = `
-                <div class="thumbnail-checkbox">
-                    <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${escapedThumbnailId}', '${escapedField}', '${escapedGamePath}', '${escapedMediaPath}', event);" />
-                </div>
-                <img src="${src}" alt="${field}" 
-                    style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
-                    onmouseenter="gameManager.showThumbnailHover(event, '${escapedSrc}', '${escapedField}')" 
-                    onmouseleave="gameManager.hideThumbnailHover()" />`;
-            container.classList.remove('thumbnail-loading');
-
-            // Restore checkbox state if thumbnail was previously selected
-            if (container.classList.contains('selected')) {
-                const checkbox = container.querySelector('.thumbnail-checkbox-input');
-                if (checkbox) {
-                    checkbox.checked = true;
-                }
-            }
-        };
-        img.onerror = (error) => {
-            container.innerHTML = 'Error';
-            container.classList.remove('thumbnail-loading');
-        };
-        img.src = src;
     }
 
     showThumbnailHover(event, imageUrl, fieldName) {
