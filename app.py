@@ -11540,6 +11540,11 @@ def rom_system_single_game(system_name):
     except Exception as e:
         return jsonify({'error': f'Error fetching game: {str(e)}'}), 500
 
+# Per-system cache of the parsed + sorted gamelist served by the GET endpoint,
+# keyed by the file's (mtime_ns, size) so any write invalidates it implicitly.
+# The cached list is only ever serialized, never mutated (PUT re-parses).
+_gamelist_get_cache = {}
+
 @app.route('/api/rom-system/<system_name>/gamelist', methods=['GET', 'PUT'])
 @login_required
 def rom_system_gamelist(system_name):
@@ -11564,14 +11569,19 @@ def rom_system_gamelist(system_name):
             })
         
         if request.method == 'GET':
-            # Parse the actual gamelist.xml file
-            games = parse_gamelist_xml(gamelist_path)
-            
+            # Serve from the parse cache when the file hasn't changed
+            stat = os.stat(gamelist_path)
+            cache_key = (stat.st_mtime_ns, stat.st_size)
+            cached = _gamelist_get_cache.get(system_name)
+            if cached and cached[0] == cache_key:
+                games = cached[1]
+            else:
+                # Parse the actual gamelist.xml file
+                games = parse_gamelist_xml(gamelist_path)
+                # Sort games by name for consistent ordering
+                games.sort(key=lambda x: x.get('name', '').lower())
+                _gamelist_get_cache[system_name] = (cache_key, games)
 
-            
-            # Sort games by name for consistent ordering
-            games.sort(key=lambda x: x.get('name', '').lower())
-            
             return jsonify({
                 'success': True,
                 'system': system_name,
