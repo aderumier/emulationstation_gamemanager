@@ -2710,7 +2710,16 @@ class GameCollectionManager {
                 // For gamelist updates, fetch fresh data to ensure consistency;
                 // task may have replaced media files for many games in place
                 this.bumpAllMediaCacheVersions();
-                this.refreshGameGridWithData();
+                this.refreshGameGridWithData().then(() => {
+                    // Refresh the open media preview so external/bulk updates
+                    // to the selected game are visible without re-clicking
+                    if (this.currentMediaPreviewGame) {
+                        const previewedGame = this.games.find(g => g.path === this.currentMediaPreviewGame.path);
+                        if (previewedGame) {
+                            this.showMediaPreview(previewedGame);
+                        }
+                    }
+                });
                 // Only refresh systems when games are added/deleted (count changes)
                 if (updateData.deleted_count > 0) {
                     this.loadAvailableSystems();
@@ -2904,6 +2913,12 @@ class GameCollectionManager {
             const rowNode = this.gridApi.getRowNode(romPath);
             if (rowNode) {
                 rowNode.setData(result.game);
+            }
+
+            // Refresh the media preview if it's showing this game so another
+            // user's (or task's) media change is visible without re-clicking
+            if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === romPath) {
+                this.showMediaPreview(result.game);
             }
         } catch (error) {
             // Silent fail - the save was successful, just the UI update failed
