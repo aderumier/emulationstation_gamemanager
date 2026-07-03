@@ -573,6 +573,9 @@ class GameCollectionManager {
                     // Mark this task as processed
                     this.processedGridRefreshTasks.add(taskId);
 
+                    // The task may have replaced media files in place
+                    this.bumpAllMediaCacheVersions();
+
                     // Refresh the grid for this system
                     await this.loadRomSystem(task.data.system_name);
 
@@ -10033,6 +10036,9 @@ class GameCollectionManager {
 
             updateDownloadLog('Changes applied successfully!', 'success');
             this.showAlert('Manual scrap results applied successfully!', 'success');
+            // Media files were downloaded/replaced on disk: bump the URL version
+            // so the preview/edit re-renders can't be served stale from cache
+            this.bumpMediaCacheVersion(romPath);
             // Refresh games from server to reflect updates
             await this.refreshGameGridWithData();
 
@@ -21759,6 +21765,9 @@ class GameCollectionManager {
             this.currentEditorTempFile = null;
 
             // Close the editor modal, then refresh the video once the animation ends
+            // Video was overwritten in place: bump so later re-renders
+            // (media preview, edit tabs) fetch the new file
+            this.bumpMediaCacheVersion(game.path);
             const editorModalEl = document.getElementById('videoEditorModal');
             editorModalEl.addEventListener('hidden.bs.modal', () => {
                 this.showEditGameVideo(game);
@@ -42906,6 +42915,8 @@ class GameCollectionManager {
                     modal.hide();
                 }
 
+                // The target field's file may have been overwritten in place
+                this.bumpMediaCacheVersion(game.path);
                 // Reload gamelist to reflect changes
                 await this.refreshGameGridWithData();
 
