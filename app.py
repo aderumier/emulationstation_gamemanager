@@ -20031,6 +20031,9 @@ def rotate_game_media(system_name):
                     
                     print(f"✅ Successfully rotated {direction} image: {full_media_path}")
                     
+                    # Notify other sessions viewing this system
+                    notify_game_updated(system_name, rom_path, [media_field])
+                    
                     return jsonify({
                         'success': True,
                         'message': f'Image rotated {direction} successfully',
@@ -20172,6 +20175,9 @@ def remove_game_media_background(system_name):
                 shutil.move(temp_path, full_media_path)
                 
                 print(f"✅ Successfully removed {background_color} background from image: {full_media_path}")
+                
+                # Notify other sessions viewing this system
+                notify_game_updated(system_name, rom_path, [media_field])
                 
                 return jsonify({
                     'success': True,
@@ -29213,6 +29219,12 @@ def run_manual_crop_task(task_id, data):
             task.update_progress(f"Warning: Could not update gamelist.xml: {e}")
         
         # Complete the task
+        # Notify other sessions viewing this system
+        try:
+            notify_game_updated(system_name, rom_file, ['video'])
+        except Exception as notify_error:
+            print(f"Warning: could not notify game update after video crop: {notify_error}")
+        
         task.complete(True, f'Manual crop completed successfully. Output: {original_filename}')
         
         # Emit task completion event (non-blocking)
@@ -29396,6 +29408,12 @@ def run_image_crop_task(task_id, data):
             # Don't fail the task if gamelist update fails
         
         task.complete(True, 'Image cropped successfully')
+        
+        # Notify other sessions viewing this system
+        try:
+            notify_game_updated(system_name, rom_file, [media_field])
+        except Exception as notify_error:
+            print(f"Warning: could not notify game update after image crop: {notify_error}")
         
         # Emit task completion event (non-blocking)
         emit_non_blocking('task_completed', {
