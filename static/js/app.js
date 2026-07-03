@@ -4355,32 +4355,35 @@ class GameCollectionManager {
         let menuItems = '';
 
         // Single game operations
+        // Note: the game object must not be serialized into HTML attributes
+        // (names/paths containing quotes would break the markup); the click
+        // handler below uses the closure's game variable instead.
         if (!isMultipleSelected) {
             menuItems = `
-                <a class="dropdown-item" href="#" onclick="gameManager.editGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                <a class="dropdown-item" href="#" data-action="edit-game">
                     <i class="bi bi-pencil"></i> Edit
                 </a>
-                <a class="dropdown-item" href="#" onclick="gameManager.scanGameMedia(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                <a class="dropdown-item" href="#" data-action="scan-game-media">
                     <i class="bi bi-search"></i> Scan Media
                 </a>
-                <a class="dropdown-item" href="#" onclick="gameManager.moveRom(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                <a class="dropdown-item" href="#" data-action="move-rom">
                     <i class="bi bi-folder2-open"></i> Move ROM
                 </a>
-                <a class="dropdown-item" href="#" onclick="gameManager.openRenameRomModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                <a class="dropdown-item" href="#" data-action="rename-rom">
                     <i class="bi bi-input-cursor-text"></i> Rename ROM
                 </a>
-                <a class="dropdown-item" href="#" onclick="gameManager.createM3uForSelected(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                <a class="dropdown-item" href="#" data-action="create-m3u">
                     <i class="bi bi-list-ul"></i> Create .m3u
                 </a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="#" onclick="gameManager.toggleGameHidden(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                <a class="dropdown-item" href="#" data-action="toggle-hidden">
                     <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Unhidden' : 'Hide'} Game
                 </a>
-                <a class="dropdown-item" href="#" onclick="gameManager.fillSortnameForSingleGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                <a class="dropdown-item" href="#" data-action="fill-sortname">
                     <i class="bi bi-sort-alpha-down"></i> Fill SortName
                 </a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item text-danger" href="#" data-action="delete-game" data-game='${JSON.stringify(game)}'>
+                <a class="dropdown-item text-danger" href="#" data-action="delete-game">
                     <i class="bi bi-trash"></i> Delete
                 </a>
             `;
@@ -4427,18 +4430,34 @@ class GameCollectionManager {
             e.stopPropagation();
 
             const action = e.target.closest('[data-action]')?.getAttribute('data-action');
-            if (action === 'delete-game') {
-                const gameData = e.target.closest('[data-game]')?.getAttribute('data-game');
-                if (gameData) {
-                    try {
-                        const game = JSON.parse(gameData);
-                        this.deleteGame(game);
-                    } catch (error) {
-                        console.error('Error parsing game data:', error);
-                    }
-                }
-            } else if (action === 'delete-selected-games') {
-                this.showDeleteConfirmation();
+            switch (action) {
+                case 'edit-game':
+                    this.editGame(game);
+                    break;
+                case 'scan-game-media':
+                    this.scanGameMedia(game);
+                    break;
+                case 'move-rom':
+                    this.moveRom(game);
+                    break;
+                case 'rename-rom':
+                    this.openRenameRomModal(game);
+                    break;
+                case 'create-m3u':
+                    this.createM3uForSelected(game);
+                    break;
+                case 'toggle-hidden':
+                    this.toggleGameHidden(game);
+                    break;
+                case 'fill-sortname':
+                    this.fillSortnameForSingleGame(game);
+                    break;
+                case 'delete-game':
+                    this.deleteGame(game);
+                    break;
+                case 'delete-selected-games':
+                    this.showDeleteConfirmation();
+                    break;
             }
 
             // Remove the context menu
