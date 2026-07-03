@@ -31,6 +31,12 @@ class GameCollectionManager {
         this.selectedGames = [];
         this.selectedMedia = []; // Track selected media for deletion (array for multiple selection)
         this.selectedThumbnails = []; // Track selected thumbnails for deletion
+        // Media URL versioning: bumped when a game's media changes so rebuilt
+        // <img> tags get a new URL. Without this the browser's in-memory image
+        // cache can reuse the stale decoded image for an identical URL without
+        // revalidating against the server.
+        this.mediaCacheVersions = new Map(); // per-game (keyed by ROM path)
+        this.mediaCacheVersionFloor = 0; // global floor for mass updates (scraping tasks)
         this.thumbnailViewEnabled = false; // Track thumbnail view state
         this.mediaFieldsCache = null; // Cache for media fields from config (array of field names)
         this.mediaFieldsConfigCache = null; // Cache for full media fields config with extensions
@@ -2698,7 +2704,9 @@ class GameCollectionManager {
                 } else {
                     this.showToast(`Gamelist refreshed: ${updateData.games_count} total games`, 'info');
                 }
-                // For gamelist updates, fetch fresh data to ensure consistency
+                // For gamelist updates, fetch fresh data to ensure consistency;
+                // task may have replaced media files for many games in place
+                this.bumpAllMediaCacheVersions();
                 this.refreshGameGridWithData();
                 // Only refresh systems when games are added/deleted (count changes)
                 if (updateData.deleted_count > 0) {
@@ -2869,6 +2877,9 @@ class GameCollectionManager {
             if (gameIndex === -1) {
                 return;
             }
+
+            // The server-side update may have replaced media files in place
+            this.bumpMediaCacheVersion(romPath);
 
             // Fetch just this single game's updated data from the server
             const response = await fetch(`/api/rom-system/${this.currentSystem}/game?path=${encodeURIComponent(romPath)}`);
@@ -4273,6 +4284,25 @@ class GameCollectionManager {
             this.updateGamesCount();
 
         }
+    }
+
+    // Version appended to media URLs (?v=N). Stays at 0 until the game's
+    // media changes, so URLs are stable and cacheable across renders/sessions.
+    getMediaCacheVersion(gamePath) {
+        return Math.max(this.mediaCacheVersions.get(gamePath) || 0, this.mediaCacheVersionFloor);
+    }
+
+    // Call whenever a single game's media files may have changed on disk
+    bumpMediaCacheVersion(gamePath) {
+        if (gamePath) {
+            this.mediaCacheVersions.set(gamePath, Date.now());
+        }
+    }
+
+    // Call when many games' media may have changed (e.g. a scraping task finished)
+    bumpAllMediaCacheVersions() {
+        this.mediaCacheVersionFloor = Date.now();
+        this.mediaCacheVersions.clear();
     }
 
     // Custom cell renderer for media fields - shows 0 or 1 based on presence
@@ -6667,7 +6697,7 @@ class GameCollectionManager {
                     // Properly encode path segments to handle special characters like #
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
-                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`;
+                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${this.getMediaCacheVersion(game.path)}`;
 
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaContent.appendChild(mediaItem);
@@ -6891,7 +6921,7 @@ class GameCollectionManager {
                     // Encode path components separately to preserve "/" separators
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
-                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`;
+                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${this.getMediaCacheVersion(game.path)}`;
 
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
@@ -8577,6 +8607,9 @@ class GameCollectionManager {
                 if (modal) {
                     modal.hide();
                 }
+                // Media file replaced on disk: bump the URL version so the
+                // rebuilt <img> can't be served stale from the memory cache
+                this.bumpMediaCacheVersion(game.path);
                 // Refresh the game grid with latest data from server
                 await this.refreshGameGridWithData();
 
@@ -8877,6 +8910,7 @@ class GameCollectionManager {
                 if (gameIndex !== -1) {
                     this.games[gameIndex][mediaField] = '';
                 }
+                this.bumpMediaCacheVersion(game.path);
 
                 // Refresh the media preview
                 this.showMediaPreview(this.games[gameIndex]);
@@ -9053,6 +9087,7 @@ class GameCollectionManager {
                     const game = this.games.find(g => g.path === romPath);
                     if (game) {
                         game[mediaField] = result.media_path;
+                        this.bumpMediaCacheVersion(game.path);
 
                         this.markGameAsModified(game);
 
@@ -19639,7 +19674,7 @@ class GameCollectionManager {
                     // Properly encode path segments to handle special characters like #
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
-                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`;
+                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${this.getMediaCacheVersion(game.path)}`;
 
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaPreviewContent.appendChild(mediaItem);
@@ -19943,7 +19978,7 @@ class GameCollectionManager {
                     // Encode path components separately to preserve "/" separators
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
-                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`;
+                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${this.getMediaCacheVersion(game.path)}`;
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
                             <img src="${imageUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
@@ -19987,7 +20022,7 @@ class GameCollectionManager {
                         }
                         const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                         const encodedPath = pathParts.join('/');
-                        this.showMediaHover(e, `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`, field);
+                        this.showMediaHover(e, `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${this.getMediaCacheVersion(game.path)}`, field);
                     });
                     img.addEventListener('mouseleave', () => {
                         this.hideMediaHover();
@@ -23097,6 +23132,7 @@ class GameCollectionManager {
                 this.hideCropWaitingState();
                 if (data.success) {
                     this.showAlert('Video cropped successfully', 'success');
+                    this.bumpMediaCacheVersion(this.currentCropGame?.path);
                     // Close modal
                     const modal = bootstrap.Modal.getInstance(document.getElementById('videoCroppingModal'));
                     if (modal) {
@@ -23181,6 +23217,7 @@ class GameCollectionManager {
                 this.hideCropWaitingState();
                 if (data.success) {
                     this.showAlert('Image cropped successfully', 'success');
+                    this.bumpMediaCacheVersion(this.currentCropImageGame?.path);
                     // Close modal
                     const modal = bootstrap.Modal.getInstance(document.getElementById('imageCroppingModal'));
                     if (modal) {
@@ -23255,6 +23292,7 @@ class GameCollectionManager {
             .then(result => {
                 if (result.success) {
                     this.showAlert('Video cropped successfully!', 'success');
+                    this.bumpMediaCacheVersion(this.currentCropGame?.path);
                     // Close modal
                     const modal = bootstrap.Modal.getInstance(document.getElementById('videoCroppingModal'));
                     modal.hide();
@@ -23406,6 +23444,7 @@ class GameCollectionManager {
 
                 // Refresh the media preview to show the cropped image
                 if (this.currentCropImageGame) {
+                    this.bumpMediaCacheVersion(this.currentCropImageGame.path);
                     // Reload the system to get updated game data
                     this.loadRomSystem(this.currentSystem).then(() => {
                         // Find the updated game in the games array
@@ -35483,6 +35522,7 @@ class GameCollectionManager {
                                     this.games[gameIndex][field] = '';
                                 }
                             }
+                            this.bumpMediaCacheVersion(game.path);
                             successCount += result.deleted_fields.length;
                             errorCount += result.failed_fields.length;
 
@@ -37473,8 +37513,9 @@ class GameCollectionManager {
             const encodedPath = cleanPath.split('/').map(part => part ? encodeURIComponent(part) : '').join('/');
             const encodedSystem = encodeURIComponent(this.currentSystem);
             // Downscaled server-side thumbnail for the cell; full-size image for hover preview
-            const thumbUrl = `/api/thumbnail/${encodedSystem}/${encodedPath}`;
-            const fullImageUrl = `/roms/${encodedSystem}/${encodedPath}`;
+            const mediaVersion = this.getMediaCacheVersion(params.data.path);
+            const thumbUrl = `/api/thumbnail/${encodedSystem}/${encodedPath}?v=${mediaVersion}`;
+            const fullImageUrl = `/roms/${encodedSystem}/${encodedPath}?v=${mediaVersion}`;
 
             // Create a unique ID for this thumbnail
             const thumbnailId = `thumb_${fieldName}_${params.data.path || Math.random().toString(36).substr(2, 9)}`;
@@ -40887,6 +40928,7 @@ class GameCollectionManager {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('fanartSearchModal'));
                 modal.hide();
 
+                this.bumpMediaCacheVersion(game.path);
                 // Refresh the game grid with latest data from server
                 await this.refreshGameGridWithData();
 
@@ -42988,6 +43030,8 @@ class GameCollectionManager {
             const result = await response.json();
 
             if (response.ok && result.success) {
+                // Bump so later preview re-renders also fetch the rotated file
+                this.bumpMediaCacheVersion(game.path);
                 // Add cache-busting parameter to force image refresh
                 const baseUrl = originalSrc.split('?')[0]; // Get URL without any existing parameters
                 const newSrc = `${baseUrl}?v=${Date.now()}`;
