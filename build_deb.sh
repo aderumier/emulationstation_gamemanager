@@ -54,6 +54,7 @@ cp steamgrid_service.py debian/opt/gamemanager/steamgrid_service.py
 cp mobygames_service.py debian/opt/gamemanager/mobygames_service.py
 cp igdb_service.py debian/opt/gamemanager/igdb_service.py
 cp emumovies_service.py debian/opt/gamemanager/emumovies_service.py
+cp emumovies_service_api3.py debian/opt/gamemanager/emumovies_service_api3.py
 cp custom_scraper_service.py debian/opt/gamemanager/custom_scraper_service.py
 cp datscrapper_service.py debian/opt/gamemanager/datscrapper_service.py
 cp launchbox_service.py debian/opt/gamemanager/launchbox_service.py
