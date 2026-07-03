@@ -3285,15 +3285,11 @@ class GameCollectionManager {
         const gridDiv = document.getElementById('gamesGrid');
         gridDiv.innerHTML = '';
 
-        // Wait for media mappings cache to be ready
-        let attempts = 0;
-        while (!this.mediaMappingsCache && attempts < 50) { // Wait up to 5 seconds
-            await new Promise(resolve => setTimeout(resolve, 100));
-            attempts++;
-        }
-
-        if (!this.mediaMappingsCache) {
-            console.warn('Media mappings cache not ready after 5 seconds, using fallback values');
+        // Ensure the media mappings cache is ready (fetches once if needed)
+        try {
+            await this.getMediaMappings();
+        } catch (error) {
+            console.warn('Media mappings not available, using fallback values', error);
         }
 
         // Check if vertical headers are enabled (default: false)
