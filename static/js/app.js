@@ -21975,10 +21975,17 @@ class GameCollectionManager {
 
                 // Update the game in memory
                 game[mediaField] = result.media_path;
+                // The field's previous file may have been overwritten in place
+                this.bumpMediaCacheVersion(game.path);
 
                 // Reload the media display
                 await this.showEditGameMedia(game);
                 this.showEditGameVideo(game);
+
+                // Refresh the media preview panel if it's showing this game
+                if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
+                    this.showMediaPreview(game);
+                }
 
                 // Clear temp path
                 this.currentScreenshotTempPath = null;
@@ -40264,6 +40271,8 @@ class GameCollectionManager {
             const hasCompleted = tasksArray.some(task => task.type === 'youtube_download' && task.status === 'completed');
             const hasGamelistUpdate = tasksArray.some(task => task.type === 'youtube_download' && task.status === 'completed' && Array.isArray(task.progress) && task.progress.some(p => typeof p === 'string' && p.includes('Gamelist.xml updated successfully')));
             if (hasCompleted) {
+                // The downloaded video may have replaced an existing file in place
+                this.bumpAllMediaCacheVersions();
                 await this.loadRomSystem(this.currentSystem);
                 if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
                     const currentGame = this.games[this.editingGameIndex];
@@ -43202,6 +43211,9 @@ class GameCollectionManager {
             const result = await response.json();
 
             if (response.ok && result.success) {
+                // Image overwritten in place: bump so later preview/edit
+                // re-renders fetch the new file
+                this.bumpMediaCacheVersion(game.path);
                 // Add cache-busting parameter to force image refresh
                 const baseUrl = originalSrc.split('?')[0];
                 const newSrc = `${baseUrl}?v=${Date.now()}`;
