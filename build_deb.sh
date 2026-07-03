@@ -93,6 +93,7 @@ cp var/db/igdb/*.json debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "�
 echo "📦 Copying EmuMovies databases..."
 mkdir -p debian/opt/gamemanager/var/db/emumovies
 cp var/db/emumovies/emumovies.json debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies JSON database found, skipping..."
+cp var/db/emumovies/emumovies_systems.json debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies systems list found, skipping..."
 cp var/db/emumovies/emumovies_index.pkl debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies index pickle file found, skipping..."
 
 # Custom databases

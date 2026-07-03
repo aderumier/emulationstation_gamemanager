@@ -8856,42 +8856,77 @@ def clear_igdb_platforms_cache():
         print(f"Error clearing IGDB platforms cache: {e}")
         return jsonify({'error': f'Failed to clear IGDB platforms cache: {str(e)}'}), 500
 
+EMUMOVIES_SYSTEMS_DB_PATH = os.path.join('var', 'db', 'emumovies', 'emumovies_systems.json')
+
+def _fetch_and_store_emumovies_systems():
+    """Fetch the EmuMovies (gamesdbase) system list and write it to the DB file.
+
+    Returns the payload dict on success, None on failure. The list is static,
+    so this is only run to (re)generate the stored file.
+    """
+    from emumovies_service import EmuMoviesService
+    service = EmuMoviesService()
+    detail = run_async_safely(service.get_systems()) or []
+    if not detail:
+        return None
+    lookups = sorted({d['lookup'] for d in detail if d.get('lookup')})
+    payload = {
+        'generated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        'source': 'https://api.gamesdbase.com/getsystems.aspx',
+        'systems': lookups,
+        'systems_detail': sorted(detail, key=lambda d: d.get('lookup', '')),
+    }
+    os.makedirs(os.path.dirname(EMUMOVIES_SYSTEMS_DB_PATH), exist_ok=True)
+    tmp = f"{EMUMOVIES_SYSTEMS_DB_PATH}.tmp{os.getpid()}"
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=1, ensure_ascii=False)
+    os.replace(tmp, EMUMOVIES_SYSTEMS_DB_PATH)
+    return payload
+
 @app.route('/api/emumovies-systems', methods=['GET'])
 @login_required
 def get_emumovies_systems():
-    """Get EmuMovies systems from emumovies.json database"""
-    try:
-        import json
-        import os
-        
-        emumovies_file = 'var/db/emumovies/emumovies.json'
-        
-        if not os.path.exists(emumovies_file):
-            return jsonify({
-                'success': True,
-                'systems': [],
-                'count': 0,
-                'message': 'EmuMovies database not built yet'
-            })
-        
-        with open(emumovies_file, 'r', encoding='utf-8') as f:
-            emumovies_data = json.load(f)
-        
-        # Get system names (keys of the JSON object)
-        systems = list(emumovies_data.keys())
-        systems.sort()  # Sort alphabetically
-        
+    """Get the EmuMovies (gamesdbase) system list from the static DB file.
+
+    The system list is static, so it is stored once in
+    var/db/emumovies/emumovies_systems.json (shipped with the package) and
+    served from there. 'systems' is the sorted list of system Lookup values
+    (what the scraper-mapping combo stores); 'systems_detail' carries
+    name/maker/media for each. Pass ?refresh=1 to regenerate it from the API.
+    """
+    force = request.args.get('refresh', '').lower() in ('1', 'true', 'yes')
+
+    data = None
+    if not force and os.path.exists(EMUMOVIES_SYSTEMS_DB_PATH):
+        try:
+            with open(EMUMOVIES_SYSTEMS_DB_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception:
+            data = None
+
+    # Generate the file on first use or when a refresh is requested
+    if data is None:
+        try:
+            data = _fetch_and_store_emumovies_systems()
+        except Exception as e:
+            logger.error(f"Error fetching EmuMovies systems from API: {e}")
+            data = None
+
+    if not data:
         return jsonify({
             'success': True,
-            'systems': systems,
-            'count': len(systems)
+            'systems': [],
+            'count': 0,
+            'message': 'EmuMovies system list not available (generate it with ?refresh=1)'
         })
-        
-    except Exception as e:
-        logger.error(f"Error getting EmuMovies systems: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': f'Failed to get EmuMovies systems: {str(e)}'}), 500
+
+    return jsonify({
+        'success': True,
+        'systems': data.get('systems', []),
+        'systems_detail': data.get('systems_detail', []),
+        'count': len(data.get('systems', [])),
+        'generated_at': data.get('generated_at'),
+    })
 
 @app.route('/api/custom/databases', methods=['GET'])
 @login_required
