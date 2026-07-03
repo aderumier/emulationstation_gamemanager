@@ -3819,8 +3819,10 @@ class GameCollectionManager {
         const gridOptions = {
             // Use ROM path as unique row identifier for better update handling
             getRowId: (params) => {
-                // Use the ROM path as the unique identifier since it's unique for each game
-                return params.data.path || params.data.id || `game_${Math.random()}`;
+                // Use the ROM path as the unique identifier since it's unique for each game.
+                // The fallback must be stable across refreshes (a random id would give the
+                // row a new identity on every update, breaking selection and diff updates).
+                return params.data.path || params.data.id || `game_${params.data.name || ''}`;
             },
             // Apply custom row styling based on game properties using getRowClass
             getRowClass: (params) => {
