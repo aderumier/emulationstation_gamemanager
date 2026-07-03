@@ -7605,14 +7605,51 @@ def get_cache_statistics():
     }
 
 # Global cache for game counts per system - avoids parsing XML on each systems list request
+# Game count cache: system_name -> (gamelist mtime_ns, size, visible count).
+# Entries are validated against the gamelist file's current mtime/size on every
+# lookup, so any write to a gamelist invalidates its entry implicitly. The
+# cache is persisted to disk so a server restart doesn't force a re-parse of
+# every system's gamelist on the first /api/rom-systems call.
 _game_count_cache = {}
+_game_count_cache_loaded = False
+GAME_COUNT_CACHE_PATH = os.path.join('var', 'cache', 'game_counts.json')
+
+def _load_game_count_cache():
+    """Load the persisted game count cache once per process."""
+    global _game_count_cache, _game_count_cache_loaded
+    if _game_count_cache_loaded:
+        return
+    _game_count_cache_loaded = True
+    try:
+        with open(GAME_COUNT_CACHE_PATH, 'r') as f:
+            raw = json.load(f)
+        _game_count_cache = {
+            name: tuple(entry) for name, entry in raw.items()
+            if isinstance(entry, list) and len(entry) == 3
+        }
+        print(f"📊 Loaded game count cache for {len(_game_count_cache)} systems")
+    except FileNotFoundError:
+        _game_count_cache = {}
+    except Exception as e:
+        print(f"Warning: could not load game count cache: {e}")
+        _game_count_cache = {}
+
+def _save_game_count_cache():
+    """Persist the game count cache to disk (atomic write)."""
+    try:
+        os.makedirs(os.path.dirname(GAME_COUNT_CACHE_PATH), exist_ok=True)
+        tmp_path = f"{GAME_COUNT_CACHE_PATH}.tmp{os.getpid()}"
+        with open(tmp_path, 'w') as f:
+            json.dump(_game_count_cache, f)
+        os.replace(tmp_path, GAME_COUNT_CACHE_PATH)
+    except Exception as e:
+        print(f"Warning: could not save game count cache: {e}")
 
 def invalidate_game_count_cache(system_name=None):
     """Invalidate game count cache for a specific system or all systems.
-    
-    Args:
-        system_name: If provided, only invalidate cache for this system.
-                    If None, invalidate entire cache.
+
+    Kept for explicit invalidation, although entries are also revalidated
+    against the gamelist file's mtime/size on every lookup.
     """
     global _game_count_cache
     if system_name:
@@ -7622,28 +7659,6 @@ def invalidate_game_count_cache(system_name=None):
     else:
         _game_count_cache.clear()
         print("🗑️ Invalidated entire game count cache")
-
-def update_game_count_cache(system_name, count):
-    """Update the game count cache for a specific system.
-    
-    Args:
-        system_name: The system to update.
-        count: The new game count.
-    """
-    global _game_count_cache
-    _game_count_cache[system_name] = count
-    print(f"📊 Updated game count cache for {system_name}: {count} games")
-
-def get_cached_game_count(system_name):
-    """Get cached game count for a system, or None if not cached.
-    
-    Args:
-        system_name: The system to look up.
-        
-    Returns:
-        The cached count, or None if not in cache.
-    """
-    return _game_count_cache.get(system_name)
 
 def _count_games_for_system(system_name):
     """Count visible (non-hidden) games for a single system using XML parsing.
@@ -7700,47 +7715,44 @@ def _count_games_for_system(system_name):
         return 0
 
 def count_all_games_batch(systems_list):
-    """Count games for all systems at once, using cache when available.
-    
-    This function first checks the cache for each system. For systems not in cache,
-    it uses fast XML parsing with iterparse for memory-efficient streaming.
+    """Count games for all systems at once, using an mtime-validated cache.
+
+    Cached counts are reused as long as the system's gamelist.xml is unchanged
+    (same mtime and size); only changed gamelists are re-parsed, with the
+    streaming iterparse counter. Fresh counts are persisted to disk.
     """
     global _game_count_cache
+    _load_game_count_cache()
     system_counts = {}
-    systems_to_parse = []
-    
-    # Check cache first
+    cache_dirty = False
+
     for system_name in systems_list:
-        cached_count = _game_count_cache.get(system_name)
-        if cached_count is not None:
-            system_counts[system_name] = cached_count
-        else:
-            systems_to_parse.append(system_name)
-    
-    if not systems_to_parse:
-        # All systems were cached
-        return system_counts
-    
-    try:
-        # Process each uncached system's gamelist.xml file using fast XML parsing
-        for system_name in systems_to_parse:
+        try:
+            gamelist_path = get_gamelist_path(system_name)
+            try:
+                stat = os.stat(gamelist_path)
+            except OSError:
+                # No gamelist -> no games; don't cache so it's picked up
+                # as soon as a gamelist appears
+                system_counts[system_name] = 0
+                continue
+
+            cached = _game_count_cache.get(system_name)
+            if cached and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
+                system_counts[system_name] = cached[2]
+                continue
+
             count = _count_games_for_system(system_name)
             system_counts[system_name] = count
-            # Update cache
-            _game_count_cache[system_name] = count
-    
-    except Exception as e:
-        print(f"Error in batch game counting: {e}")
-        # Set all systems to 0 if batch processing fails
-        for system_name in systems_to_parse:
-            if system_name not in system_counts:
-                system_counts[system_name] = 0
-    
-    # Ensure all requested systems have counts (set to 0 if missing)
-    for system_name in systems_list:
-        if system_name not in system_counts:
+            _game_count_cache[system_name] = (stat.st_mtime_ns, stat.st_size, count)
+            cache_dirty = True
+        except Exception as e:
+            print(f"Error counting games for {system_name}: {e}")
             system_counts[system_name] = 0
-    
+
+    if cache_dirty:
+        _save_game_count_cache()
+
     return system_counts
 
 # Global cache for gamelist parsing to improve performance
