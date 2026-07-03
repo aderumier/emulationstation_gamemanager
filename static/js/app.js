@@ -4322,13 +4322,6 @@ class GameCollectionManager {
             if (gridElement.style.display === 'none') {
                 gridElement.style.display = 'block';
             }
-
-            // Force AG Grid to refresh if needed
-            if (this.gridApi) {
-                setTimeout(() => {
-                    this.gridApi.refreshCells();
-                }, 50);
-            }
         }
     }
 
