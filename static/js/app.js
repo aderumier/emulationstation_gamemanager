@@ -19593,7 +19593,16 @@ class GameCollectionManager {
             return;
         }
         this.showingMediaPreview = true;
+        try {
+            await this.renderMediaPreview(game);
+        } finally {
+            // Always reset the flag, even if rendering throws, so the
+            // media preview doesn't get permanently stuck disabled
+            this.showingMediaPreview = false;
+        }
+    }
 
+    async renderMediaPreview(game) {
         // Track the current game being shown in media preview
         this.currentMediaPreviewGame = game;
 
@@ -20115,9 +20124,6 @@ class GameCollectionManager {
 
             mediaPreviewContent.appendChild(mediaItem);
         });
-
-        // Reset the flag at the end
-        this.showingMediaPreview = false;
     }
 
     showFileMissingPlaceholder(mediaItem, field, mediaPath, game) {
