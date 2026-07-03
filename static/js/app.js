@@ -4106,11 +4106,6 @@ class GameCollectionManager {
             }
         });
 
-        // Add cell value changed listener to mark games as modified
-        this.gridApi.addEventListener('cellValueChanged', (event) => {
-            this.markGameAsModified(event.data);
-        });
-
         // Add double-click listener for editing (only opens modal if panel is disabled)
         this.gridApi.addEventListener('rowDoubleClicked', async (event) => {
             // Check if right panel is enabled - if so, don't open modal (panel handles it)
