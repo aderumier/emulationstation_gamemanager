@@ -7971,6 +7971,59 @@ def serve_rom_file(filename):
 THUMBNAILS_CACHE_DIR = os.path.join('var', 'cache', 'thumbnails')
 THUMBNAIL_MAX_DIMENSION = 256
 THUMBNAIL_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}
+THUMBNAILS_CACHE_MAX_BYTES = 5 * 1024 ** 3  # 5 GB cap on the thumbnail cache
+THUMBNAILS_CACHE_PRUNE_INTERVAL = 300  # seconds between prune scans
+_thumbnails_cache_prune_lock = threading.Lock()
+_thumbnails_cache_last_prune = 0.0
+
+def _prune_thumbnails_cache():
+    """Evict least-recently-used thumbnails until the cache is under its size cap.
+
+    Cheap to call often: exits immediately unless the prune interval elapsed,
+    and only one thread scans at a time. Eviction goes down to 90% of the cap
+    so it doesn't re-trigger on every new thumbnail.
+    """
+    global _thumbnails_cache_last_prune
+    if time.time() - _thumbnails_cache_last_prune < THUMBNAILS_CACHE_PRUNE_INTERVAL:
+        return
+    if not _thumbnails_cache_prune_lock.acquire(blocking=False):
+        return  # another thread is already pruning
+    try:
+        _thumbnails_cache_last_prune = time.time()
+        entries = []
+        total_size = 0
+        try:
+            with os.scandir(THUMBNAILS_CACHE_DIR) as it:
+                for entry in it:
+                    try:
+                        if entry.is_file(follow_symlinks=False):
+                            st = entry.stat()
+                            # relatime mounts update atime sparsely; take the
+                            # newest of atime/mtime as the recency signal
+                            entries.append((max(st.st_atime, st.st_mtime), st.st_size, entry.path))
+                            total_size += st.st_size
+                    except OSError:
+                        continue
+        except FileNotFoundError:
+            return
+        if total_size <= THUMBNAILS_CACHE_MAX_BYTES:
+            return
+        entries.sort()  # least recently used first
+        target_size = int(THUMBNAILS_CACHE_MAX_BYTES * 0.9)
+        removed = 0
+        for _, size, path in entries:
+            if total_size <= target_size:
+                break
+            try:
+                os.remove(path)
+                total_size -= size
+                removed += 1
+            except OSError:
+                continue
+        if removed:
+            print(f"🧹 Thumbnail cache pruned: removed {removed} files, now {total_size / (1024 ** 2):.0f} MiB")
+    finally:
+        _thumbnails_cache_prune_lock.release()
 
 @app.route('/api/thumbnail/<system_name>/<path:media_path>')
 def serve_media_thumbnail(system_name, media_path):
@@ -8019,6 +8072,9 @@ def serve_media_thumbnail(system_name, media_path):
                 tmp_path = f"{cache_path}.tmp{os.getpid()}"
                 img.save(tmp_path, format='PNG')
                 os.replace(tmp_path, cache_path)
+            # The cache only grows when a thumbnail is generated; prune in the
+            # background so the response isn't delayed by the directory scan
+            threading.Thread(target=_prune_thumbnails_cache, daemon=True).start()
 
         return _with_revalidation(send_file(cache_path, mimetype='image/png'))
     except Exception as e:
