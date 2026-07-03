@@ -4286,6 +4286,16 @@ class GameCollectionManager {
         }
     }
 
+    // True when the Edit Game modal or the right edit panel is visible
+    isEditUiVisible() {
+        const editModal = document.getElementById('editGameModal');
+        if (editModal && editModal.classList.contains('show')) {
+            return true;
+        }
+        const rightPanel = document.getElementById('rightPanel');
+        return !!(rightPanel && rightPanel.style.display !== 'none');
+    }
+
     // Version appended to media URLs (?v=N). Stays at 0 until the game's
     // media changes, so URLs are stable and cacheable across renders/sessions.
     getMediaCacheVersion(gamePath) {
@@ -8618,6 +8628,17 @@ class GameCollectionManager {
                 if (updatedGame && this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
                     // Refresh the media preview to show the new media
                     this.showMediaPreview(updatedGame);
+                }
+
+                // Also refresh the edit modal/panel "Media Files" tab if it's
+                // visibly showing this game (its <img> elements are not rebuilt otherwise)
+                if (updatedGame && this.editingGamePath === game.path &&
+                    this.isEditUiVisible() &&
+                    document.getElementById('editGameMediaContent')) {
+                    await this.showEditGameMedia(updatedGame);
+                    if (mediaType === 'video') {
+                        this.showEditGameVideo(updatedGame);
+                    }
                 }
             } else {
                 this.showAlert(data.error || 'Failed to download media', 'danger');
@@ -40941,6 +40962,18 @@ class GameCollectionManager {
                     // Fallback to original game if not found
                     this.showMediaPreview(game);
                 }
+
+                // Also refresh the edit modal/panel "Media Files" tab if it's
+                // visibly showing this game (its <img> elements are not rebuilt otherwise)
+                if (this.editingGamePath === game.path &&
+                    this.isEditUiVisible() &&
+                    document.getElementById('editGameMediaContent')) {
+                    const editTabGame = this.games.find(g => g.path === game.path) || game;
+                    await this.showEditGameMedia(editTabGame);
+                    if (fieldType === 'video') {
+                        this.showEditGameVideo(editTabGame);
+                    }
+                }
             } else {
                 this.showAlert(`Error downloading fanart: ${result.error || 'Unknown error'}`, 'error');
             }
@@ -40994,6 +41027,9 @@ class GameCollectionManager {
             if (data.success) {
                 this.showAlert('Full-size image downloaded successfully!', 'success');
 
+                // Media file replaced on disk: bump the URL version so
+                // rebuilt <img> tags can't be served stale from the memory cache
+                this.bumpMediaCacheVersion(this.currentGoogleImagesSearchGame.path);
                 // Refresh the game grid with latest data from server
                 await this.refreshGameGridWithData();
 
@@ -41005,6 +41041,18 @@ class GameCollectionManager {
                 } else {
                     // Fallback to original game if not found
                     this.showMediaPreview(this.currentGoogleImagesSearchGame);
+                }
+
+                // Also refresh the edit modal/panel "Media Files" tab if it's
+                // visibly showing this game (its <img> elements are not rebuilt otherwise)
+                if (this.editingGamePath === this.currentGoogleImagesSearchGame.path &&
+                    this.isEditUiVisible() &&
+                    document.getElementById('editGameMediaContent')) {
+                    const editTabGame = this.games.find(g => g.path === this.currentGoogleImagesSearchGame.path) || this.currentGoogleImagesSearchGame;
+                    await this.showEditGameMedia(editTabGame);
+                    if ((this.currentGoogleImagesSearchMediaType || 'fanart') === 'video') {
+                        this.showEditGameVideo(editTabGame);
+                    }
                 }
 
                 // Close the modal
@@ -41104,6 +41152,9 @@ class GameCollectionManager {
                 // Clear the URL field
                 document.getElementById('googleImagesDirectUrl').value = '';
 
+                // Media file replaced on disk: bump the URL version so
+                // rebuilt <img> tags can't be served stale from the memory cache
+                this.bumpMediaCacheVersion(this.currentGoogleImagesSearchGame.path);
                 // Refresh the game grid with latest data from server
                 await this.refreshGameGridWithData();
 
@@ -41115,6 +41166,18 @@ class GameCollectionManager {
                 } else {
                     // Fallback to original game if not found
                     this.showMediaPreview(this.currentGoogleImagesSearchGame);
+                }
+
+                // Also refresh the edit modal/panel "Media Files" tab if it's
+                // visibly showing this game (its <img> elements are not rebuilt otherwise)
+                if (this.editingGamePath === this.currentGoogleImagesSearchGame.path &&
+                    this.isEditUiVisible() &&
+                    document.getElementById('editGameMediaContent')) {
+                    const editTabGame = this.games.find(g => g.path === this.currentGoogleImagesSearchGame.path) || this.currentGoogleImagesSearchGame;
+                    await this.showEditGameMedia(editTabGame);
+                    if ((this.currentGoogleImagesSearchMediaType || 'fanart') === 'video') {
+                        this.showEditGameVideo(editTabGame);
+                    }
                 }
 
                 // Close the modal
