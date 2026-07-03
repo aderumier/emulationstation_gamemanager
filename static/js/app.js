@@ -746,12 +746,17 @@ class GameCollectionManager {
         });
         const dedupedGames = Array.from(newDataMap.values());
 
-        // Check if this is the first load or if we need to add/remove rows
-        const currentRowCount = this.gridApi.getDisplayedRowCount();
+        // Check if this is the first load or if we need to add/remove rows.
+        // Compare against the known data size, not getDisplayedRowCount():
+        // the displayed count shrinks when column filters are active, which
+        // used to fake a "significant change" and force a full data reset
+        // on every filter change.
+        const knownRowCount = this.currentGameData.size;
         const newRowCount = dedupedGames.length;
 
         // If row count changed significantly, it's the first load, or we're clearing the grid, use setGridOption
-        if (currentRowCount === 0 || Math.abs(currentRowCount - newRowCount) > 5 || newRowCount === 0) {
+        if (knownRowCount === 0 || this.gridApi.getDisplayedRowCount() === 0 ||
+            Math.abs(knownRowCount - newRowCount) > 5 || newRowCount === 0) {
             this.setGridDataPreservingSort(dedupedGames);
             // Update our stored data
             this.currentGameData.clear();
@@ -4147,9 +4152,14 @@ class GameCollectionManager {
 
         // Context menu is handled by onCellContextMenu in gridOptions
 
-        // Add filter event listeners to refresh data and maintain visibility
+        // Add filter event listeners to refresh data and maintain visibility.
+        // AG Grid's client-side row model applies column filters itself, so
+        // re-feeding the row data is only needed when one of the custom
+        // filters (duplicates / hidden dirs / hidden games) is active.
         this.gridApi.addEventListener('filterChanged', async () => {
-            await this.refreshGridData();
+            if (this.duplicatesFilterActive || this.hiddenDirFilterActive || this.hiddenFilterActive) {
+                await this.refreshGridData();
+            }
             this.ensureGridVisibility();
         });
 
