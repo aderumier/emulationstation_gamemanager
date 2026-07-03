@@ -690,19 +690,13 @@ class GameCollectionManager {
         // Update existing rows with changed data
         if (rowsToUpdate.length > 0) {
             rowsToUpdate.forEach(updatedRow => {
-                // Find the row node and update its data
-                this.taskGridApi.forEachNode(node => {
-                    if (node.data && node.data.id === updatedRow.id) {
-                        node.setData(updatedRow);
-                    }
-                });
+                // Direct O(1) lookup via getRowId; setData refreshes the row
+                const node = this.taskGridApi.getRowNode(String(updatedRow.id));
+                if (node) {
+                    node.setData(updatedRow);
+                }
                 // Update our stored data
                 this.currentTaskData.set(updatedRow.id, updatedRow);
-            });
-
-            // Refresh cells to reflect the changes
-            this.taskGridApi.refreshCells({
-                force: true // Force refresh to ensure all changes are visible
             });
         }
     }
@@ -813,19 +807,15 @@ class GameCollectionManager {
         // Update existing games with changed data
         if (gamesToUpdate.length > 0) {
             gamesToUpdate.forEach(updatedGame => {
-                // Find the row node and update its data
-                this.gridApi.forEachNode(node => {
-                    if (node.data && node.data.path === updatedGame.path) {
-                        node.setData(updatedGame);
-                    }
-                });
+                // Direct O(1) lookup via getRowId (row id = ROM path);
+                // setData refreshes the affected row, so no grid-wide
+                // forced refresh is needed
+                const node = this.gridApi.getRowNode(updatedGame.path);
+                if (node) {
+                    node.setData(updatedGame);
+                }
                 // Update our stored data
                 this.currentGameData.set(updatedGame.path, updatedGame);
-            });
-
-            // Refresh cells to reflect the changes
-            this.gridApi.refreshCells({
-                force: true // Force refresh to ensure all changes are visible
             });
 
             // Update the games counter to reflect displayed rows
@@ -1059,6 +1049,8 @@ class GameCollectionManager {
         const gridOptions = {
             columnDefs: columnDefs,
             rowData: [],
+            // Stable row identity so updates can address rows directly
+            getRowId: (params) => String(params.data.id),
             defaultColDef: {
                 resizable: true,
                 sortable: true
