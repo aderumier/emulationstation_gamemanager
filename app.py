@@ -8858,6 +8858,35 @@ def clear_igdb_platforms_cache():
 
 EMUMOVIES_SYSTEMS_DB_PATH = os.path.join('var', 'db', 'emumovies', 'emumovies_systems.json')
 
+def _get_emumovies_systems_data():
+    """Return the stored EmuMovies systems payload, generating it if missing."""
+    if os.path.exists(EMUMOVIES_SYSTEMS_DB_PATH):
+        try:
+            with open(EMUMOVIES_SYSTEMS_DB_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    try:
+        return _fetch_and_store_emumovies_systems()
+    except Exception as e:
+        logger.error(f"Error generating EmuMovies systems DB: {e}")
+        return None
+
+def get_emumovies_media_types():
+    """All EmuMovies media type names, from the static systems DB.
+
+    Returns the sorted union of every system's `media` list (the exact type
+    names search.aspx accepts, e.g. Box, Snap, Cart, Video_MP4). Sourced from
+    the new gamesdbase API via emumovies_systems.json, not the old index.
+    """
+    data = _get_emumovies_systems_data() or {}
+    media_types = set()
+    for sysinfo in data.get('systems_detail', []):
+        for mt in sysinfo.get('media', []):
+            if mt:
+                media_types.add(mt)
+    return sorted(media_types)
+
 def _fetch_and_store_emumovies_systems():
     """Fetch the EmuMovies (gamesdbase) system list and write it to the DB file.
 
@@ -42133,54 +42162,14 @@ def manage_emumovies_mappings():
                 else:
                     mappings[field] = []
             
-            # Get EmuMovies media types from local database (first system in emumovies.json)
-            emumovies_media_types = []
+            # Available EmuMovies media types: union of every system's media list,
+            # from the static gamesdbase systems DB (regenerated via
+            # /api/emumovies-systems?refresh=1)
             try:
-                db_file = os.path.join('var/db/emumovies', 'emumovies.json')
-                if os.path.exists(db_file):
-                    with open(db_file, 'r', encoding='utf-8') as f:
-                        db_data = json.load(f)
-                        
-                    # Get media types from the first system
-                    if db_data:
-                        first_system_name = next(iter(db_data.keys()))
-                        first_system_data = db_data[first_system_name]
-                        
-                        # Extract unique media types from the first system
-                        media_type_set = set()
-                        if isinstance(first_system_data, dict):
-                            for media_type_name in first_system_data.keys():
-                                media_type_set.add(media_type_name)
-                        
-                        emumovies_media_types = sorted(list(media_type_set))
-                else:
-                    # Database not built, try to get from API (requires auth)
-                    import asyncio
-                    from emumovies_service import EmuMoviesService
-                    from credential_manager import credential_manager
-                    
-                    creds = credential_manager.get_emumovies_credentials()
-                    if creds.get('username') and creds.get('password'):
-                        try:
-                            async def fetch_media_types():
-                                service = EmuMoviesService()
-                                token = await service.authenticate()
-                                if token:
-                                    systems = await service.get_systems()
-                                    if systems:
-                                        # Get media types from first system as example
-                                        first_system = systems[0] if isinstance(systems[0], str) else systems[0]
-                                        media_types = await service.get_media_types(first_system)
-                                        return media_types
-                                return []
-                            
-                            media_types = asyncio.run(fetch_media_types())
-                            emumovies_media_types = sorted([mt if isinstance(mt, str) else str(mt) for mt in media_types])
-                        except Exception as e:
-                            logger.warning(f"Error fetching media types from API: {e}")
+                emumovies_media_types = get_emumovies_media_types()
             except Exception as e:
                 logger.warning(f"Error loading EmuMovies media types: {e}")
-                # Fallback to empty list
+                emumovies_media_types = []
             
             # Convert media_fields object to list of field names
             media_fields_list = list(media_fields.keys()) if isinstance(media_fields, dict) else media_fields
