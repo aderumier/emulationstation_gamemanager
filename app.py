@@ -7959,8 +7959,14 @@ def serve_rom_file(filename):
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        return response
-    return send_from_directory(ROMS_FOLDER, filename)
+    else:
+        response = send_from_directory(ROMS_FOLDER, filename)
+    # Media files can be replaced in place under the same name, so let the
+    # browser cache them but revalidate on each use (cheap 304 via the
+    # ETag/Last-Modified headers send_from_directory already provides)
+    # instead of re-downloading full images/videos on every preview.
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
 
 @app.route('/var/temp/<path:filename>')
 @login_required

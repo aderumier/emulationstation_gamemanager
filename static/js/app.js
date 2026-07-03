@@ -6693,11 +6693,10 @@ class GameCollectionManager {
                     if (cleanMediaPath.startsWith('./')) {
                         cleanMediaPath = cleanMediaPath.substring(2);
                     }
-                    const cacheBuster = new Date().getTime();
                     // Properly encode path segments to handle special characters like #
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
-                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`;
+                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`;
 
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaContent.appendChild(mediaItem);
@@ -6820,7 +6819,7 @@ class GameCollectionManager {
 
                     // Check if file exists before displaying preview
                     const cacheBuster = new Date().getTime();
-                    const fileUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                    const fileUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}`;
 
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaContent.appendChild(mediaItem);
@@ -6913,8 +6912,6 @@ class GameCollectionManager {
                     // Skip the rest of the loop iteration since we handled PDF/CBZ asynchronously
                     return;
                 } else {
-                    // Add cache-busting parameter to force image refresh
-                    const cacheBuster = new Date().getTime();
                     // Clean and encode the mediaPath properly
                     let cleanMediaPath = mediaPath;
                     if (cleanMediaPath.startsWith('./')) {
@@ -6923,7 +6920,7 @@ class GameCollectionManager {
                     // Encode path components separately to preserve "/" separators
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
-                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`;
+                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`;
 
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
@@ -19668,11 +19665,10 @@ class GameCollectionManager {
                     if (cleanMediaPath.startsWith('./')) {
                         cleanMediaPath = cleanMediaPath.substring(2);
                     }
-                    const cacheBuster = new Date().getTime();
                     // Properly encode path segments to handle special characters like #
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
-                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`;
+                    const videoUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`;
 
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaPreviewContent.appendChild(mediaItem);
@@ -19797,7 +19793,7 @@ class GameCollectionManager {
 
                     // Check if file exists before displaying preview
                     const cacheBuster = new Date().getTime();
-                    const fileUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                    const fileUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}`;
 
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaPreviewContent.appendChild(mediaItem);
@@ -19968,8 +19964,6 @@ class GameCollectionManager {
                     // Skip the rest of the loop iteration since we handled ZIP
                     return;
                 } else {
-                    // Add cache-busting parameter to force image refresh
-                    const cacheBuster = new Date().getTime();
                     // Clean and encode the mediaPath properly
                     let cleanMediaPath = mediaPath;
                     if (cleanMediaPath.startsWith('./')) {
@@ -19978,7 +19972,7 @@ class GameCollectionManager {
                     // Encode path components separately to preserve "/" separators
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
-                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`;
+                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`;
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
                             <img src="${imageUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
@@ -20022,7 +20016,7 @@ class GameCollectionManager {
                         }
                         const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                         const encodedPath = pathParts.join('/');
-                        this.showMediaHover(e, `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`, field);
+                        this.showMediaHover(e, `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`, field);
                     });
                     img.addEventListener('mouseleave', () => {
                         this.hideMediaHover();
