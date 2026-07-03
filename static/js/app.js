@@ -4405,6 +4405,7 @@ class GameCollectionManager {
                 </a>
                 <a class="dropdown-item" href="#" onclick="gameManager.showSelectedGames()">
                     <i class="bi bi-eye"></i> Unhide Selected
+                </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.fillSortnameForSelected()">
                     <i class="bi bi-sort-alpha-down"></i> Fill SortName
