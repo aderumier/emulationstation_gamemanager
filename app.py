@@ -7948,7 +7948,10 @@ def index():
 
 @app.route('/roms/<path:filename>')
 def serve_rom_file(filename):
-    """Serve ROM files and media"""
+    """Serve ROM files and media (requires a logged-in session or a valid
+    external API token, so ROMs/media are not exposed to anonymous clients)."""
+    if not current_user.is_authenticated and not _check_external_api_token(request):
+        return jsonify({'error': 'Authentication required'}), 401
     # Check if it's a PDF and set proper content type with CORS headers
     if filename.lower().endswith('.pdf'):
         response = send_from_directory(ROMS_FOLDER, filename, mimetype='application/pdf')
