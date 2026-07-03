@@ -6935,10 +6935,13 @@ class GameCollectionManager {
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
                     const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${this.getMediaCacheVersion(game.path)}`;
+                    // Downscaled server-side thumbnail for the 150px card; the
+                    // hover zoom below keeps using the full-size imageUrl
+                    const thumbnailUrl = `/api/thumbnail/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${this.getMediaCacheVersion(game.path)}`;
 
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <img src="${imageUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
+                            <img src="${thumbnailUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
@@ -20005,7 +20008,9 @@ class GameCollectionManager {
                     // Encode path components separately to preserve "/" separators
                     const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
                     const encodedPath = pathParts.join('/');
-                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${this.getMediaCacheVersion(game.path)}`;
+                    // Downscaled server-side thumbnail for the 150px card; the
+                    // hover zoom handler below builds the full-size /roms URL
+                    const imageUrl = `/api/thumbnail/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${this.getMediaCacheVersion(game.path)}`;
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
                             <img src="${imageUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
