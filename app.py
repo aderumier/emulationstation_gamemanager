@@ -7968,6 +7968,64 @@ def serve_rom_file(filename):
     response.headers['Cache-Control'] = 'no-cache'
     return response
 
+THUMBNAILS_CACHE_DIR = os.path.join('var', 'cache', 'thumbnails')
+THUMBNAIL_MAX_DIMENSION = 256
+THUMBNAIL_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}
+
+@app.route('/api/thumbnail/<system_name>/<path:media_path>')
+def serve_media_thumbnail(system_name, media_path):
+    """Serve a downscaled thumbnail of a media image.
+
+    Thumbnails are generated on first request and cached on disk keyed by
+    the source file's path, mtime and size, so replacing a media file
+    invalidates its thumbnail automatically. This avoids shipping full-size
+    artwork to the grid's ~120px thumbnail cells.
+    """
+    if not current_user.is_authenticated and not _check_external_api_token(request):
+        return jsonify({'error': 'Authentication required'}), 401
+
+    source_path = os.path.abspath(os.path.join(ROMS_FOLDER, system_name, media_path))
+    roms_root = os.path.abspath(ROMS_FOLDER)
+    if not source_path.startswith(roms_root + os.sep):
+        return jsonify({'error': 'Invalid path'}), 400
+    if not os.path.isfile(source_path):
+        return jsonify({'error': 'File not found'}), 404
+
+    def _with_revalidation(response):
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
+
+    ext = os.path.splitext(source_path)[1].lower()
+    if ext not in THUMBNAIL_IMAGE_EXTENSIONS:
+        # Not a raster image we can thumbnail; serve the original
+        return _with_revalidation(send_file(source_path))
+
+    try:
+        stat = os.stat(source_path)
+        cache_key = hashlib.sha1(
+            f"{source_path}|{stat.st_mtime_ns}|{stat.st_size}|{THUMBNAIL_MAX_DIMENSION}".encode('utf-8')
+        ).hexdigest()
+        cache_path = os.path.join(THUMBNAILS_CACHE_DIR, f"{cache_key}.png")
+
+        if not os.path.isfile(cache_path):
+            from PIL import Image
+            os.makedirs(THUMBNAILS_CACHE_DIR, exist_ok=True)
+            with Image.open(source_path) as img:
+                if img.width <= THUMBNAIL_MAX_DIMENSION and img.height <= THUMBNAIL_MAX_DIMENSION:
+                    # Already small enough; serve the original
+                    return _with_revalidation(send_file(source_path))
+                img.thumbnail((THUMBNAIL_MAX_DIMENSION, THUMBNAIL_MAX_DIMENSION))
+                # PNG keeps transparency (marquees/wheels often have alpha)
+                tmp_path = f"{cache_path}.tmp{os.getpid()}"
+                img.save(tmp_path, format='PNG')
+                os.replace(tmp_path, cache_path)
+
+        return _with_revalidation(send_file(cache_path, mimetype='image/png'))
+    except Exception as e:
+        print(f"Thumbnail generation failed for {source_path}: {e}")
+        # Fall back to the original file rather than breaking the grid
+        return _with_revalidation(send_file(source_path))
+
 @app.route('/var/temp/<path:filename>')
 @login_required
 def serve_temp_file(filename):
