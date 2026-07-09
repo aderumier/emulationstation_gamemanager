@@ -8484,6 +8484,11 @@ class GameCollectionManager {
             // But ScreenScraper videos should always download directly, never try to play
             downloadBtn.onclick = (e) => {
                 e.stopPropagation();
+                // For Local Storage videos, do a direct copy (skip preview modal)
+                if (mediaType === 'video' && result.source && result.source.toLowerCase() === 'local storage') {
+                    this.downloadMultiscraperMedia(result.url, game, mediaType);
+                    return;
+                }
                 // If this is video type with VideoURL in multiscraper results, open YouTube preview modal instead
                 // EXCEPT for ScreenScraper and EmuMovies - these videos should be downloaded directly
                 if (mediaType === 'video' && videoURL && !isScreenScraper && !isEmuMovies) {
