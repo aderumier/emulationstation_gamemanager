@@ -13903,6 +13903,9 @@ def multiscraper_search_endpoint():
         except:
             pass
         
+        # Initialize results list
+        results = []
+        
         # Search local media files (local_images) - runs synchronously
         if should_run_local_images:
             local_results = search_local_media_files(system_name, media_type, game_name, direct_match=False)
