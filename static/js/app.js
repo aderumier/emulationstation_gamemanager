@@ -8383,6 +8383,10 @@ class GameCollectionManager {
             if (result.source && result.source.toLowerCase() === 'emumovies' && result.emumovies_type) {
                 titleText = `${result.source} - ${result.emumovies_type}`;
             }
+            // For Local Storage, show system name and game name instead of media type
+            if (result.source && result.source.toLowerCase() === 'local storage' && result.local_system && result.local_game_name) {
+                titleText = `${result.local_system} - ${result.local_game_name}`;
+            }
             // If this is a split item from multiple URLs, show number
             // For PDFs: only show number if target is NOT PDF/CBZ (when split into separate cards)
             // For images: only show number if target is NOT PDF/CBZ

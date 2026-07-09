@@ -13913,11 +13913,16 @@ def multiscraper_search_endpoint():
             for local_result in local_results:
                 media_key = f'{media_type}_urls'
                 urls = local_result.get(media_key, [])
-                for url in urls:
+                url_systems = local_result.get('url_systems', [])
+                local_game_name = local_result.get('game_name', '')
+                for i, url in enumerate(urls):
+                    system_name_info = url_systems[i] if i < len(url_systems) else 'Unknown'
                     results.append({
                         'url': url,
                         'source': 'Local Storage',
-                        'type': media_type
+                        'type': media_type,
+                        'local_game_name': local_game_name,
+                        'local_system': system_name_info
                     })
         
         # Filter results to only include the requested media type
