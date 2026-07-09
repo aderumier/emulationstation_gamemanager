@@ -13707,6 +13707,7 @@ def multiscraper_search_endpoint():
         # Determine which scrapers to run
         should_run_all = scrapers_selection == 'all'
         should_run_all_excluding_screenscraper = scrapers_selection == 'all_excluding_screenscraper'
+        should_run_local_images = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'local_images'
         should_run_igdb = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'igdb'
         should_run_steam = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'steam'
         should_run_screenscraper = should_run_all or scrapers_selection == 'screenscraper'
@@ -13902,9 +13903,22 @@ def multiscraper_search_endpoint():
         except:
             pass
         
+        # Search local media files (local_images) - runs synchronously
+        if should_run_local_images:
+            local_results = search_local_media_files(system_name, media_type, game_name, direct_match=False)
+            # Transform local_images results to match the expected format
+            for local_result in local_results:
+                media_key = f'{media_type}_urls'
+                urls = local_result.get(media_key, [])
+                for url in urls:
+                    results.append({
+                        'url': url,
+                        'source': 'Local Storage',
+                        'type': media_type
+                    })
+        
         # Filter results to only include the requested media type
         processing_start_time = time.time()
-        results = []
         for scraper_name, scrap_data in scrap_results.items():
             print(f"🔧 DEBUG: Processing {scraper_name} scraper data")
             if scrap_data and 'media_fields' in scrap_data:
