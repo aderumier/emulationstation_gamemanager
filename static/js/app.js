@@ -7497,6 +7497,11 @@ class GameCollectionManager {
 
         // Set default scraper selection (all excluding screenscraper)
         const scraperSelect = document.getElementById('multiscraperScraperSelect');
+        // Local Videos only applies to the video field: show it for video, hide otherwise
+        const localVideosOption = scraperSelect.querySelector('option[value="local_videos"]');
+        if (localVideosOption) {
+            localVideosOption.hidden = (mediaType !== 'video');
+        }
         scraperSelect.value = 'all_excluding_screenscraper';
 
         // Store current game and mediaType for search button

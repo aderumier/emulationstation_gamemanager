@@ -13707,7 +13707,11 @@ def multiscraper_search_endpoint():
         # Determine which scrapers to run
         should_run_all = scrapers_selection == 'all'
         should_run_all_excluding_screenscraper = scrapers_selection == 'all_excluding_screenscraper'
-        should_run_local_images = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'local_images'
+        # Local Videos matches by fuzzy game name across all systems (not by a specific
+        # per-scraper game ID), so it only runs when explicitly selected and only for the
+        # video field — the "all"/"all excluding ScreenScraper" bundles must not pull in
+        # same-named games from other systems.
+        should_run_local_videos = scrapers_selection == 'local_videos' and media_type == 'video'
         should_run_igdb = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'igdb'
         should_run_steam = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'steam'
         should_run_screenscraper = should_run_all or scrapers_selection == 'screenscraper'
@@ -13905,11 +13909,10 @@ def multiscraper_search_endpoint():
         
         # Initialize results list
         results = []
-        
-        # Search local media files (local_images) - runs synchronously
-        if should_run_local_images:
+
+        # Search local video files - runs synchronously (video field only)
+        if should_run_local_videos:
             local_results = search_local_media_files(system_name, media_type, game_name, direct_match=False)
-            # Transform local_images results to match the expected format
             for local_result in local_results:
                 media_key = f'{media_type}_urls'
                 urls = local_result.get(media_key, [])
@@ -13924,7 +13927,7 @@ def multiscraper_search_endpoint():
                         'local_game_name': local_game_name,
                         'local_system': system_name_info
                     })
-        
+
         # Filter results to only include the requested media type
         processing_start_time = time.time()
         for scraper_name, scrap_data in scrap_results.items():
