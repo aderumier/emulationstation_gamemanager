@@ -26129,31 +26129,85 @@ def run_clean_missing_medias_task(system_name, media_field, dry_run=False):
             # so a temp name can never leak into the gamelist via the listing.
             return {n.lower(): n for n in _read_dir_raw(directory) if not casetmp_re.match(n)}
 
+        def _new_tmp_name(dst_name):
+            return f".cmtmp_{os.getpid()}_{int(time.time() * 1000) % 1000000}_{dst_name}"
+
+        def _rename_landed(directory, dst_name):
+            """True when `dst_name` is present with that exact case in a fresh listing.
+            os.rename() can return success without doing anything (see rename_media_file),
+            so the listing is the only trustworthy confirmation. Retried because the SMB
+            client may briefly serve a cached directory."""
+            for attempt in range(3):
+                if dst_name in _read_dir_raw(directory):
+                    return True
+                time.sleep(0.2)
+            return False
+
+        def _rename_via_copy(directory, cur_name, dst_name):
+            """Repair path for a rename that os.rename() silently refused (see
+            rename_media_file). The target name resolves to the source's own inode, so the
+            only way out is to break that identity: copy the content to a fresh temp name,
+            unlink the old inode (which drops the stale dentry the target name resolved
+            through), then move the copy into place. Returns dst_name, or None leaving the
+            content under a .cmtmp_ name for the next run's leftover sweep to retry."""
+            cur_full = os.path.join(directory, cur_name)
+            staging_name = _new_tmp_name(dst_name)
+            staging_full = os.path.join(directory, staging_name)
+            try:
+                shutil.copy2(cur_full, staging_full)
+                # A case-insensitive share can fold the copy back onto the source; deleting
+                # the source would then destroy the only copy.
+                if os.stat(staging_full).st_ino == os.stat(cur_full).st_ino:
+                    task.update_progress(f"  ! Cannot rename '{cur_name}' -> '{dst_name}': the share folded the copy onto the source")
+                    return None
+                os.remove(cur_full)
+                _read_dir_raw(directory)
+                os.rename(staging_full, os.path.join(directory, dst_name))
+            except OSError as copy_err:
+                task.update_progress(f"  ! Failed to rename '{cur_name}' -> '{dst_name}' via copy: errno {getattr(copy_err, 'errno', '?')} ({copy_err.strerror or copy_err})")
+                return None
+
+            if not _rename_landed(directory, dst_name):
+                task.update_progress(f"  ! Rename '{cur_name}' -> '{dst_name}' still did not land; content left as '{staging_name}'")
+                return None
+            return dst_name
+
         def rename_media_file(directory, src_name, dst_name):
-            """Rename src_name -> dst_name inside `directory`. A direct case-only rename is
-            a silent no-op on case-insensitive/case-preserving shares (SMB/CIFS), so those
-            go through an intermediate temp name; both sub-renames are non-case and thus
-            reliable. We trust os.rename when it does not raise (a listdir-based check is
-            unreliable on SMB due to attribute caching). On failure we roll back so no temp
-            orphan is left, and log the real errno. Returns dst_name on success, None on
-            failure."""
+            """Rename src_name -> dst_name inside `directory`. Two things make this hard on a
+            case-insensitive/case-preserving share (SMB/CIFS):
+
+            - A direct case-only rename can be a no-op, so those go through an intermediate
+              temp name; both sub-renames are non-case and thus reliable.
+            - The target name may still resolve, through a cached dentry, to the very inode
+              we are renaming (e.g. the web UI already served the file under the gamelist's
+              spelling). Renaming a file onto itself is a successful no-op under POSIX, so
+              os.rename() returns cleanly and nothing moves.
+
+            We therefore never trust os.rename's return: every rename is confirmed against a
+            fresh listing, and an unconfirmed one is repaired via _rename_via_copy. Returns
+            dst_name on success, None on failure."""
             if src_name == dst_name:
                 return dst_name
             src_full = os.path.join(directory, src_name)
             dst_full = os.path.join(directory, dst_name)
             case_only = src_name.lower() == dst_name.lower()
+            # Name the file currently lives under, kept accurate so the repair path knows
+            # where the content is if a rename silently refuses.
+            landed_name = src_name
             try:
                 if case_only:
-                    tmp_name = f".cmtmp_{os.getpid()}_{int(time.time() * 1000) % 1000000}_{dst_name}"
+                    tmp_name = _new_tmp_name(dst_name)
                     tmp_full = os.path.join(directory, tmp_name)
                     os.rename(src_full, tmp_full)      # step 1 (non-case, reliable)
                     _read_dir_raw(directory)           # drop stale src dentry from the cache
+                    landed_name = tmp_name
                     try:
-                        os.rename(tmp_full, dst_full)  # step 2 (non-case, reliable)
+                        os.rename(tmp_full, dst_full)  # step 2 (may silently no-op)
                     except OSError:
                         # Roll the temp back to the original name so we never orphan it.
                         try:
                             os.rename(tmp_full, src_full)
+                            landed_name = src_name
                         except OSError:
                             pass
                         raise
@@ -26163,9 +26217,11 @@ def run_clean_missing_medias_task(system_name, media_field, dry_run=False):
                 task.update_progress(f"  ! Failed to rename '{src_name}' -> '{dst_name}': errno {getattr(rename_err, 'errno', '?')} ({rename_err.strerror or rename_err})")
                 return None
 
-            # os.rename is synchronous to the server, so on success the file IS renamed even
-            # if a subsequent os.listdir() is briefly stale. Update the cached view directly
-            # from what we know happened rather than re-reading (which may be cached).
+            if not _rename_landed(directory, dst_name):
+                result_name = _rename_via_copy(directory, landed_name, dst_name)
+                if result_name != dst_name:
+                    return None
+
             if directory in dir_listing_cache:
                 dir_listing_cache[directory].pop(src_name.lower(), None)
                 dir_listing_cache[directory][dst_name.lower()] = dst_name
