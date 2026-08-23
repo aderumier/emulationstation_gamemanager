@@ -11834,6 +11834,30 @@ def rom_system_gamelist(system_name):
                     basename_key = os.path.basename(key)
                     existing_games_basename_map.setdefault(basename_key, existing_game)
                 
+                # Deleting a .m3u must take the ROMs it references with it: those ROMs are
+                # hidden in the gamelist, so leaving them behind means invisible orphans
+                deleted_m3u_paths = [p for p in delete_rom_paths if (p or '').strip().lower().endswith('.m3u')]
+                if deleted_m3u_paths:
+                    deleted_normalized = {normalize_gamelist_path(p) for p in delete_rom_paths}
+                    kept_m3u_paths = [
+                        existing_game.get('path') for existing_game in existing_games
+                        if (existing_game.get('path') or '').strip().lower().endswith('.m3u')
+                        and normalize_gamelist_path(existing_game.get('path')) not in deleted_normalized
+                    ]
+                    referenced_rom_paths = [
+                        rom_path for rom_path in collect_m3u_referenced_roms_for_delete(
+                            system_path, deleted_m3u_paths, kept_m3u_paths)
+                        if normalize_gamelist_path(rom_path) not in deleted_normalized
+                    ]
+                    if referenced_rom_paths:
+                        app.logger.info(f'Also deleting {len(referenced_rom_paths)} ROM(s) referenced by the deleted playlist(s): {referenced_rom_paths}')
+                        delete_rom_paths.extend(referenced_rom_paths)
+                        # The client only removed the playlists from its games array, so drop
+                        # the referenced (hidden) entries from the gamelist here
+                        referenced_normalized = {normalize_gamelist_path(rom_path) for rom_path in referenced_rom_paths}
+                        games = [game for game in games
+                                 if normalize_gamelist_path(game.get('path')) not in referenced_normalized]
+                
                 allowed_dirs = [
                     os.path.abspath(ROMS_FOLDER),
                     os.path.abspath(os.path.join(app.root_path, 'media'))
@@ -20988,6 +21012,167 @@ def create_directory(system_name):
         print(f"Error in create_directory: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+def collect_m3u_referenced_roms_for_delete(system_path, deleted_m3u_paths, kept_m3u_paths):
+    """Return the system-relative paths of the ROM files referenced by deleted .m3u playlists
+
+    ROMs still referenced by a playlist that stays are left alone. Paths are returned in
+    gamelist form ('./sub/game.cue') so they can be appended to delete_rom_paths.
+    """
+    abs_system = os.path.abspath(system_path)
+
+    def resolve_entries(m3u_rel_path):
+        rel = (m3u_rel_path or '').replace('\\', '/').strip()
+        while rel.startswith('./'):
+            rel = rel[2:]
+        rel = rel.lstrip('/')
+        if not rel:
+            return []
+        m3u_full = os.path.abspath(os.path.join(abs_system, rel.replace('/', os.sep)))
+        if not os.path.isfile(m3u_full):
+            return []
+        m3u_dir = os.path.dirname(m3u_full)
+        resolved = []
+        for entry in parse_m3u_file(m3u_full):
+            entry_norm = entry.replace('\\', os.sep).strip()
+            if not entry_norm or os.path.isabs(entry_norm):
+                continue
+            full = os.path.abspath(os.path.join(m3u_dir, entry_norm))
+            # Never step outside the system directory
+            if full != abs_system and not full.startswith(abs_system + os.sep):
+                continue
+            resolved.append(full)
+        return resolved
+
+    kept_roms = set()
+    for m3u_rel_path in kept_m3u_paths:
+        kept_roms.update(resolve_entries(m3u_rel_path))
+
+    referenced = []
+    seen = set()
+    for m3u_rel_path in deleted_m3u_paths:
+        for full in resolve_entries(m3u_rel_path):
+            if full in kept_roms or full in seen:
+                continue
+            seen.add(full)
+            referenced.append('./' + os.path.relpath(full, abs_system).replace(os.sep, '/'))
+    return referenced
+
+def translate_moved_path(path, src_root, dst_root):
+    """Map a path that lived under src_root to where it is after src_root moved to dst_root"""
+    abs_path = os.path.abspath(path)
+    abs_src = os.path.abspath(src_root)
+    abs_dst = os.path.abspath(dst_root)
+    if abs_path == abs_src:
+        return abs_dst
+    if abs_path.startswith(abs_src + os.sep):
+        return os.path.join(abs_dst, os.path.relpath(abs_path, abs_src))
+    return abs_path
+
+def move_m3u_referenced_roms(system_rom_dir, old_m3u_full, new_m3u_full, src_root, dst_root):
+    """Move the ROM files referenced by a just-moved .m3u playlist next to the playlist
+
+    The playlist has already been moved from old_m3u_full to new_m3u_full (as part of
+    moving src_root to dst_root, which is either the .m3u itself or its parent
+    directory). Referenced ROMs that did not travel with the playlist are moved into
+    its new directory and the playlist entries are rewritten as plain filenames.
+
+    Returns a dict with:
+        path_updates: old gamelist path -> new gamelist path for each moved ROM
+        undo: list of (current_full, original_full) to reverse the ROM moves
+        original_content: playlist content before rewriting (None if not rewritten)
+        errors: problems found, the matching references are left untouched
+    """
+    result = {'path_updates': {}, 'undo': [], 'original_content': None, 'errors': []}
+
+    try:
+        with open(new_m3u_full, 'r', encoding='utf-8') as f:
+            original_content = f.read()
+    except Exception as e:
+        result['errors'].append(f'Could not read playlist {os.path.basename(new_m3u_full)}: {e}')
+        return result
+
+    abs_system_dir = os.path.abspath(system_rom_dir)
+    old_m3u_dir = os.path.dirname(os.path.abspath(old_m3u_full))
+    new_m3u_dir = os.path.dirname(os.path.abspath(new_m3u_full))
+
+    new_lines = []
+    rewritten = False
+
+    for line in original_content.splitlines():
+        entry = line.strip()
+        # Keep empty lines and comments as-is
+        if not entry or entry.startswith('#'):
+            new_lines.append(line)
+            continue
+
+        entry_norm = entry.replace('\\', os.sep)
+        if os.path.isabs(entry_norm):
+            result['errors'].append(f'Skipped absolute reference: {entry}')
+            new_lines.append(line)
+            continue
+
+        # Where the entry pointed before the move, and where that file is now
+        old_full = os.path.abspath(os.path.join(old_m3u_dir, entry_norm))
+        if old_full != abs_system_dir and not old_full.startswith(abs_system_dir + os.sep):
+            result['errors'].append(f'Skipped reference outside system directory: {entry}')
+            new_lines.append(line)
+            continue
+
+        current_full = translate_moved_path(old_full, src_root, dst_root)
+        target_full = os.path.join(new_m3u_dir, os.path.basename(current_full))
+
+        if os.path.abspath(current_full) != os.path.abspath(target_full):
+            if not os.path.exists(current_full):
+                result['errors'].append(f'Referenced ROM not found: {entry}')
+                new_lines.append(line)
+                continue
+            if os.path.exists(target_full):
+                # Can't move it next to the playlist, so point the entry at where it stayed
+                result['errors'].append(f'{os.path.basename(target_full)} already exists in the destination directory')
+                new_lines.append(os.path.relpath(current_full, new_m3u_dir).replace(os.sep, '/'))
+                rewritten = True
+                continue
+            print(f"Moving M3U referenced ROM from {current_full} to {target_full}")
+            shutil.move(current_full, target_full)
+            result['undo'].append((target_full, current_full))
+
+        # Referenced ROMs now sit next to the playlist, so entries are plain filenames
+        new_entry = os.path.basename(target_full)
+        if new_entry != entry:
+            rewritten = True
+        new_lines.append(new_entry)
+
+        old_rel = './' + os.path.relpath(old_full, abs_system_dir).replace(os.sep, '/')
+        new_rel = './' + os.path.relpath(target_full, abs_system_dir).replace(os.sep, '/')
+        if old_rel != new_rel:
+            result['path_updates'][old_rel] = new_rel
+
+    if rewritten:
+        # Keep the playlist's original line endings
+        newline = '\r\n' if '\r\n' in original_content else '\n'
+        with open(new_m3u_full, 'w', encoding='utf-8', newline='') as f:
+            f.write(newline.join(new_lines))
+            if original_content.endswith('\n'):
+                f.write(newline)
+        result['original_content'] = original_content
+
+    return result
+
+def undo_m3u_referenced_moves(new_m3u_full, m3u_result):
+    """Reverse move_m3u_referenced_roms(), used when a ROM move is rolled back"""
+    for current_full, original_full in reversed(m3u_result.get('undo', [])):
+        try:
+            os.makedirs(os.path.dirname(original_full), exist_ok=True)
+            shutil.move(current_full, original_full)
+        except Exception as e:
+            print(f"ERROR: could not roll back M3U referenced ROM {current_full}: {e}")
+    if m3u_result.get('original_content') is not None:
+        try:
+            with open(new_m3u_full, 'w', encoding='utf-8', newline='') as f:
+                f.write(m3u_result['original_content'])
+        except Exception as e:
+            print(f"ERROR: could not restore playlist content for {new_m3u_full}: {e}")
+
 @app.route('/api/rom-system/<system_name>/move-rom', methods=['POST'])
 @login_required
 def move_rom(system_name):
@@ -21082,6 +21267,16 @@ def move_rom(system_name):
                 new_game_path = os.path.join(new_path_for_move, os.path.basename(full_game_path))
             else:
                 new_game_path = new_path_for_move
+            
+            # A .m3u playlist is useless without the ROMs it references: move them
+            # into the playlist's new directory as well
+            m3u_result = None
+            if os.path.isfile(new_game_path) and new_game_path.lower().endswith('.m3u'):
+                m3u_result = move_m3u_referenced_roms(
+                    system_rom_dir, full_game_path, new_game_path, src_to_move, new_path_for_move
+                )
+                for m3u_error in m3u_result['errors']:
+                    print(f"M3U move warning: {m3u_error}")
                 
             # Update the gamelist
             print(f"Updating gamelist for {system_name}")
@@ -21093,6 +21288,8 @@ def move_rom(system_name):
                 new_relative = './' + new_relative
             # Use batch function with single entry
             path_updates = {game_path: new_relative}
+            if m3u_result:
+                path_updates.update(m3u_result['path_updates'])
             update_result = update_gamelist_after_move_batch(system_name, path_updates)
             
             if not update_result.get('success', False):
@@ -21102,6 +21299,8 @@ def move_rom(system_name):
                 # Try to move the file back to original location
                 try:
                     print(f"Attempting to rollback file move...")
+                    if m3u_result:
+                        undo_m3u_referenced_moves(new_game_path, m3u_result)
                     shutil.move(new_path_for_move, src_to_move)
                     print(f"Rollback successful")
                 except Exception as rollback_error:
@@ -21118,11 +21317,16 @@ def move_rom(system_name):
             
             print(f"Gamelist update completed successfully ({update_result.get('updated_count', 0)} paths updated)")
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'message': f'ROM moved successfully to {destination_path}',
                 'new_path': os.path.relpath(new_game_path, system_rom_dir).replace('\\', '/')
-            })
+            }
+            if m3u_result:
+                response_data['m3u_moved_count'] = len(m3u_result['undo'])
+                if m3u_result['errors']:
+                    response_data['warnings'] = m3u_result['errors']
+            return jsonify(response_data)
             
         except PermissionError:
             return jsonify({'error': 'Permission denied'}), 403
@@ -21279,7 +21483,9 @@ def move_roms_bulk(system_name):
         # Process each game - collect path updates for batch processing
         moved_games = []
         failed_games = []
+        m3u_warnings = []
         path_updates = {}  # Dictionary: old_path -> new_path
+        m3u_moved_paths = {}  # ROMs already relocated by a moved .m3u: normalized old path -> new path
         
         for game_data in games:
             game_path = game_data.get('path', '')
@@ -21305,6 +21511,16 @@ def move_roms_bulk(system_name):
                 # Security checks
                 if not os.path.abspath(full_game_path).startswith(os.path.abspath(system_rom_dir)):
                     failed_games.append({'name': game_name, 'error': 'Path outside system directory'})
+                    continue
+                
+                # The ROM may already have been relocated as part of a .m3u moved earlier
+                # in this batch (the playlist drags its referenced ROMs along)
+                if normalized_game_path in m3u_moved_paths:
+                    moved_games.append({
+                        'name': game_name,
+                        'old_path': game_path,
+                        'new_path': m3u_moved_paths[normalized_game_path]
+                    })
                     continue
                 
                 if not os.path.exists(full_game_path):
@@ -21347,6 +21563,19 @@ def move_roms_bulk(system_name):
                     new_game_path = os.path.join(new_path_for_move, os.path.basename(full_game_path))
                 else:
                     new_game_path = new_path_for_move
+                
+                # A .m3u playlist is useless without the ROMs it references: move them
+                # into the playlist's new directory as well
+                if os.path.isfile(new_game_path) and new_game_path.lower().endswith('.m3u'):
+                    m3u_result = move_m3u_referenced_roms(
+                        system_rom_dir, full_game_path, new_game_path, src_to_move, new_path_for_move
+                    )
+                    for m3u_error in m3u_result['errors']:
+                        print(f"M3U move warning ({game_name}): {m3u_error}")
+                        m3u_warnings.append(f'{game_name}: {m3u_error}')
+                    path_updates.update(m3u_result['path_updates'])
+                    for old_rel, new_rel in m3u_result['path_updates'].items():
+                        m3u_moved_paths[old_rel.removeprefix('./')] = new_rel
                 
                 # Store path update for batch processing
                 new_relative = os.path.relpath(new_game_path, system_rom_dir).replace('\\', '/')
@@ -21391,6 +21620,9 @@ def move_roms_bulk(system_name):
             'moved_games': moved_games,
             'failed_games': failed_games
         }
+        
+        if m3u_warnings:
+            response_data['warnings'] = m3u_warnings
         
         if gamelist_update_failed:
             response_data['message'] = f'Moved {len(moved_games)} files but gamelist update failed. Files are moved but gamelist.xml was not updated.'
@@ -21624,6 +21856,123 @@ def create_m3u_from_games(system_name):
         })
     except Exception as e:
         print(f"Error in create_m3u_from_games: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/rom-system/<system_name>/games/ungroup-m3u', methods=['POST'])
+@login_required
+def ungroup_m3u(system_name):
+    """Undo a .m3u grouping: delete the playlist file and its gamelist entry, unhide the
+    ROMs it referenced and hand the playlist's media back to the first of them.
+    The referenced ROM files themselves are left untouched."""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
+    try:
+        data = request.get_json(force=True) or {}
+        rom_path = (data.get('rom_path') or '').strip()
+        if not rom_path:
+            return jsonify({'error': 'rom_path is required'}), 400
+        if not rom_path.lower().endswith('.m3u'):
+            return jsonify({'error': 'Not a .m3u playlist'}), 400
+
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.isdir(system_path):
+            return jsonify({'error': 'System ROMs directory not found'}), 404
+
+        def normalize(path_value):
+            if not path_value:
+                return ''
+            normalized = path_value.replace('\\', '/').strip()
+            while normalized.startswith('./'):
+                normalized = normalized[2:]
+            return normalized.lstrip('/')
+
+        normalized_m3u = normalize(rom_path)
+        m3u_full_path = os.path.abspath(os.path.join(system_path, normalized_m3u.replace('/', os.sep)))
+        if not m3u_full_path.startswith(os.path.abspath(system_path) + os.sep):
+            return jsonify({'error': 'Access denied: path outside system directory'}), 403
+        if not os.path.isfile(m3u_full_path):
+            return jsonify({'error': 'Playlist file not found on disk'}), 404
+
+        games = parse_gamelist_xml(gamelist_path)
+        m3u_entry = next((g for g in games if normalize(g.get('path')) == normalized_m3u), None)
+
+        # ROMs referenced by the playlist, as gamelist paths ('./sub/game.cue')
+        referenced_paths = collect_m3u_referenced_roms_for_delete(system_path, [rom_path], [])
+        referenced_normalized = [normalize(p) for p in referenced_paths]
+
+        # Unhide the referenced ROMs so they show up as individual games again
+        games_by_path = {normalize(g.get('path')): g for g in games if g.get('path')}
+        unhidden_count = 0
+        for referenced in referenced_normalized:
+            game = games_by_path.get(referenced)
+            if game is not None and game.get('hidden') == 'true':
+                game['hidden'] = 'false'
+                unhidden_count += 1
+
+        # Creating the playlist renamed the first ROM's media to the playlist basename,
+        # so give those files back to the first referenced ROM (fields it still lacks)
+        media_restored = 0
+        orphaned_media = []
+        first_game = games_by_path.get(referenced_normalized[0]) if referenced_normalized else None
+        if m3u_entry:
+            config = load_config()
+            media_fields = config.get('media_fields', {})
+            for field_name, field_config in media_fields.items():
+                media_path = m3u_entry.get(field_name, '')
+                if not media_path or not isinstance(media_path, str) or not media_path.strip():
+                    continue
+                rel = normalize(media_path)
+                full_src = os.path.join(system_path, rel.replace('/', os.sep))
+                if not os.path.isfile(full_src):
+                    continue
+                if first_game is None or (first_game.get(field_name) or '').strip():
+                    # Nowhere to put it back: leave the file alone and report it
+                    orphaned_media.append(rel)
+                    continue
+                ext = os.path.splitext(full_src)[1]
+                target_filename = create_media_filename(first_game.get('path'), ext)
+                media_dir = field_config.get('directory', field_name)
+                target_rel = 'media/' + media_dir + '/' + target_filename
+                full_dst = os.path.join(system_path, target_rel.replace('/', os.sep))
+                try:
+                    os.makedirs(os.path.dirname(full_dst), exist_ok=True)
+                    if os.path.abspath(full_dst) != os.path.abspath(full_src):
+                        if os.path.exists(full_dst):
+                            orphaned_media.append(rel)
+                            continue
+                        shutil.move(full_src, full_dst)
+                    first_game[field_name] = './' + target_rel
+                    media_restored += 1
+                except Exception as e:
+                    print(f"Warning: could not restore media {full_src} -> {full_dst}: {e}")
+                    orphaned_media.append(rel)
+
+        # Drop the playlist entry and delete the .m3u file (ROM files stay put)
+        games = [g for g in games if normalize(g.get('path')) != normalized_m3u]
+        os.remove(m3u_full_path)
+        print(f"Ungrouped playlist {rom_path}: deleted the .m3u, unhid {unhidden_count} ROM(s)")
+
+        write_gamelist_xml(games, gamelist_path)
+        save_gamelist_to_roms(system_name)
+        invalidate_game_count_cache(system_name)
+        notify_gamelist_updated(system_name, len(games))
+
+        return jsonify({
+            'success': True,
+            'm3u_path': rom_path,
+            'unhidden_count': unhidden_count,
+            'referenced_count': len(referenced_paths),
+            'media_restored': media_restored,
+            'orphaned_media': orphaned_media
+        })
+    except Exception as e:
+        print(f"Error in ungroup_m3u: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500

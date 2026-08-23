@@ -4388,6 +4388,10 @@ class GameCollectionManager {
                 <a class="dropdown-item" href="#" data-action="create-m3u">
                     <i class="bi bi-list-ul"></i> Create .m3u
                 </a>
+                ${(game.path || '').toLowerCase().endsWith('.m3u') ? `
+                <a class="dropdown-item" href="#" data-action="ungroup-m3u">
+                    <i class="bi bi-scissors"></i> Ungroup .m3u
+                </a>` : ''}
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" data-action="toggle-hidden">
                     <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Unhidden' : 'Hide'} Game
@@ -4458,6 +4462,9 @@ class GameCollectionManager {
                     break;
                 case 'create-m3u':
                     this.createM3uForSelected(game);
+                    break;
+                case 'ungroup-m3u':
+                    this.ungroupM3u(game);
                     break;
                 case 'toggle-hidden':
                     this.toggleGameHidden(game);
@@ -5107,6 +5114,37 @@ class GameCollectionManager {
         }
     }
 
+    async ungroupM3u(game) {
+        if (!game || !game.path || !game.path.toLowerCase().endsWith('.m3u')) {
+            this.showAlert('This game is not a .m3u playlist', 'warning');
+            return;
+        }
+        const confirmMessage = `Ungroup "${game.name || game.path}"?\n\nThe .m3u file and its gamelist entry are removed and the ROMs it references become visible games again. The ROM files themselves are kept.`;
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/games/ungroup-m3u`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rom_path: game.path })
+            });
+            const result = await response.json();
+            if (result.success) {
+                // Grid refresh is handled by the gamelist_updated WebSocket event
+                this.showToast(`Ungrouped .m3u and unhid ${result.unhidden_count || 0} game(s)`, 'success');
+                if (result.orphaned_media && result.orphaned_media.length > 0) {
+                    this.showAlert(`Media left without a game:<br>${result.orphaned_media.join('<br>')}`, 'warning');
+                }
+            } else {
+                this.showAlert(result.error || 'Failed to ungroup .m3u', 'error');
+            }
+        } catch (error) {
+            console.error('Error ungrouping .m3u:', error);
+            this.showAlert('Failed to ungroup .m3u', 'error');
+        }
+    }
+
     async moveRom(game) {
         this.movingGame = game;
         this.movingGames = [game]; // Single game in array for consistency
@@ -5483,6 +5521,11 @@ class GameCollectionManager {
             if (result.success) {
                 const gameCount = games.length;
                 this.showAlert(`${gameCount} game${gameCount > 1 ? 's' : ''} moved successfully`, 'success');
+
+                // Some ROMs referenced by a moved .m3u could not follow it
+                if (result.warnings && result.warnings.length > 0) {
+                    this.showAlert(`Playlist warnings:<br>${result.warnings.join('<br>')}`, 'warning');
+                }
 
                 // Close the modal
                 const modal = bootstrap.Modal.getInstance(modalEl);
