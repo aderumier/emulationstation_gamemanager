@@ -1115,7 +1115,7 @@ class BoxGenerator:
         logging.info(f"✅ Spine background generated successfully: {output_path}")
         return output_path
 
-    def generate_3dbox(self, background_path, box2d_path, output_path, corners, spine_corners=None, spine_image_path=None, spine_logo_path=None, generated_spine_path=None, spine_logo_zone=None, spine_logo_corners=None, spine_text_logo_settings=None, spine_game_name='', spine_from_field=False, debug=False):
+    def generate_3dbox(self, background_path, box2d_path, output_path, corners, spine_corners=None, spine_image_path=None, spine_logo_path=None, generated_spine_path=None, spine_logo_zone=None, spine_logo_corners=None, spine_text_logo_settings=None, spine_game_name='', spine_from_field=False):
         """
         Generate a 3D box by applying perspective distortion to a 2D box image
         and compositing it onto a 3D box template.
@@ -1142,7 +1142,6 @@ class BoxGenerator:
             spine_text_logo_settings: Optional dict with text logo settings for spine (color, font_size, font, etc.)
             spine_game_name: Optional game name for spine text logo generation
             spine_from_field: If True, spine comes from a game field and logo/text should never be added
-            debug: If True, keep intermediate temp images for debugging
         """
         temp_files = []
         temp_dir = None
@@ -1180,21 +1179,11 @@ class BoxGenerator:
             logging.info(f"3D Box: Resize dimensions {resize_width}x{resize_height}")
             logging.info(f"3D Box: Target corners - TL({target_topleft_x},{target_topleft_y}) TR({target_topright_x},{target_topright_y}) BL({target_bottomleft_x},{target_bottomleft_y}) BR({target_bottomright_x},{target_bottomright_y})")
             
-            # Create temp directory - use fixed location for debug mode
-            if debug:
-                temp_dir = 'var/debug/3dbox'
-                os.makedirs(temp_dir, exist_ok=True)
-                # Use output filename as base for debug files
-                output_base = os.path.splitext(os.path.basename(output_path))[0]
-                temp_resized = os.path.join(temp_dir, f'{output_base}_1_resized.png')
-                temp_perspective = os.path.join(temp_dir, f'{output_base}_2_perspective.png')
-                temp_perspective_resized = os.path.join(temp_dir, f'{output_base}_3_perspective_resized.png')
-                logging.info(f"🔧 DEBUG MODE: Keeping intermediate files in {temp_dir}")
-            else:
-                temp_dir = tempfile.mkdtemp(prefix='3dbox_')
-                temp_resized = os.path.join(temp_dir, 'resized_2dbox.png')
-                temp_perspective = os.path.join(temp_dir, 'perspective_2dbox.png')
-                temp_perspective_resized = os.path.join(temp_dir, 'perspective_resized_2dbox.png')
+            # Create temp directory for the intermediate images
+            temp_dir = tempfile.mkdtemp(prefix='3dbox_')
+            temp_resized = os.path.join(temp_dir, 'resized_2dbox.png')
+            temp_perspective = os.path.join(temp_dir, 'perspective_2dbox.png')
+            temp_perspective_resized = os.path.join(temp_dir, 'perspective_resized_2dbox.png')
             
             temp_files.append(temp_resized)
             temp_files.append(temp_perspective)
@@ -1235,8 +1224,6 @@ class BoxGenerator:
             ]
             logging.info(f"3D Box Step 1-3 (Combined) - Resize, Perspective, Resize: {' '.join(cmd_combined)}")
             subprocess.run(cmd_combined, check=True)
-            if debug:
-                logging.info(f"🔧 DEBUG: Combined processed image saved to: {temp_perspective_resized}")
             
             # Step 4: Composite the distorted 2D box onto the 3D box template
             # Use composite with exact geometry positioning at source top-left coordinates
@@ -1293,29 +1280,12 @@ class BoxGenerator:
                             logging.warning(f"Spine source image not found: {spine_source_image}, skipping spine")
                         else:
                             # Create temp files for spine
-                            if debug:
-                                output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                temp_spine_resized = os.path.join(temp_dir, f'{output_base}_spine_1_resized.png')
-                                temp_spine_perspective = os.path.join(temp_dir, f'{output_base}_spine_2_perspective.png')
-                                temp_spine_perspective_resized = os.path.join(temp_dir, f'{output_base}_spine_3_perspective_resized.png')
-                            else:
-                                temp_spine_resized = os.path.join(temp_dir, 'spine_resized.png')
-                                temp_spine_perspective = os.path.join(temp_dir, 'spine_perspective.png')
-                                temp_spine_perspective_resized = os.path.join(temp_dir, 'spine_perspective_resized.png')
+                            temp_spine_resized = os.path.join(temp_dir, 'spine_resized.png')
+                            temp_spine_perspective = os.path.join(temp_dir, 'spine_perspective.png')
+                            temp_spine_perspective_resized = os.path.join(temp_dir, 'spine_perspective_resized.png')
                             
                             # Check if this is a generated spine (from cropped 2D box) vs uploaded/field spine
                             is_generated_spine = (generated_spine_path and spine_source_image == generated_spine_path)
-                            
-                            # Create temp files for spine
-                            if debug:
-                                output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                temp_spine_resized = os.path.join(temp_dir, f'{output_base}_spine_1_resized.png')
-                                temp_spine_perspective = os.path.join(temp_dir, f'{output_base}_spine_2_perspective.png')
-                                temp_spine_perspective_resized = os.path.join(temp_dir, f'{output_base}_spine_3_perspective_resized.png')
-                            else:
-                                temp_spine_resized = os.path.join(temp_dir, 'spine_resized.png')
-                                temp_spine_perspective = os.path.join(temp_dir, 'spine_perspective.png')
-                                temp_spine_perspective_resized = os.path.join(temp_dir, 'spine_perspective_resized.png')
                             
                             # Compute spine source coordinates (needed for perspective)
                             spine_source_topleft_x = spine_target_topleft_x
@@ -1433,11 +1403,7 @@ class BoxGenerator:
                                             effective_zone_width = zone_width_resized
                                             if effective_zone_width and effective_zone_width > 0:
                                                 # Create temp file for resized preview logo
-                                                if debug:
-                                                    output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                                    temp_preview_logo_resized = os.path.join(temp_dir, f'{output_base}_preview_logo_resized.png')
-                                                else:
-                                                    temp_preview_logo_resized = os.path.join(temp_dir, 'preview_logo_resized.png')
+                                                temp_preview_logo_resized = os.path.join(temp_dir, 'preview_logo_resized.png')
                                                 temp_files.append(temp_preview_logo_resized)
                                                 
                                                 # Get original dimensions
@@ -1480,11 +1446,7 @@ class BoxGenerator:
                                             # Fallback: use spine dimensions if zone isn't available
                                             if spine_resize_width > 0:
                                                 # Create temp file for resized preview logo
-                                                if debug:
-                                                    output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                                    temp_preview_logo_resized = os.path.join(temp_dir, f'{output_base}_preview_logo_resized.png')
-                                                else:
-                                                    temp_preview_logo_resized = os.path.join(temp_dir, 'preview_logo_resized.png')
+                                                temp_preview_logo_resized = os.path.join(temp_dir, 'preview_logo_resized.png')
                                                 temp_files.append(temp_preview_logo_resized)
                                                 
                                                 # Get original dimensions
@@ -1528,11 +1490,7 @@ class BoxGenerator:
                             
                             if has_text_logo and not has_logo:
                                 # Generate text logo for spine
-                                if debug:
-                                    output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                    temp_text_logo = os.path.join(temp_dir, f'{output_base}_spine_text_logo.png')
-                                else:
-                                    temp_text_logo = os.path.join(temp_dir, 'spine_text_logo.png')
+                                temp_text_logo = os.path.join(temp_dir, 'spine_text_logo.png')
                                 temp_files.append(temp_text_logo)
                                 
                                 # Generate logo with zone height as width, zone width as height
@@ -1682,11 +1640,7 @@ class BoxGenerator:
                                     logging.info(f"3D Box Spine: Adding logo from {spine_logo_to_use}")
                                     
                                     # Create temp file for rotated and resized logo
-                                    if debug:
-                                        output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                        temp_logo_rotated_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_rotated_resized.png')
-                                    else:
-                                        temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
+                                    temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
                                     
                                     temp_files.append(temp_logo_rotated_resized)
                                     
@@ -2038,11 +1992,7 @@ class BoxGenerator:
                                         logging.info(f"3D Box Spine: Adding logo from {spine_logo_to_use}")
                                         
                                         # Create temp file for rotated and resized logo
-                                        if debug:
-                                            output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                            temp_logo_rotated_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_rotated_resized.png')
-                                        else:
-                                            temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
+                                        temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
                                         
                                         temp_files.append(temp_logo_rotated_resized)
                                         
@@ -2472,11 +2422,7 @@ class BoxGenerator:
                                     # Generate or prepare logo
                                     if has_text_logo and not has_logo:
                                         # Generate text logo
-                                        if debug:
-                                            output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                            temp_logo_for_corners = os.path.join(temp_dir, f'{output_base}_spine_logo_corners.png')
-                                        else:
-                                            temp_logo_for_corners = os.path.join(temp_dir, 'spine_logo_corners.png')
+                                        temp_logo_for_corners = os.path.join(temp_dir, 'spine_logo_corners.png')
                                         temp_files.append(temp_logo_for_corners)
                                         
                                         # Generate single-line text logo with the calculated width
@@ -2498,13 +2444,8 @@ class BoxGenerator:
                                     
                                     if logo_file_for_corners and os.path.exists(logo_file_for_corners):
                                         # Create temp file for resized and transformed logo
-                                        if debug:
-                                            output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                            temp_logo_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_corners_resized.png')
-                                            temp_logo_transformed = os.path.join(temp_dir, f'{output_base}_spine_logo_corners_transformed.png')
-                                        else:
-                                            temp_logo_resized = os.path.join(temp_dir, 'spine_logo_corners_resized.png')
-                                            temp_logo_transformed = os.path.join(temp_dir, 'spine_logo_corners_transformed.png')
+                                        temp_logo_resized = os.path.join(temp_dir, 'spine_logo_corners_resized.png')
+                                        temp_logo_transformed = os.path.join(temp_dir, 'spine_logo_corners_transformed.png')
                                         temp_files.extend([temp_logo_resized, temp_logo_transformed])
                                         
                                         # Step 1: Resize logo to fit bounding box
@@ -2565,9 +2506,6 @@ class BoxGenerator:
                                     logging.warning(f"Invalid logo corner dimensions: {logo_resize_width}x{logo_resize_height}")
             
             logging.info(f"✅ 3D Box generated successfully: {output_path}")
-            if debug:
-                logging.info(f"🔧 DEBUG: Final output saved to: {output_path}")
-                logging.info(f"🔧 DEBUG: All intermediate files kept in: {temp_dir}")
             return True
             
         except subprocess.CalledProcessError as e:
@@ -2577,21 +2515,20 @@ class BoxGenerator:
             logging.error(f"Error generating 3D box: {e}")
             raise
         finally:
-            # Cleanup temp files only if not in debug mode
-            if not debug:
-                for temp_file in temp_files:
-                    try:
-                        if os.path.exists(temp_file):
-                            os.remove(temp_file)
-                    except Exception as e:
-                        logging.warning(f"Could not remove temp file {temp_file}: {e}")
-                # Also cleanup temp directory
-                if temp_dir and os.path.exists(temp_dir) and temp_dir.startswith('/tmp'):
-                    try:
-                        import shutil
-                        shutil.rmtree(temp_dir)
-                    except Exception as e:
-                        logging.warning(f"Could not remove temp dir {temp_dir}: {e}")
+            # Cleanup temp files
+            for temp_file in temp_files:
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except Exception as e:
+                    logging.warning(f"Could not remove temp file {temp_file}: {e}")
+            # Also cleanup temp directory
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    import shutil
+                    shutil.rmtree(temp_dir)
+                except Exception as e:
+                    logging.warning(f"Could not remove temp dir {temp_dir}: {e}")
 
 
 def generate_2d_box_simple(titlescreen_path, gameplay_path, logo_path, output_path, 

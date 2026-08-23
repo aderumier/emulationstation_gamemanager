@@ -30427,8 +30427,6 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 output_filename = f"{rom_base}.png"
                 output_path = os.path.join(output_dir, output_filename)
                 
-                # Generate 3D box (debug mode for first game only to avoid filling disk)
-                is_first_game = (processed == 0 and failed == 0)
                 # When using generated spine, pass None for spine_image_path so it uses the same workflow
                 # as when no spine is provided (uses generated_spine_path or box2d_path)
                 spine_image_path_for_call = game_spine_path if game_spine_path and not generated_spine_path else None
@@ -30501,8 +30499,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     spine_logo_corners=spine_logo_corners,  # Optional spine logo corners for perspective placement
                     spine_text_logo_settings=spine_text_logo_settings_for_call,  # Text logo settings for generated spines
                     spine_game_name=game_name,  # Game name for text logo generation
-                    spine_from_field=spine_from_field,  # Flag indicating spine is from field (never add logo/text)
-                    debug=is_first_game
+                    spine_from_field=spine_from_field  # Flag indicating spine is from field (never add logo/text)
                 )
                 
                 # Update gamelist.xml
@@ -33273,8 +33270,7 @@ def preview_3dbox():
             spine_logo_corners=spine_logo_corners,  # Optional spine logo corners for perspective placement
             spine_text_logo_settings=spine_text_logo_settings_for_call,  # Text logo settings for generated spines
             spine_game_name=game_name,  # Game name for text logo generation
-            spine_from_field=spine_from_field,  # Flag indicating spine is from field (never add logo/text)
-            debug=False  # Don't keep intermediate files
+            spine_from_field=spine_from_field  # Flag indicating spine is from field (never add logo/text)
         )
         
         if not os.path.exists(output_path):
