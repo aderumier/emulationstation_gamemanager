@@ -819,51 +819,98 @@ class SteamService:
         except Exception as e:
             return None
 
-    async def _extract_screenshot_url(self, client: httpx.AsyncClient, store_page_url: str, steam_id: int) -> Optional[str]:
-        """Extract the first screenshot image URL from Steam Store page using BeautifulSoup"""
+    # Headers that make the Steam store page return the full desktop markup
+    STORE_PAGE_HEADERS = {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="140", "Google Chrome";v="140"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Linux"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        # Pre-answered age gate: mature titles otherwise redirect to /agecheck/ and the
+        # page carries no media at all.
+        'Cookie': 'birthtime=283993201; lastagecheckage=1-January-1980; wants_mature_content=1; mature_content=1'
+    }
+
+    @staticmethod
+    def parse_screenshot_urls(html_content: str) -> List[str]:
+        """Extract screenshot image URLs from a Steam Store page.
+
+        Steam no longer renders screenshots as <img alt="Screenshot #N"> tags: they are
+        embedded as JSON in the data-props attribute of the highlight carousel, with
+        'thumbnail'/'standard'/'full' variants per screenshot. Prefer the full-size URL.
+        """
+        urls: List[str] = []
+        seen = set()
+
+        def add(url: Optional[str]):
+            if url and 'blank.gif' not in url.lower() and url not in seen:
+                seen.add(url)
+                urls.append(url)
+
         try:
-            # Set headers to mimic a real browser request
-            headers = {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'Accept-Encoding': 'gzip, deflate, br, zstd',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-                'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="140", "Google Chrome";v="140"',
-                'Sec-Ch-Ua-Mobile': '?0',
-                'Sec-Ch-Ua-Platform': '"Linux"',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Upgrade-Insecure-Requests': '1'
-            }
-            
-            # Fetch the Steam Store page with redirect following
-            response = await client.get(store_page_url, headers=headers, follow_redirects=True)
-            
-            if response.status_code != 200:
-                return None
-            
-            html_content = response.text
-            
-            # Parse HTML with BeautifulSoup
             soup = BeautifulSoup(html_content, 'html.parser')
-            
-            # Look for images with alt="Screenshot #1" attribute, filtering out blank.gif
-            screenshot_imgs = soup.find_all('img', alt='Screenshot #1')
-            
-            # Look for the first valid screenshot (not blank.gif)
-            for screenshot_img in screenshot_imgs:
-                screenshot_url = screenshot_img.get('src', '')
-                
-                # Skip blank.gif or empty URLs
-                if screenshot_url and 'blank.gif' not in screenshot_url.lower():
-                    return screenshot_url
-            
-            return None
-                
+            for element in soup.find_all(attrs={'data-props': True}):
+                data_props = element.get('data-props') or ''
+                if 'screenshots' not in data_props:
+                    continue
+                try:
+                    props_data = json.loads(data_props)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                for shot in props_data.get('screenshots') or []:
+                    if isinstance(shot, dict):
+                        add(shot.get('full') or shot.get('standard') or shot.get('thumbnail'))
+                    elif isinstance(shot, str):
+                        add(shot)
         except Exception as e:
-            return None
+            logger.warning(f"Failed to parse Steam screenshots from data-props: {e}")
+
+        if not urls:
+            # Fallback: scrape any full-size screenshot URL straight out of the markup
+            # (covers layout changes where the carousel props are shaped differently).
+            for match in re.findall(r'https://[\w.\-]*steamstatic\.com/[^"\'\\\s]*?/ss_[0-9a-f]{16,}\.\d+x\d+\.jpg[^"\'\\\s]*', html_content):
+                add(match.replace('\\/', '/'))
+
+        return urls
+
+    async def get_screenshot_urls(self, steam_id: int, client: Optional[httpx.AsyncClient] = None,
+                                  limit: Optional[int] = None) -> List[str]:
+        """Fetch the Steam Store page for an app and return its screenshot URLs"""
+        if not steam_id:
+            return []
+
+        store_page_url = f"https://store.steampowered.com/app/{steam_id}"
+
+        async def fetch(http_client: httpx.AsyncClient) -> List[str]:
+            response = await http_client.get(store_page_url, headers=self.STORE_PAGE_HEADERS,
+                                             follow_redirects=True)
+            if response.status_code != 200:
+                logger.warning(f"Steam store page for {steam_id} returned {response.status_code}")
+                return []
+            return self.parse_screenshot_urls(response.text)
+
+        try:
+            if client is not None:
+                urls = await fetch(client)
+            else:
+                async with httpx.AsyncClient(timeout=30.0) as own_client:
+                    urls = await fetch(own_client)
+        except Exception as e:
+            logger.error(f"Error fetching Steam screenshots for {steam_id}: {e}")
+            return []
+
+        return urls[:limit] if limit else urls
+
+    async def _extract_screenshot_url(self, client: httpx.AsyncClient, store_page_url: str, steam_id: int) -> Optional[str]:
+        """Extract the first screenshot image URL from a Steam Store page"""
+        urls = await self.get_screenshot_urls(steam_id, client=client, limit=1)
+        return urls[0] if urls else None
 
     def find_similarity_matches(self, game_name: str, steam_apps: List[Dict], limit: int = 10) -> List[Dict]:
         """Find Steam games using similarity algorithm with global partitioned index"""

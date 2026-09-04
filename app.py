@@ -14852,6 +14852,11 @@ def download_multiscraper_media_endpoint():
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 
+# Screenshots cost one Steam store page fetch per matching app, so cap how many
+# similarity matches we resolve in a cross-system search.
+STEAM_SCREENSHOT_SEARCH_LIMIT = 10
+
+
 def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, media_type, cancel_event=None):
     """Common helper to search media by scraper for a given media_type (e.g., 'fanart', 'marquee', 'boxart', etc.).
     
@@ -15104,28 +15109,60 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
             if scraper_config and 'image_type_mappings' in scraper_config:
                 steam_type = scraper_config['image_type_mappings'].get(media_type)
             
-            # Steam URL patterns based on type
+            # Steam URL patterns based on type. Screenshots are not in here: their
+            # filenames are content hashes, so they have to be read off the store page.
             steam_url_patterns = {
                 'hero': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{{steam_id}}/library_hero.jpg",
                 'logo': f"https://cdn.akamai.steamstatic.com/steam/apps/{{steam_id}}/logo.png",
-                'capsule': f"https://cdn.akamai.steamstatic.com/steam/apps/{{steam_id}}/header.jpg",
-                'screenshot': f"https://cdn.akamai.steamstatic.com/steam/apps/{{steam_id}}/ss_0.jpg"
+                'capsule': f"https://cdn.akamai.steamstatic.com/steam/apps/{{steam_id}}/header.jpg"
             }
-            
-            for g in games:
-                similarity_score = g.get('similarity_score', 0.0)
-                if similarity_score > 0.85:
-                    steam_id = g.get('appid')
-                    if steam_id and steam_type and steam_type in steam_url_patterns:
-                        url = steam_url_patterns[steam_type].format(steam_id=steam_id)
-                        results.append({
-                            'scraper': 'steam',
-                            'game_name': g.get('name', ''),
-                            'game_id': steam_id,
-                            'similarity_score': similarity_score,
-                            f'{media_type}_urls': [url],
-                            'region': 'Unknown'
-                        })
+
+            matches = [g for g in games
+                       if g.get('similarity_score', 0.0) > 0.85 and g.get('appid')]
+
+            if steam_type == 'screenshot':
+                # One store page fetch per matching app, capped so a loose search
+                # doesn't hammer the store.
+                matches = matches[:STEAM_SCREENSHOT_SEARCH_LIMIT]
+
+                # Bound locally because other branches of this function shadow the
+                # module-level asyncio with their own import.
+                import asyncio
+
+                async def fetch_all_screenshots():
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        return await asyncio.gather(*[
+                            steam_service.get_screenshot_urls(g['appid'], client=client)
+                            for g in matches
+                        ], return_exceptions=True)
+
+                screenshots_per_match = run_async_safely(fetch_all_screenshots()) if matches else []
+
+                for g, urls in zip(matches, screenshots_per_match):
+                    if cancel_event and cancel_event.is_set():
+                        break
+                    if isinstance(urls, Exception) or not urls:
+                        continue
+                    results.append({
+                        'scraper': 'steam',
+                        'game_name': g.get('name', ''),
+                        'game_id': g['appid'],
+                        'similarity_score': g.get('similarity_score', 0.0),
+                        f'{media_type}_urls': urls,
+                        'region': 'Unknown'
+                    })
+            elif steam_type in steam_url_patterns:
+                for g in matches:
+                    steam_id = g['appid']
+                    url = steam_url_patterns[steam_type].format(steam_id=steam_id)
+                    results.append({
+                        'scraper': 'steam',
+                        'game_name': g.get('name', ''),
+                        'game_id': steam_id,
+                        'similarity_score': g.get('similarity_score', 0.0),
+                        f'{media_type}_urls': [url],
+                        'region': 'Unknown'
+                    })
 
         elif scraper_name == 'steamgriddb':
             from steamgrid_service import SteamGridService
@@ -23067,6 +23104,13 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
             elif target_steam_type == 'hero':
                 hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
                 media_fields.setdefault(target_media_type, []).append(hero_url)
+            elif target_steam_type == 'screenshot':
+                # Screenshots have no predictable CDN path (the filenames are content
+                # hashes), they have to be read off the store page.
+                screenshot_urls = await steam_service.get_screenshot_urls(steam_id)
+                print(f"🔧 DEBUG: Found {len(screenshot_urls)} Steam screenshots for Steam ID {steam_id}")
+                for screenshot_url in screenshot_urls:
+                    media_fields.setdefault(target_media_type, []).append(screenshot_url)
             elif target_media_type == 'video':
                 # For video type, extract from Steam store page HTML (similar to LaunchBox VideoURL extraction)
                 try:
@@ -23077,10 +23121,9 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
                     import re
                     
                     store_page_url = f"https://store.steampowered.com/app/{steam_id}"
-                    headers = {
-                        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-                    }
+                    # Shared headers carry the pre-answered age gate, so mature titles
+                    # return the real page instead of the agecheck redirect.
+                    headers = dict(SteamService.STORE_PAGE_HEADERS)
                     
                     async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
                         response = await client.get(store_page_url, follow_redirects=True)
@@ -23161,6 +23204,7 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
             capsule_field = None
             logo_field = None
             hero_field = None
+            screenshot_field = None
             
             # Find the gamelist fields that map to these Steam types
             for field, steam_type in steam_image_mapping.items():
@@ -23170,6 +23214,8 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
                     logo_field = field
                 elif steam_type == 'hero':
                     hero_field = field
+                elif steam_type == 'screenshot':
+                    screenshot_field = field
             
             # Use defaults if not found
             if not capsule_field:
@@ -23182,6 +23228,11 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
             media_fields.setdefault(capsule_field, []).append(capsule_url)
             media_fields.setdefault(logo_field, []).append(logo_url)
             media_fields.setdefault(hero_field, []).append(hero_url)
+
+            # Screenshots live on the store page, not on a predictable CDN path
+            if screenshot_field:
+                for screenshot_url in await steam_service.get_screenshot_urls(steam_id):
+                    media_fields.setdefault(screenshot_field, []).append(screenshot_url)
 
             # Also include header_image from API if present
             if steam_data.get('header_image'):
