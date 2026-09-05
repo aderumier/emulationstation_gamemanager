@@ -1448,6 +1448,26 @@ log.setLevel(logging.ERROR)
 ROMS_FOLDER = config['roms_root_directory']
 GAMELISTS_FOLDER = 'var/gamelists'
 
+# Directories that never contain ROMs and must be skipped while walking a system's
+# ROM folder: downloaded media and ZFS snapshots at any depth, emulator save data
+# only directly under the system root (a subdirectory may legitimately be named so)
+ROM_SCAN_EXCLUDED_DIRS = ('media', '.zfs')
+ROM_SCAN_EXCLUDED_ROOT_DIRS = ('_saves_',)
+
+
+def prune_rom_scan_dirs(root, system_path, dirs):
+    """Remove non-ROM directories from an os.walk() dirs list, in place.
+
+    Args:
+        root: Directory currently being visited by os.walk()
+        system_path: Path to the system ROM directory the walk started from
+        dirs: The walk's mutable list of subdirectory names
+    """
+    excluded = set(ROM_SCAN_EXCLUDED_DIRS)
+    if os.path.normpath(root) == os.path.normpath(system_path):
+        excluded.update(ROM_SCAN_EXCLUDED_ROOT_DIRS)
+    dirs[:] = [d for d in dirs if d not in excluded]
+
 app.config['ROMS_FOLDER'] = ROMS_FOLDER
 app.config['GAMELISTS_FOLDER'] = GAMELISTS_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size for video uploads
@@ -4615,10 +4635,7 @@ def find_existing_rom(system_path, filename):
     
     for root, dirs, files in os.walk(system_path):
         # Skip media directory
-        if 'media' in dirs:
-            dirs.remove('media')
-        if '.zfs' in dirs:
-            dirs.remove('.zfs')
+        prune_rom_scan_dirs(root, system_path, dirs)
         
         # Check for exact filename match (case-sensitive filesystem)
         if filename_basename in files:
@@ -4645,10 +4662,7 @@ def find_existing_rom_by_stem(system_path, filename):
     new_ext = os.path.splitext(filename)[1].lower()
 
     for root, dirs, files in os.walk(system_path):
-        if 'media' in dirs:
-            dirs.remove('media')
-        if '.zfs' in dirs:
-            dirs.remove('.zfs')
+        prune_rom_scan_dirs(root, system_path, dirs)
 
         for file in files:
             file_stem, file_ext = os.path.splitext(file)
@@ -27523,12 +27537,8 @@ def run_rom_scan_task(system_name):
                 if rom_detected:
                     continue
             
-            # Skip only the media directory (contains downloaded media, not ROMs)
-            if 'media' in dirs:
-                dirs.remove('media')
-            # Skip ZFS snapshot directory
-            if '.zfs' in dirs:
-                dirs.remove('.zfs')
+            # Skip directories that never contain ROMs (media, snapshots, saves)
+            prune_rom_scan_dirs(root, system_path, dirs)
             
             # Skip hidden directories if configured
             if skip_hidden_dirs:
