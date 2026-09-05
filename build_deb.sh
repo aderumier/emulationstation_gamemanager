@@ -402,7 +402,7 @@ echo "✅ Critical files verified"
 
 # Build the Debian package
 echo "🏗️  Building Debian package..."
-dpkg-deb --build debian "$PACKAGE_NAME"
+dpkg-deb --root-owner-group --build debian "$PACKAGE_NAME"
 
 if [ $? -eq 0 ]; then
     echo "✅ Package built successfully: $PACKAGE_NAME"
