@@ -92,7 +92,7 @@ from steamgrid_service import SteamGridService
 from mobygames_service import MobyGamesService
 from igdb_service import IGDBService
 from datscrapper_service import DATScrapperService
-from emumovies_service import EmuMoviesService
+from emumovies_service_api3 import EmuMoviesService
 from custom_scraper_service import CustomScraperService
 
 # Note: Embedded libraries (loaded from current directory, no pip install needed):
@@ -8890,8 +8890,8 @@ def get_emumovies_media_types():
     """All EmuMovies media type names, from the static systems DB.
 
     Returns the sorted union of every system's `media` list (the exact type
-    names search.aspx accepts, e.g. Box, Snap, Cart, Video_MP4). Sourced from
-    the new gamesdbase API via emumovies_systems.json, not the old index.
+    names the EmuMovies API accepts, e.g. Box, Snap, Cart, Video_MP4). Sourced
+    from emumovies_systems.json, not the old index.
     """
     data = _get_emumovies_systems_data() or {}
     media_types = set()
@@ -8902,20 +8902,20 @@ def get_emumovies_media_types():
     return sorted(media_types)
 
 def _fetch_and_store_emumovies_systems():
-    """Fetch the EmuMovies (gamesdbase) system list and write it to the DB file.
+    """Fetch the EmuMovies system list and write it to the DB file.
 
     Returns the payload dict on success, None on failure. The list is static,
     so this is only run to (re)generate the stored file.
     """
-    from emumovies_service import EmuMoviesService
+    from emumovies_service_api3 import EmuMoviesService
     service = EmuMoviesService()
-    detail = run_async_safely(service.get_systems()) or []
+    detail = run_async_safely(service.get_systems_detail()) or []
     if not detail:
         return None
     lookups = sorted({d['lookup'] for d in detail if d.get('lookup')})
     payload = {
         'generated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-        'source': 'https://api.gamesdbase.com/getsystems.aspx',
+        'source': 'https://api3.emumovies.com/api/Systems',
         'systems': lookups,
         'systems_detail': sorted(detail, key=lambda d: d.get('lookup', '')),
     }
@@ -8929,7 +8929,7 @@ def _fetch_and_store_emumovies_systems():
 @app.route('/api/emumovies-systems', methods=['GET'])
 @login_required
 def get_emumovies_systems():
-    """Get the EmuMovies (gamesdbase) system list from the static DB file.
+    """Get the EmuMovies system list from the static DB file.
 
     The system list is static, so it is stored once in
     var/db/emumovies/emumovies_systems.json (shipped with the package) and
@@ -13873,7 +13873,7 @@ def multiscraper_search_endpoint():
                     # Create a function to execute EmuMovies search inline
                     def search_emumovies_inline():
                         try:
-                            # Live search against the gamesdbase API (no local index)
+                            # Live search against the EmuMovies API
                             media_fields = emumovies_live_search_media(
                                 current_game, emumovies_system,
                                 {media_type: emumovies_image_mapping[media_type]},
@@ -14389,12 +14389,12 @@ def download_multiscraper_media_endpoint():
                 params = parse_qs(parsed_url.query)
                 emumovies_system = params.get('system', [None])[0]
                 emumovies_type = params.get('mediaType', [None])[0]
-                # Direct gamesdbase download URL resolved at search time
+                # Direct EmuMovies download URL resolved at search time
                 direct_url = params.get('url', [None])[0]
                 # Legacy/fallback: search term to resolve a URL live at download time
                 search_term = params.get('search', [None])[0] or params.get('filename', [None])[0]
 
-                from emumovies_service import EmuMoviesService
+                from emumovies_service_api3 import EmuMoviesService
                 import secrets
 
                 service = EmuMoviesService()
@@ -14409,9 +14409,9 @@ def download_multiscraper_media_endpoint():
                 if not direct_url:
                     return jsonify({'error': 'EmuMovies media not found'}), 404
 
-                # The gamesdbase media URL is a direct, standalone download; use the
+                # The EmuMovies media URL is a direct, standalone download; use the
                 # Sync tool's User-Agent for parity.
-                filename = os.path.basename(urlparse(direct_url).path) or 'emumovies_media'
+                filename = emumovies_media_filename(direct_url)
                 print(f"📥 Downloading EmuMovies media - System: {emumovies_system}, Type: {emumovies_type}, URL: {direct_url[:80]}")
 
                 import requests
@@ -15523,7 +15523,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
             if not emumovies_types:
                 return results
 
-            # Live search against the gamesdbase API (no local index)
+            # Live search against the EmuMovies API
             search_game = {'name': game_name, 'path': ''}
             media_fields = emumovies_live_search_media(
                 search_game, emumovies_system,
@@ -22401,12 +22401,12 @@ def apply_manual_scrap(system_name):
                     emumovies_direct_url = params.get('url', [None])[0]
                     emumovies_search = params.get('search', [None])[0] or params.get('filename', [None])[0]
 
-                    from emumovies_service import EmuMoviesService
+                    from emumovies_service_api3 import EmuMoviesService
                     from urllib.parse import unquote
 
                     service = EmuMoviesService()
 
-                    # Resolve the direct gamesdbase download URL (live search if needed)
+                    # Resolve the direct EmuMovies download URL (live search if needed)
                     if emumovies_direct_url:
                         emumovies_direct_url = unquote(emumovies_direct_url)
                     elif emumovies_system and emumovies_type and emumovies_search:
@@ -23817,8 +23817,23 @@ async def scrape_custom_manual(game, system_name, system_config, scraper_type='c
         logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
+def emumovies_media_filename(url, fallback='emumovies_media'):
+    """Media filename for an EmuMovies download URL.
+
+    The api3 download endpoint carries the name in a `filename` query parameter
+    (the path ends in "Download"), so the basename of the path is not the file
+    name. Older direct links end in the file name itself.
+    """
+    from urllib.parse import urlparse, parse_qs, unquote
+    parsed = urlparse(url or '')
+    qs_name = parse_qs(parsed.query).get('filename', [None])[0]
+    if qs_name:
+        return unquote(qs_name)
+    return os.path.basename(parsed.path) or fallback
+
+
 def emumovies_live_search_media(game, emumovies_system, image_mapping, target_media_type=None):
-    """Live EmuMovies (gamesdbase) media search for a single game.
+    """Live EmuMovies media search for a single game.
 
     Returns {media_type: [{url, filename, emumovies_type, emumovies_system, crc}, ...]}.
     Each 'url' is the /api/emumovies-download-media proxy carrying the resolved
@@ -23830,14 +23845,14 @@ def emumovies_live_search_media(game, emumovies_system, image_mapping, target_me
 
     from urllib.parse import quote
     from game_utils import normalize_game_name
-    from emumovies_service import EmuMoviesService
+    from emumovies_service_api3 import EmuMoviesService
 
     rom_path = game.get('path', '') or ''
     rom_name = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else ''
     game_name = game.get('name', '') or ''
 
-    # Search terms, most specific first; gamesdbase does its own fuzzy matching,
-    # but region/version tags in ROM names hurt it, so include cleaned variants.
+    # Search terms, most specific first; the scraper fuzzy-matches filenames,
+    # and region/version tags in ROM names hurt that, so include cleaned variants.
     terms = []
     for t in [game_name, rom_name]:
         if t and t not in terms:
@@ -23876,7 +23891,7 @@ def emumovies_live_search_media(game, emumovies_system, image_mapping, target_me
                                      f"&url={quote(r['url'], safe='')}")
                         found.append({
                             'url': proxy_url,
-                            'filename': os.path.basename(r['url']),
+                            'filename': r.get('filename') or emumovies_media_filename(r['url']),
                             'emumovies_type': emutype,
                             'emumovies_system': emumovies_system,
                             'crc': r.get('crc', ''),
@@ -23905,7 +23920,7 @@ async def scrape_emumovies_manual(game, system_name, system_config, target_media
             print(f"🔧 DEBUG: EmuMovies config not found")
             return None
         
-        # Get EmuMovies system name (gamesdbase Lookup value)
+        # Get EmuMovies system name (EmuMovies system identifier)
         emumovies_system = system_config.get('emumovies', '')
         if not emumovies_system:
             print(f"🔧 DEBUG: EmuMovies system not configured for {system_name}")
@@ -23917,7 +23932,7 @@ async def scrape_emumovies_manual(game, system_name, system_config, target_media
         emumovies_image_mapping = emumovies_config.get('image_type_mappings', {})
         print(f"🔧 DEBUG: EmuMovies image mappings: {list(emumovies_image_mapping.keys())}")
 
-        # Live search against the gamesdbase API (no local index)
+        # Live search against the EmuMovies API
         media_fields = emumovies_live_search_media(
             game, emumovies_system, emumovies_image_mapping, target_media_type=target_media_type
         )
@@ -41863,7 +41878,7 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
     """Run EmuMovies task for a specific system"""
     import asyncio
     import threading
-    from emumovies_service import EmuMoviesService
+    from emumovies_service_api3 import EmuMoviesService
     from game_utils import normalize_game_name, convert_and_resize_image_replace
     from credential_manager import credential_manager
     
@@ -42015,8 +42030,8 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
             
             print(f"🔧 DEBUG: Final selected_fields to process: {local_selected_fields}")
             
-            # Live search against gamesdbase (no local index)
-            print(f"🔧 DEBUG: Using live EmuMovies (gamesdbase) search for system '{emumovies_system}'")
+            # Live search against the EmuMovies API
+            print(f"🔧 DEBUG: Using live EmuMovies search for system '{emumovies_system}'")
 
             # Cache live searches within this task run: (term, emutype) -> [results]
             emumovies_search_cache = {}
@@ -42605,7 +42620,7 @@ def test_emumovies_connection():
         
         # Test the connection by authenticating
         import asyncio
-        from emumovies_service import EmuMoviesService
+        from emumovies_service_api3 import EmuMoviesService
         
         data = request.get_json(silent=True) or {}
         target_system = data.get('system_name') if isinstance(data.get('system_name'), str) else None
@@ -42650,7 +42665,7 @@ def manage_emumovies_mappings():
                     mappings[field] = []
             
             # Available EmuMovies media types: union of every system's media list,
-            # from the static gamesdbase systems DB (regenerated via
+            # from the static EmuMovies systems DB (regenerated via
             # /api/emumovies-systems?refresh=1)
             try:
                 emumovies_media_types = get_emumovies_media_types()
@@ -42748,7 +42763,7 @@ def manage_emumovies_mappings():
 def generate_emumovies_index():
     """Generate normalized index from EmuMovies database"""
     try:
-        from emumovies_service import EmuMoviesService
+        from emumovies_service_api3 import EmuMoviesService
         logger.debug("Received request: POST /api/emumovies-generate-index")
         
         service = EmuMoviesService()
@@ -42769,7 +42784,7 @@ def build_emumovies_database():
     """Build local EmuMovies database"""
     try:
         import asyncio
-        from emumovies_service import EmuMoviesService
+        from emumovies_service_api3 import EmuMoviesService
         logger.debug("Received request: POST /api/emumovies-build-database")
 
         data = request.get_json(silent=True) or {}
@@ -42806,7 +42821,7 @@ def build_emumovies_database():
 def get_emumovies_database_status():
     """Get EmuMovies database status"""
     try:
-        from emumovies_service import EmuMoviesService
+        from emumovies_service_api3 import EmuMoviesService
         
         service = EmuMoviesService()
         index = service.get_database_index()
@@ -42834,7 +42849,7 @@ def get_emumovies_database_status():
 
 @app.route('/api/emumovies-download-media', methods=['GET'])
 def emumovies_download_media_endpoint():
-    """Proxy an EmuMovies (gamesdbase) media file as a streamed response.
+    """Proxy an EmuMovies media file as a streamed response.
 
     Accepts either a resolved direct URL (?url=) or a live search
     (?system=&mediaType=&search=). Used to preview/serve media in the UI.
@@ -42846,10 +42861,10 @@ def emumovies_download_media_endpoint():
         direct_url = request.args.get('url')
         search_term = request.args.get('search') or request.args.get('filename')
 
-        from emumovies_service import EmuMoviesService
+        from emumovies_service_api3 import EmuMoviesService
         service = EmuMoviesService()
 
-        # Resolve the direct gamesdbase URL (live search if not provided)
+        # Resolve the direct EmuMovies URL (live search if not provided)
         if direct_url:
             direct_url = unquote(direct_url)
         elif system and media_type and search_term:
@@ -42859,7 +42874,7 @@ def emumovies_download_media_endpoint():
         if not direct_url:
             return jsonify({'error': 'EmuMovies media not found'}), 404
 
-        filename = os.path.basename(urlparse(direct_url).path) or 'emumovies_media'
+        filename = emumovies_media_filename(direct_url)
         print(f"📥 EmuMovies download request - System: {system}, Type: {media_type}, URL: {direct_url[:80]}")
 
         import requests
