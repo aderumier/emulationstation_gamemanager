@@ -26,6 +26,10 @@ class EmuMoviesService:
     # A media list is one system+type+set; they change rarely, so cache on disk.
     MEDIA_LIST_TTL = 7 * 24 * 3600
 
+    # How long a system's entry in the local database stays fresh before a
+    # rebuild refetches it. The API offers no per-system modification time.
+    SYSTEM_REFRESH_TTL = 30 * 24 * 3600
+
     def __init__(self, cache_dir: str = "var/db/emumovies", config: Dict = None, credentials: Dict = None):
         self.cache_dir = cache_dir
         self.config = config or {}
@@ -34,6 +38,9 @@ class EmuMoviesService:
 
         # In-process media list cache, keyed by (system, media_type, media_set)
         self._media_list_cache = {}
+
+        # Prebuilt normalized index, loaded lazily on first search
+        self._normalized_index = None
         
         # Bearer token cache
         self._bearer_token = None
@@ -542,6 +549,39 @@ class EmuMoviesService:
                 logger.debug(f"Could not cache EmuMovies media list ({path}): {e}")
         return names
 
+    # ------------------------------------------------------------------
+    # Local database build metadata
+    #
+    # Kept beside the database rather than inside it: emumovies.json is keyed by
+    # system name and is walked wholesale by generate_normalized_index, so an
+    # extra bookkeeping key there would become a bogus system in the index.
+    # ------------------------------------------------------------------
+
+    def _build_meta_path(self) -> str:
+        return os.path.join(self.cache_dir, 'emumovies_build_meta.json')
+
+    def _load_build_meta(self) -> Dict:
+        try:
+            path = self._build_meta_path()
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    meta = json.load(f)
+                return meta if isinstance(meta, dict) else {}
+        except Exception as e:
+            logger.warning(f"Could not read EmuMovies build metadata: {e}")
+        return {}
+
+    def _save_build_meta(self, meta: Dict):
+        try:
+            os.makedirs(self.cache_dir, exist_ok=True)
+            path = self._build_meta_path()
+            tmp = f"{path}.tmp{os.getpid()}"
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(meta, f, indent=1)
+            os.replace(tmp, path)
+        except Exception as e:
+            logger.warning(f"Could not write EmuMovies build metadata: {e}")
+
     def download_url(self, system_lookup: str, media_type: str, filename: str,
                      media_set: str = 'default') -> str:
         """Direct download link for one media file. Needs no authentication."""
@@ -552,9 +592,66 @@ class EmuMoviesService:
                 f"&mediaSet={quote(media_set)}"
                 f"&filename={quote(filename)}")
 
+    def _load_normalized_index(self) -> Dict:
+        """The prebuilt index, loaded once per process.
+
+        Shape: {system: {media_type: {normalized_name: filename | [filenames]}}}
+        """
+        if self._normalized_index is not None:
+            return self._normalized_index
+
+        index_file = os.path.join(self.cache_dir, 'emumovies_index.pkl')
+        try:
+            if os.path.exists(index_file):
+                with open(index_file, 'rb') as f:
+                    self._normalized_index = pickle.load(f)
+                logger.debug(f"Loaded EmuMovies index with {len(self._normalized_index)} systems")
+            else:
+                self._normalized_index = {}
+        except Exception as e:
+            logger.warning(f"Could not load EmuMovies index: {e}")
+            self._normalized_index = {}
+        return self._normalized_index
+
+    def _search_index(self, game_name: str, system_lookup: str, media_type: str) -> Optional[List[str]]:
+        """Match a game against the prebuilt index.
+
+        Returns the matching filenames, or None when the index holds nothing for
+        this system and media type — the signal to fall back to a live lookup.
+        """
+        from game_utils import normalize_game_name
+
+        entries = (self._load_normalized_index().get(system_lookup) or {}).get(media_type)
+        if not entries:
+            return None
+
+        # Index keys were normalized with remove_paranthesis=True at build time;
+        # normalize the query identically so an exact hit is possible.
+        target = normalize_game_name(game_name, remove_paranthesis=True)
+        if not target:
+            return []
+
+        def as_list(value):
+            return list(value) if isinstance(value, list) else [value]
+
+        # Exact key only, as the index lookup has always worked. Fuzzy matching
+        # here would be actively harmful: the similarity metric is Jaro-Winkler,
+        # which rewards shared prefixes so heavily that "Totally Made Up Game"
+        # scores 0.87 against "Totally Rad" — above any usable threshold. Bulk
+        # scraping takes the first result without asking, so a near-match means
+        # the wrong artwork written to a game. Callers already compensate by
+        # searching several terms (game name, ROM name, and cleaned variants).
+        if target in entries:
+            return as_list(entries[target])
+        return []
+
     async def search(self, game_name: str, system_lookup: str, media_type: str,
                      max_retries: int = 3) -> List[Dict]:
-        """Live search for one game's media of a single type.
+        """Search one game's media of a single type.
+
+        Answers from the prebuilt index (see build_local_database) when it covers
+        this system and media type, and falls back to a live media list lookup
+        when it does not, so scraping works before the database is built.
 
         Returns a list of {url, crc, media_type, system, filename}, best match
         first. `url` is a direct, standalone download link (no auth required to
@@ -565,32 +662,38 @@ class EmuMoviesService:
 
         from game_utils import normalize_game_name, calculate_similarity
 
-        names = await self._cached_media_list(system_lookup, media_type)
-        if not names:
-            return []
+        matches = self._search_index(game_name, system_lookup, media_type)
 
-        target = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
-        if not target:
-            return []
+        if matches is None:
+            # Not in the index: resolve live off the media list instead. This path
+            # keeps similarity matching because it serves systems the database has
+            # not covered yet, where returning nothing at all is the worse answer.
+            names = await self._cached_media_list(system_lookup, media_type)
+            if not names:
+                return []
 
-        scored = []
-        for name in names:
-            stem = os.path.splitext(name)[0]
-            candidate = normalize_game_name(stem, remove_paranthesis=True, remove_articles=True)
-            if not candidate:
-                continue
-            score = 1.0 if candidate == target else calculate_similarity(target, candidate)
-            if score >= 0.85:
-                scored.append((score, name))
+            target = normalize_game_name(game_name, remove_paranthesis=True)
+            if not target:
+                return []
 
-        scored.sort(key=lambda t: (-t[0], t[1]))
+            scored = []
+            for name in names:
+                candidate = normalize_game_name(os.path.splitext(name)[0], remove_paranthesis=True)
+                if not candidate:
+                    continue
+                score = 1.0 if candidate == target else calculate_similarity(target, candidate)
+                if score >= 0.85:
+                    scored.append((score, name))
+            scored.sort(key=lambda t: (-t[0], t[1]))
+            matches = [name for _, name in scored[:20]]
+
         return [{
             'url': self.download_url(system_lookup, media_type, name),
             'crc': '',
             'media_type': media_type,
             'system': system_lookup,
             'filename': name,
-        } for _, name in scored[:20]]
+        } for name in matches[:20]]
 
     async def search_media_types(self, game_name: str, system_lookup: str,
                                  media_types: List[str]) -> List[Dict]:
@@ -631,7 +734,8 @@ class EmuMoviesService:
             })
         return detail
 
-    async def build_local_database(self, progress_callback=None, target_system: str = None) -> Dict:
+    async def build_local_database(self, progress_callback=None, target_system: str = None,
+                                   force: bool = False, refresh_days: float = None) -> Dict:
         """
         Build local database with all media for each system.
         This will:
@@ -674,10 +778,9 @@ class EmuMoviesService:
                 except Exception as e:
                     logger.warning(f"Could not load existing database: {e}")
             
-            # Get ALL systems from API first (before filtering) to check completeness
-            all_api_systems = await self.get_systems()
+            # Same list, already fetched above; reused to judge per-system staleness
             all_api_system_names = set()
-            for system in all_api_systems:
+            for system in systems:
                 if isinstance(system, dict):
                     system_name = (
                         system.get('name') or 
@@ -722,20 +825,47 @@ class EmuMoviesService:
                 if system_name:
                     api_system_names.add(system_name)
             
-            # Check if all systems are already in the database
-            # Use all_api_system_names (not filtered) to check completeness
+            # Decide per system what needs rebuilding.
+            #
+            # The API exposes no per-system "last updated" field, so freshness is
+            # judged by how long ago we built each system. Previously this was
+            # all-or-nothing: an exactly-matching system list wiped and rebuilt
+            # everything, while a single new system put the build in gap-fill mode
+            # where existing systems were skipped forever and never refreshed.
+            build_meta = self._load_build_meta()
+            now = time.time()
+
+            # First run after upgrading: a database exists but nothing recorded
+            # when each system was built. Treat them as built when the database
+            # file was last written, so an existing install ages out gradually
+            # instead of refetching all 231 systems at once.
+            if consolidated_db and not build_meta:
+                seed = os.path.getmtime(db_file) if os.path.exists(db_file) else now
+                build_meta = {name: {'built_at': seed} for name in consolidated_db}
+                self._save_build_meta(build_meta)
+                logger.info(f"Seeded build metadata for {len(build_meta)} existing systems "
+                            f"from the database timestamp")
+            max_age = self.SYSTEM_REFRESH_TTL if refresh_days is None else refresh_days * 24 * 3600
+
+            def needs_rebuild(name):
+                if force or target_system:
+                    return True
+                if not consolidated_db.get(name):
+                    return True
+                built_at = build_meta.get(name, {}).get('built_at', 0)
+                return (now - built_at) > max_age
+
             db_system_names = set(consolidated_db.keys())
-            all_systems_present = all_api_system_names.issubset(db_system_names) and len(all_api_system_names) == len(db_system_names)
-            
-            if all_systems_present and not target_system:
-                logger.info("All systems are already in database. Regenerating all systems...")
-                # Clear the database to force regeneration of all systems
-                consolidated_db = {}
+            missing = len(all_api_system_names - db_system_names)
+            stale = sum(1 for n in all_api_system_names
+                        if consolidated_db.get(n) and needs_rebuild(n))
+            if target_system:
+                logger.info(f"Building/updating system: {target_system} (preserving other systems)")
+            elif force:
+                logger.info(f"Forced rebuild of all {len(all_api_system_names)} systems")
             else:
-                if target_system:
-                    logger.info(f"Building/updating system: {target_system} (preserving other systems)")
-                else:
-                    logger.info(f"Database is incomplete. {len(db_system_names)}/{len(all_api_system_names)} systems present. Building missing systems only...")
+                logger.info(f"{len(db_system_names)}/{len(all_api_system_names)} systems in database; "
+                            f"{missing} missing, {stale} older than {max_age / 86400:.0f} days")
             
             total_systems = len(systems)
             processed_count = 0
@@ -752,10 +882,12 @@ class EmuMoviesService:
                     logger.warning(f"Skipping system without ID: {system}")
                     continue
                 
-                # Skip if system is already in DB and we're not regenerating everything
-                # Only skip if: not targeting specific system, not regenerating all, and system exists with content
-                if not target_system and not all_systems_present and system_name in consolidated_db and consolidated_db[system_name]:
-                    logger.info(f"Skipping existing system {idx + 1}/{total_systems}: {system_name}")
+                # Rebuild only what is missing or stale (or everything, on a forced
+                # or single-system build)
+                if not needs_rebuild(system_name):
+                    age_days = (now - build_meta.get(system_name, {}).get('built_at', 0)) / 86400
+                    logger.info(f"Skipping fresh system {idx + 1}/{total_systems}: {system_name} "
+                                f"(built {age_days:.1f} days ago)")
                     continue
                 
                 logger.info(f"Processing system {idx + 1}/{total_systems}: {system_name} (ID: {system_id})")
@@ -832,8 +964,10 @@ class EmuMoviesService:
                             # Continue with next media set instead of failing entire system
                             continue
                         
-                        # Small delay to avoid rate limiting
-                        await asyncio.sleep(0.5)
+                        # Small delay to be polite. _api_get backs off on 429, so this
+                        # does not need to be large: at 0.5s a full build spent well
+                        # over an hour asleep.
+                        await asyncio.sleep(0.1)
                     
                     # Add media files to consolidated DB structure
                     for media_file in all_media:
@@ -846,9 +980,12 @@ class EmuMoviesService:
                     
                     logger.info(f"    Found {len(all_media)} media items for {media_type_label}")
                 
-                # Save database incrementally after each system
+                # Save database incrementally after each system, recording when it
+                # was built so the next run can tell fresh from stale
                 with open(db_file, 'w', encoding='utf-8') as f:
                     json.dump(consolidated_db, f, indent=2, ensure_ascii=False)
+                build_meta[system_name] = {'built_at': time.time()}
+                self._save_build_meta(build_meta)
             
             logger.info("EmuMovies local database build completed successfully")
             
