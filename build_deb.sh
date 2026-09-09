@@ -137,6 +137,10 @@ mkdir -p debian/opt/gamemanager/var/db/emumovies
 cp var/db/emumovies/emumovies.json debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies JSON database found, skipping..."
 cp var/db/emumovies/emumovies_systems.json debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies systems list found, skipping..."
 cp var/db/emumovies/emumovies_index.pkl debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies index pickle file found, skipping..."
+# Ship when each system was built alongside the data. Without it an install
+# seeds freshness from the file's mtime, so a package built months ago would
+# still look freshly built for another 30 days after installation.
+cp var/db/emumovies/emumovies_build_meta.json debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies build metadata found, skipping..."
 
 # Custom databases
 echo "📦 Copying Custom databases..."
