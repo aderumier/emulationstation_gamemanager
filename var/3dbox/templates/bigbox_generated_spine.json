@@ -37,20 +37,7 @@
       "y": 887
     }
   },
-  "spine_image": "bigbox_generated_spine_spine.png",
-  "spine_source_field": "",
+  "spine_source_field": "spine",
   "spine_crop_width": "5",
-  "spine_color": "#7b6f6f",
-  "spine_logo_zone": {
-    "topY": 500,
-    "bottomY": 600,
-    "keepAspectRatio": true
-  },
-  "use_text_logo": true,
-  "text_logo_settings": {
-    "font": "Perpetua Bold",
-    "color": "#ede3e3",
-    "fontSize": 72,
-    "alignment": "left"
-  }
+  "use_marquee_field": true
 }

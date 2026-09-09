@@ -3,41 +3,54 @@
   "background_image": "wii_background.png",
   "corners": {
     "topLeft": {
-      "x": 64,
-      "y": 26
+      "x": 56,
+      "y": 32
     },
     "topRight": {
-      "x": 1014,
-      "y": 109
+      "x": 1023,
+      "y": 114
     },
     "bottomLeft": {
-      "x": 64,
-      "y": 1679
+      "x": 56,
+      "y": 1677
     },
     "bottomRight": {
-      "x": 1014,
-      "y": 1625
+      "x": 1023,
+      "y": 1628
     }
   },
   "spine_corners": {
     "topLeft": {
-      "x": 0,
-      "y": 44
+      "x": 4,
+      "y": 45
     },
     "topRight": {
-      "x": 64,
-      "y": 26
+      "x": 56,
+      "y": 32
     },
     "bottomLeft": {
-      "x": 0,
-      "y": 1658
+      "x": 4,
+      "y": 1662
     },
     "bottomRight": {
-      "x": 64,
+      "x": 56,
       "y": 1677
     }
   },
   "spine_image": "wii_spine.png",
   "spine_source_field": "spine",
-  "spine_crop_width": "5"
+  "spine_crop_width": "20",
+  "spine_color": "",
+  "spine_logo_zone": {
+    "topY": 600,
+    "bottomY": 1200,
+    "keepAspectRatio": true
+  },
+  "use_text_logo": true,
+  "text_logo_settings": {
+    "font": "nimbus-sans-novus-t-heavy-condensed",
+    "color": "#6e6e6e",
+    "fontSize": 60,
+    "alignment": "center"
+  }
 }

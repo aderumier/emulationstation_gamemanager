@@ -3,30 +3,30 @@
   "background_image": "dos_background.jpg",
   "background_image_field": null,
   "corners_screenshot": {
-    "x1": 32,
-    "y1": 332,
-    "x2": 686,
-    "y2": 332,
-    "x3": 686,
-    "y3": 998,
-    "x4": 32,
-    "y4": 998
+    "x1": 147,
+    "y1": 339,
+    "x2": 840,
+    "y2": 339,
+    "x3": 840,
+    "y3": 1004,
+    "x4": 147,
+    "y4": 1004
   },
   "corners_logo": {
-    "x1": 102,
-    "y1": 50,
-    "x2": 798,
-    "y2": 50,
-    "x3": 798,
-    "y3": 278,
-    "x4": 102,
-    "y4": 278
+    "x1": 108,
+    "y1": 56,
+    "x2": 840,
+    "y2": 56,
+    "x3": 840,
+    "y3": 282,
+    "x4": 108,
+    "y4": 282
   },
   "logo_source": "text",
   "text_logo_settings": {
-    "font": "NeotriadFree-1jzAg",
-    "color": "#ffffff",
-    "fontSize": 72,
+    "font": "Perpetua Bold",
+    "color": "#4f4545",
+    "fontSize": 60,
     "alignment": "top-left",
     "maxCharsPerLine": null
   }

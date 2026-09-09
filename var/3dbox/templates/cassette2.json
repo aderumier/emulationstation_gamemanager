@@ -3,7 +3,7 @@
   "background_image": "cassette2_background.png",
   "corners": {
     "topLeft": {
-      "x": 118,
+      "x": 117,
       "y": 31
     },
     "topRight": {
@@ -11,7 +11,7 @@
       "y": 97
     },
     "bottomLeft": {
-      "x": 118,
+      "x": 117,
       "y": 993
     },
     "bottomRight": {
@@ -37,18 +37,12 @@
       "y": 995
     }
   },
-  "spine_source_field": "",
-  "spine_crop_width": "5",
+  "spine_source_field": "spine",
+  "spine_crop_width": "20",
+  "spine_color": "",
   "spine_logo_zone": {
     "topY": 400,
-    "bottomY": 900,
-    "keepAspectRatio": true
+    "bottomY": 750
   },
-  "use_text_logo": true,
-  "text_logo_settings": {
-    "font": "BlackgothRegular-xRg40",
-    "color": "#ffffff",
-    "fontSize": 72,
-    "alignment": "center"
-  }
+  "use_marquee_field": true
 }

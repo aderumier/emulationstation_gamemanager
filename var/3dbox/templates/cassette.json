@@ -37,8 +37,12 @@
       "y": 901
     }
   },
-  "spine_image": "exodos_spine.png",
   "spine_source_field": "spine",
   "spine_crop_width": "5",
+  "spine_color": "",
+  "spine_logo_zone": {
+    "topY": 300,
+    "bottomY": 600
+  },
   "use_marquee_field": true
 }

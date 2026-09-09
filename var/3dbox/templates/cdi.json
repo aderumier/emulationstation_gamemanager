@@ -3,7 +3,7 @@
   "background_image": "cdi_background.png",
   "corners": {
     "topLeft": {
-      "x": 47,
+      "x": 51,
       "y": 12
     },
     "topRight": {
@@ -11,12 +11,12 @@
       "y": 28
     },
     "bottomLeft": {
-      "x": 47,
-      "y": 449
+      "x": 51,
+      "y": 447
     },
     "bottomRight": {
       "x": 397,
-      "y": 430
+      "y": 429
     }
   },
   "spine_corners": {
@@ -38,5 +38,6 @@
     }
   },
   "spine_source_field": "spine",
-  "spine_crop_width": "5"
+  "spine_crop_width": "5",
+  "spine_color": ""
 }

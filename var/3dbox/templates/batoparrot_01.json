@@ -3,20 +3,20 @@
   "background_image": "batoparrot_01_background.png",
   "corners": {
     "topLeft": {
-      "x": 54,
-      "y": 87
+      "x": 53,
+      "y": 86
     },
     "topRight": {
-      "x": 633,
-      "y": 134
+      "x": 612,
+      "y": 135
     },
     "bottomLeft": {
       "x": 53,
       "y": 1014
     },
     "bottomRight": {
-      "x": 633,
-      "y": 931
+      "x": 613,
+      "y": 932
     }
   },
   "spine_corners": {
