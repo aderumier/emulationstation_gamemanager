@@ -1,20 +1,21 @@
 {
-    "roms_root_directory": "/home/aderumier/code/cursorscraper/roms2",
+    "roms_root_directory": "/home/pixn/roms",
     "task_logs_directory": "var/task_logs",
     "max_tasks_to_keep": 30,
     "scraper_team": "Team Pixel Nostalgia",
     "server": {
         "host": "0.0.0.0",
-        "port": 5000,
+        "port": 5001,
         "debug": false
     },
     "logging": {
         "level": "DEBUG",
         "file": "app.log"
     },
+    "external_api_token": "na2KJuBQAS3LtW9wnN-62OQf4QjYfIXZQz1bti0_39Q",
     "authentication": {
-        "disable_local_auth": false,
-        "allow_registration": true
+        "disable_local_auth": true,
+        "allow_registration": false
     },
     "media": {
         "scan_settings": {
@@ -37,7 +38,8 @@
                 ".png",
                 ".jpg",
                 ".jpeg"
-            ]
+            ],
+            "width": 400
         },
         "boxart": {
             "directory": "box2d",
@@ -56,7 +58,8 @@
                 ".jpg",
                 ".jpeg"
             ],
-            "target_extension": ""
+            "target_extension": "",
+            "width": 0
         },
         "cartridge": {
             "directory": "cartridges",
@@ -64,7 +67,9 @@
                 ".png",
                 ".jpg",
                 ".jpeg"
-            ]
+            ],
+            "target_extension": ".png",
+            "width": 600
         },
         "fanart": {
             "directory": "fanarts",
@@ -75,7 +80,7 @@
             ],
             "target_extension": ".jpg",
             "width": 1920,
-            "height": 620
+            "height": 0
         },
         "titleshot": {
             "directory": "titles",
@@ -91,7 +96,7 @@
                 ".pdf",
                 ".cbz"
             ],
-            "target_extension": ".cbz"
+            "target_extension": ".pdf"
         },
         "boxback": {
             "directory": "boxback",
@@ -100,7 +105,8 @@
                 ".jpg",
                 ".jpeg"
             ],
-            "height": 0
+            "height": 900,
+            "target_extension": ".jpg"
         },
         "thumbnail": {
             "directory": "thumbnails",
@@ -124,36 +130,22 @@
         "spine": {
             "directory": "spine",
             "extensions": [
-                ".png"
+                ".png",
+                ".jpg",
+                ".jpeg"
             ],
             "target_extension": ".png",
             "width": 0,
             "height": 0
         },
-        "themehb": {
-            "directory": "themehb",
+        "box2_5d": {
+            "directory": "box2_5d",
             "extensions": [
-                ".zip"
+                ".png",
+                ".jpg",
+                ".jpeg"
             ],
-            "target_extension": ".zip",
-            "width": 0,
-            "height": 0
-        },
-        "map": {
-            "directory": "maps",
-            "extensions": [
-                ".cbz"
-            ],
-            "target_extension": ".cbz",
-            "width": 0,
-            "height": 0
-        },
-        "magazine": {
-            "directory": "magazine",
-            "extensions": [
-                ".pdf"
-            ],
-            "target_extension": ".pdf",
+            "target_extension": "",
             "width": 0,
             "height": 0
         }
@@ -185,8 +177,9 @@
         "force_video_resolution": "720",
         "enable_fadin_fadout": true,
         "enable_cuda": false,
-        "enable_youtube_po_token": false,
+        "enable_youtube_po_token": true,
         "youtube_po_token_provider": "http://127.0.0.1:4416",
-        "youtube_skip_cookie_for_video_duration_bigger_than": 10
+        "youtube_skip_cookie_for_video_duration_bigger_than": 200,
+        "clip_duration": 30
     }
 }

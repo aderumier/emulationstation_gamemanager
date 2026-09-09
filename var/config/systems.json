@@ -7,8 +7,10 @@
         "emumovies": "Arcade",
         "dat_file": "MAME 0.281 ROMs (non-merged).xml",
         "custom": "arcadedb",
-        "custom2": "ags",
-        "extensions": []
+        "custom2": "",
+        "extensions": [
+            "zip"
+        ]
     },
     "nes": {
         "launchbox": "Nintendo Entertainment System",
@@ -17,6 +19,8 @@
         "mobygames": "NES",
         "emumovies": "Nintendo_NES",
         "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".NES",
@@ -25,6 +29,14 @@
         ]
     },
     "snes": {
+        "launchbox": "Super Nintendo Entertainment System",
+        "screenscraper": 4,
+        "igdb": 19,
+        "mobygames": "SNES",
+        "emumovies": "Nintendo_SNES",
+        "dat_file": "snes.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".SFC",
@@ -40,65 +52,69 @@
             ".smc",
             ".swc",
             ".zip"
-        ],
-        "launchbox": "Super Nintendo Entertainment System",
-        "igdb": 19,
-        "screenscraper": 4,
-        "mobygames": "SNES"
+        ]
     },
     "windows": {
         "launchbox": "Windows",
         "screenscraper": 138,
         "igdb": 6,
         "mobygames": "Windows",
+        "emumovies": "Microsoft_Windows",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
-            ".bat",
-            ".cmd",
-            ".exe",
-            ".lnk",
-            ".pc",
-            ".plus",
-            ".win",
-            ".windows",
-            ".wine",
-            ".wsquashfs",
-            ".wtgz"
+            ".wsquashfs"
         ]
     },
     "gba": {
+        "launchbox": "Nintendo Game Boy Advance",
+        "screenscraper": 12,
+        "igdb": 24,
+        "mobygames": "Game_Boy_Advance",
+        "emumovies": "Nintendo_Game_Boy_Advance",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".GBA2",
             ".gba",
             ".zip"
-        ],
-        "launchbox": "Nintendo Game Boy Advance",
-        "igdb": 24,
-        "screenscraper": 12,
-        "mobygames": "Game_Boy_Advance"
+        ]
     },
     "gbc": {
+        "launchbox": "Nintendo Game Boy Color",
+        "screenscraper": 10,
+        "igdb": 22,
+        "mobygames": "Game_Boy_Color",
+        "emumovies": "Nintendo_Game_Boy_Color",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".GBC",
             ".gb",
             ".gbc",
             ".zip"
-        ],
-        "launchbox": "Nintendo Game Boy Color",
-        "igdb": 22,
-        "screenscraper": 10
+        ]
     },
     "gb": {
+        "launchbox": "Nintendo Game Boy",
+        "screenscraper": 9,
+        "igdb": 33,
+        "mobygames": "Game_Boy",
+        "emumovies": "Nintendo_Game_Boy",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".GB",
             ".gb",
             ".zip"
-        ],
-        "launchbox": "Nintendo Game Boy",
-        "igdb": 33,
-        "screenscraper": 9
+        ]
     },
     "n64": {
         "extensions": [
@@ -119,6 +135,14 @@
         "screenscraper": 14
     },
     "psx": {
+        "launchbox": "Sony Playstation",
+        "screenscraper": 57,
+        "igdb": 7,
+        "mobygames": "PlayStation",
+        "emumovies": "Sony_Playstation",
+        "dat_file": "",
+        "custom": "playstation_store",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".BIN",
@@ -139,12 +163,17 @@
             ".mds",
             ".pbp",
             ".zip"
-        ],
-        "launchbox": "Sony Playstation",
-        "igdb": 7,
-        "screenscraper": 57
+        ]
     },
     "ps2": {
+        "launchbox": "Sony Playstation 2",
+        "screenscraper": 58,
+        "igdb": 8,
+        "mobygames": "PlayStation_2",
+        "emumovies": "Sony_Playstation_2",
+        "dat_file": "",
+        "custom": "playstation_store",
+        "custom2": "",
         "extensions": [
             ".BIN",
             ".CUE",
@@ -166,12 +195,17 @@
             ".mds",
             ".nrg",
             ".pbp"
-        ],
-        "launchbox": "Sony Playstation 2",
-        "igdb": 8,
-        "screenscraper": 58
+        ]
     },
     "ps3": {
+        "launchbox": "Sony Playstation 3",
+        "screenscraper": 59,
+        "igdb": 9,
+        "mobygames": "PlayStation_3",
+        "emumovies": "Sony_PlayStation_3",
+        "dat_file": "",
+        "custom": "playstation_store",
+        "custom2": "",
         "extensions": [
             ".ISO",
             ".PKG",
@@ -192,35 +226,21 @@
             ".ps3",
             ".psn",
             ".squashfs"
-        ],
-        "launchbox": "Sony Playstation 3",
-        "igdb": 9,
-        "screenscraper": 59
+        ]
     },
     "ps4": {
-        "extensions": [
-            ".PKG",
-            ".bin",
-            ".ccd",
-            ".cso",
-            ".cue",
-            ".dump",
-            ".gz",
-            ".ima",
-            ".img",
-            ".iso",
-            ".m3u",
-            ".mdf",
-            ".nrg",
-            ".pbp",
-            ".pkg",
-            ".ps4",
-            ".psn",
-            ".squashfs"
-        ],
         "launchbox": "Sony Playstation 4",
+        "screenscraper": 60,
         "igdb": 48,
-        "screenscraper": 60
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".ps4",
+            ".zar"
+        ]
     },
     "ps5": {
         "extensions": [
@@ -232,6 +252,14 @@
         "screenscraper": 284
     },
     "psp": {
+        "launchbox": "Sony PSP",
+        "screenscraper": 61,
+        "igdb": 38,
+        "mobygames": "PSP",
+        "emumovies": "Sony_PSP",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".CSO",
             ".ISO",
@@ -241,10 +269,7 @@
             ".iso",
             ".pbp",
             ".prx"
-        ],
-        "launchbox": "Sony PSP",
-        "igdb": 38,
-        "screenscraper": 61
+        ]
     },
     "psvita": {
         "extensions": [
@@ -311,6 +336,14 @@
         ]
     },
     "wii": {
+        "launchbox": "Nintendo Wii",
+        "screenscraper": 16,
+        "igdb": 5,
+        "mobygames": "Wii",
+        "emumovies": "Nintendo_Wii",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".CISO",
             ".ISO",
@@ -322,10 +355,7 @@
             ".rvz",
             ".wad",
             ".wbfs"
-        ],
-        "launchbox": "Nintendo Wii",
-        "igdb": 5,
-        "screenscraper": 16
+        ]
     },
     "wiiu": {
         "extensions": [
@@ -347,6 +377,14 @@
         "screenscraper": 18
     },
     "switch": {
+        "launchbox": "Nintendo Switch",
+        "screenscraper": 225,
+        "igdb": 130,
+        "mobygames": "Nintendo_Switch",
+        "emumovies": "Nintendo_Switch",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".NSP",
             ".XCI",
@@ -356,12 +394,17 @@
             ".nso",
             ".nsp",
             ".xci"
-        ],
-        "launchbox": "Nintendo Switch",
-        "igdb": 130,
-        "screenscraper": 225
+        ]
     },
     "genesis": {
+        "launchbox": "Sega Genesis",
+        "screenscraper": 1,
+        "igdb": 29,
+        "mobygames": "Genesis",
+        "emumovies": "Sega_Genesis",
+        "dat_file": "megadriv.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".GEN",
@@ -372,12 +415,17 @@
             ".md",
             ".smd",
             ".zip"
-        ],
-        "launchbox": "Sega Genesis",
-        "igdb": 29,
-        "screenscraper": 1
+        ]
     },
     "megadrive": {
+        "launchbox": "Sega Genesis",
+        "screenscraper": 1,
+        "igdb": 29,
+        "mobygames": "Genesis",
+        "emumovies": "Sega_Genesis",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".32x",
             ".68k",
@@ -400,12 +448,17 @@
             ".smd",
             ".sms",
             ".zip"
-        ],
-        "launchbox": "Sega Genesis",
-        "igdb": 29,
-        "screenscraper": 1
+        ]
     },
     "saturn": {
+        "launchbox": "Sega Saturn",
+        "screenscraper": 22,
+        "igdb": 32,
+        "mobygames": "SEGA_Saturn",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".BIN",
@@ -422,10 +475,7 @@
             ".mds",
             ".toc",
             ".zip"
-        ],
-        "launchbox": "Sega Saturn",
-        "igdb": 32,
-        "screenscraper": 22
+        ]
     },
     "dreamcast": {
         "extensions": [
@@ -446,28 +496,38 @@
         "screenscraper": 23
     },
     "gamegear": {
+        "launchbox": "Sega Game Gear",
+        "screenscraper": 21,
+        "igdb": 35,
+        "mobygames": "Game_Gear",
+        "emumovies": "Sega_Game_Gear",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".GG",
             ".bin",
             ".gg",
             ".zip"
-        ],
-        "launchbox": "Sega Game Gear",
-        "igdb": 35,
-        "screenscraper": 21
+        ]
     },
     "mastersystem": {
+        "launchbox": "Sega Master System",
+        "screenscraper": 2,
+        "igdb": 64,
+        "mobygames": "SEGA_Master_System",
+        "emumovies": "Sega_Master_System",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".SMS",
             ".bin",
             ".sms",
             ".zip"
-        ],
-        "launchbox": "Sega Master System",
-        "igdb": 64,
-        "screenscraper": 2
+        ]
     },
     "sega32x": {
         "extensions": [
@@ -523,6 +583,14 @@
         "screenscraper": 20
     },
     "atari2600": {
+        "launchbox": "Atari 2600",
+        "screenscraper": 26,
+        "igdb": 59,
+        "mobygames": "Atari_2600",
+        "emumovies": "Atari_2600",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".A26",
@@ -531,12 +599,17 @@
             ".bin",
             ".rom",
             ".zip"
-        ],
-        "launchbox": "Atari 2600",
-        "igdb": 59,
-        "screenscraper": 26
+        ]
     },
     "atari5200": {
+        "launchbox": "Atari 5200",
+        "screenscraper": 40,
+        "igdb": 66,
+        "mobygames": "Atari_5200",
+        "emumovies": "Atari_5200",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".A52",
             ".BIN",
@@ -550,12 +623,17 @@
             ".xex",
             ".xfd",
             ".zip"
-        ],
-        "launchbox": "Atari 5200",
-        "igdb": 66,
-        "screenscraper": 40
+        ]
     },
     "atari7800": {
+        "launchbox": "Atari 7800",
+        "screenscraper": 41,
+        "igdb": 60,
+        "mobygames": "Atari_7800",
+        "emumovies": "Atari_7800",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".A78",
@@ -563,10 +641,7 @@
             ".a78",
             ".bin",
             ".zip"
-        ],
-        "launchbox": "Atari 7800",
-        "igdb": 60,
-        "screenscraper": 41
+        ]
     },
     "atarijaguar": {
         "extensions": [
@@ -601,6 +676,11 @@
         "launchbox": "GCE Vectrex",
         "screenscraper": 102,
         "igdb": 70,
+        "mobygames": "Vectrex",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".VEC",
@@ -624,15 +704,20 @@
         "screenscraper": 115
     },
     "colecovision": {
+        "launchbox": "ColecoVision",
+        "screenscraper": 48,
+        "igdb": 68,
+        "mobygames": "ColecoVision",
+        "emumovies": "Coleco_Vision",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".COL",
             ".col",
             ".rom",
             ".zip"
-        ],
-        "launchbox": "ColecoVision",
-        "igdb": 68,
-        "screenscraper": 48
+        ]
     },
     "odyssey2": {
         "extensions": [
@@ -654,7 +739,7 @@
         "emumovies": "",
         "dat_file": "",
         "custom": "",
-        "myrient": "redump_Panasonic - 3DO Interactive Multiplayer",
+        "custom2": "",
         "extensions": [
             ".CUE",
             ".ISO",
@@ -697,6 +782,11 @@
         "launchbox": "Amstrad CPC",
         "screenscraper": 65,
         "igdb": 25,
+        "mobygames": "",
+        "emumovies": "Amstrad_CPC",
+        "dat_file": "",
+        "custom": "cpcpower",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".DSK",
@@ -714,6 +804,14 @@
         ]
     },
     "apple2": {
+        "launchbox": "Apple II",
+        "screenscraper": 86,
+        "igdb": 75,
+        "mobygames": "",
+        "emumovies": "Apple_II",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".DO",
             ".DSK",
@@ -723,10 +821,7 @@
             ".m3u",
             ".nib",
             ".po"
-        ],
-        "launchbox": "Apple II",
-        "igdb": 75,
-        "screenscraper": 86
+        ]
     },
     "commodore64": {
         "extensions": [
@@ -776,11 +871,11 @@
         "launchbox": "Atari ST",
         "screenscraper": 42,
         "igdb": 63,
-        "mobygames": "",
-        "emumovies": "",
+        "mobygames": "Atari_ST",
+        "emumovies": "Atari_ST",
         "dat_file": "",
-        "custom": "amigahol",
-        "custom2": "amigahol",
+        "custom": "atarilegend",
+        "custom2": "atarilegend",
         "extensions": [
             ".7z",
             ".MSA",
@@ -811,10 +906,17 @@
         ],
         "launchbox": "Microsoft MSX",
         "igdb": 27,
-        "screenscraper": 113,
-        "dat_file": "msxromsdb.xml"
+        "screenscraper": 113
     },
     "msx2": {
+        "launchbox": "Microsoft MSX2",
+        "screenscraper": 116,
+        "igdb": 53,
+        "mobygames": "",
+        "emumovies": "MSX_2",
+        "dat_file": "msxromsdb.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".MX1",
@@ -827,12 +929,17 @@
             ".mx2",
             ".rom",
             ".zip"
-        ],
-        "launchbox": "Microsoft MSX2",
-        "igdb": 53,
-        "screenscraper": 116
+        ]
     },
     "pcengine": {
+        "launchbox": "NEC TurboGrafx-16",
+        "screenscraper": 31,
+        "igdb": 86,
+        "mobygames": "TurboGrafx-16",
+        "emumovies": "NEC_PC_Engine",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".CUE",
@@ -842,10 +949,7 @@
             ".pce",
             ".sgx",
             ".zip"
-        ],
-        "launchbox": "NEC TurboGrafx-16",
-        "igdb": 86,
-        "screenscraper": 31
+        ]
     },
     "pcenginecd": {
         "extensions": [
@@ -943,34 +1047,50 @@
         "screenscraper": 11
     },
     "gameandwatch": {
+        "launchbox": "Nintendo Game & Watch",
+        "screenscraper": 52,
+        "igdb": 307,
+        "mobygames": "",
+        "emumovies": "Nintendo_Game_and_Watch",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".MGW",
             ".mgw",
             ".zip"
-        ],
-        "launchbox": "Nintendo Game &amp; Watch",
-        "igdb": 307,
-        "screenscraper": 52
+        ]
     },
     "lcdgames": {
-        "launchbox": "3DO Interactive Multiplayer",
-        "screenscraper": 29,
+        "launchbox": "",
+        "screenscraper": "",
         "igdb": 50,
-        "mobygames": "3DO",
-        "extensions": []
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
     },
     "fbneo": {
+        "launchbox": "Arcade",
+        "screenscraper": 75,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Arcade",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".ZIP",
             ".fba",
             ".iso",
             ".zip"
-        ],
-        "launchbox": "Arcade",
-        "igdb": 52,
-        "screenscraper": 75
+        ]
     },
     "c16": {
         "launchbox": "Commodore VIC-20",
@@ -1025,9 +1145,14 @@
         ]
     },
     "rx78": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Arcade",
+        "screenscraper": 75,
+        "igdb": 52,
+        "mobygames": "Bandai_RX-78_Gundam",
+        "emumovies": "",
+        "dat_file": "rx78_cart.xml",
+        "custom": "arcadedb",
+        "custom2": "",
         "extensions": [
             ".rom",
             ".bin",
@@ -1233,22 +1358,14 @@
     },
     "smc777": {
         "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "smc777.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
-            ".mfi",
-            ".dfi",
-            ".hfe",
-            ".mfm",
-            ".td0",
-            ".imd",
-            ".d77",
-            ".d88",
-            ".1dd",
-            ".cqm",
-            ".cqi",
-            ".dsk",
-            ".7z",
             ".zip"
         ]
     },
@@ -1321,9 +1438,14 @@
         ]
     },
     "alice32": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Matra and Hachette Alice",
+        "screenscraper": 311,
+        "igdb": "",
+        "mobygames": "Alice_32_90",
+        "emumovies": "Matra_and_Hachette_Alice",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".wav",
             ".k7",
@@ -1352,6 +1474,10 @@
         "screenscraper": "",
         "igdb": "",
         "mobygames": "ABC_80",
+        "emumovies": "",
+        "dat_file": "abc80_flop.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".mfi",
             ".dfi",
@@ -1417,7 +1543,12 @@
     "batoparrot": {
         "launchbox": "Windows",
         "screenscraper": "",
-        "igdb": "",
+        "igdb": 6,
+        "mobygames": "Windows",
+        "emumovies": "Microsoft_Windows",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".pc",
             ".wsquashfs"
@@ -1451,11 +1582,15 @@
     },
     "laseractive": {
         "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "screenscraper": "",
+        "igdb": 487,
+        "mobygames": "LaserActive",
+        "emumovies": "Laserdisc",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
-            ".daphne",
-            ".squashfs"
+            ".mmi"
         ]
     },
     "casloopy": {
@@ -1650,7 +1785,12 @@
     "snescd": {
         "launchbox": "Super Nintendo Entertainment System",
         "screenscraper": 210,
-        "igdb": null,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".bin",
@@ -1689,9 +1829,14 @@
         ]
     },
     "konamilcd": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Game & Watch",
+        "screenscraper": 52,
+        "igdb": 307,
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".zip",
             ".7z"
@@ -1755,7 +1900,12 @@
     "gaelco": {
         "launchbox": "Arcade",
         "screenscraper": 194,
-        "igdb": null,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Arcade",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".wsquashfs",
@@ -1799,7 +1949,12 @@
     "exl100": {
         "launchbox": "Exelvision EXL 100",
         "screenscraper": 96,
-        "igdb": null,
+        "igdb": "",
+        "mobygames": "Exelvision",
+        "emumovies": "Exelvision_EXL_100",
+        "dat_file": "exl100.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".bin",
@@ -1846,11 +2001,17 @@
     "pspminis": {
         "launchbox": "Sony PSP Minis",
         "screenscraper": 61,
-        "igdb": null,
+        "igdb": 38,
+        "mobygames": "PSP",
+        "emumovies": "Sony_PSP_Minis",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".cso",
             ".iso",
-            ".pbp"
+            ".pbp",
+            ".chd"
         ]
     },
     "vic1001": {
@@ -1974,7 +2135,12 @@
     "tg16": {
         "launchbox": "NEC TurboGrafx-16",
         "screenscraper": 31,
-        "igdb": null,
+        "igdb": 86,
+        "mobygames": "TurboGrafx-16",
+        "emumovies": "NEC_PC_Engine",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".bin",
@@ -2007,8 +2173,13 @@
     },
     "segastv": {
         "launchbox": "Sega ST-V",
-        "screenscraper": "69",
-        "igdb": "",
+        "screenscraper": 69,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Sega_ST_V",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".zip",
             ".7z"
@@ -2073,8 +2244,13 @@
     },
     "aleck64": {
         "launchbox": "Arcade",
-        "screenscraper": "75",
+        "screenscraper": 149,
         "igdb": "",
+        "mobygames": "",
+        "emumovies": "Seta_Aleck64",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".z64",
             ".n64",
@@ -2154,17 +2330,15 @@
     },
     "j2me": {
         "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "screenscraper": 302,
+        "igdb": "",
+        "mobygames": "J2ME",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
-            ".7z",
-            ".exe",
-            ".jar",
-            ".pc",
-            ".wine",
-            ".wsquashfs",
-            ".wtgz",
-            ".zip"
+            ".jar"
         ]
     },
     "sorcerer": {
@@ -2190,7 +2364,12 @@
     "famicom": {
         "launchbox": "Nintendo Entertainment System",
         "screenscraper": 3,
-        "igdb": null,
+        "igdb": 99,
+        "mobygames": "NES",
+        "emumovies": "Nintendo_Famicom",
+        "dat_file": "famicom_flop.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".nes",
@@ -2287,7 +2466,12 @@
     "sfc": {
         "launchbox": "Super Nintendo Entertainment System",
         "screenscraper": 4,
-        "igdb": null,
+        "igdb": 58,
+        "mobygames": "SNES",
+        "emumovies": "Nintendo_Super_Famicom",
+        "dat_file": "snes.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".bin",
@@ -2305,9 +2489,14 @@
         ]
     },
     "sv8000": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Bandai Super Vision 8000",
+        "screenscraper": 75,
+        "igdb": 52,
+        "mobygames": "Super_Vision_8000",
+        "emumovies": "MiSFiT_MAME",
+        "dat_file": "sv8000.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".bin",
             ".7z",
@@ -2424,9 +2613,14 @@
         ]
     },
     "tiger": {
-        "launchbox": "",
-        "screenscraper": 121,
-        "igdb": null,
+        "launchbox": "Nintendo Game & Watch",
+        "screenscraper": 52,
+        "igdb": "",
+        "mobygames": "Dedicated_handheld",
+        "emumovies": "Tiger_Handheld_Electronics",
+        "dat_file": "",
+        "custom": "arcadedb",
+        "custom2": "",
         "extensions": [
             ".zip",
             ".7z"
@@ -2667,9 +2861,14 @@
         ]
     },
     "mz2500": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Sharp MZ-2500",
+        "screenscraper": 314,
+        "igdb": 374,
+        "mobygames": "Sharp_MZ-80B_2000_2500",
+        "emumovies": "Sharp_MZ_2500",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".bin",
             ".7z",
@@ -2709,8 +2908,13 @@
     },
     "win98": {
         "launchbox": "Windows",
-        "screenscraper": "137",
-        "igdb": "",
+        "screenscraper": 137,
+        "igdb": 6,
+        "mobygames": "Windows",
+        "emumovies": "Microsoft_Windows",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".pc",
             ".dos",
@@ -2759,9 +2963,14 @@
         ]
     },
     "elektronika": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Game & Watch",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "Dedicated_handheld",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".zip",
             ".7z"
@@ -2825,9 +3034,14 @@
         ]
     },
     "aquarius": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Mattel Aquarius",
+        "screenscraper": 75,
+        "igdb": "",
+        "mobygames": "Mattel_Aquarius",
+        "emumovies": "Mattel_Aquarius",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".7z",
             ".zip",
@@ -2849,18 +3063,15 @@
     },
     "pippin": {
         "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "screenscraper": "",
+        "igdb": 476,
+        "mobygames": "Pippin",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
-            ".chd",
-            ".cue",
-            ".toc",
-            ".nrg",
-            ".gdi",
-            ".iso",
-            ".cdr",
-            ".zip",
-            ".7z"
+            ".bat"
         ]
     },
     "exboard": {
@@ -2897,9 +3108,14 @@
         ]
     },
     "locomalito": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Windows",
+        "screenscraper": 138,
+        "igdb": 6,
+        "mobygames": "Windows",
+        "emumovies": "Locomalito",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".pc",
             ".wsquashfs",
@@ -2936,8 +3152,13 @@
     },
     "snesh": {
         "launchbox": "Super Nintendo Entertainment System",
-        "screenscraper": "4",
-        "igdb": "",
+        "screenscraper": 202,
+        "igdb": 19,
+        "mobygames": "SNES",
+        "emumovies": "Nintendo_SNES",
+        "dat_file": "snes.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".smc",
             ".fig",
@@ -3107,9 +3328,13 @@
     },
     "adam": {
         "launchbox": "Coleco ADAM",
-        "screenscraper": "89",
+        "screenscraper": 89,
         "igdb": "",
-        "mobygames": "",
+        "mobygames": "Coleco_Adam",
+        "emumovies": "Coleco_ADAM",
+        "dat_file": "adam_flop.xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".1dd",
             ".7z",
@@ -3136,11 +3361,11 @@
         "launchbox": "Commodore 64",
         "screenscraper": 66,
         "igdb": 15,
-        "mobygames": "",
-        "emumovies": "",
-        "dat_file": "",
+        "mobygames": "Commodore_64",
+        "emumovies": "Commodore_64",
+        "dat_file": "c64_cass.xml",
         "custom": "lemon64",
-        "custom2": "lemon64",
+        "custom2": "",
         "extensions": [
             ".crt",
             ".d64",
@@ -3148,7 +3373,10 @@
             ".D64",
             ".T64",
             ".prg",
-            ".PRG"
+            ".PRG",
+            ".zip",
+            ".d81",
+            ".G64"
         ]
     },
     "cdi": {
@@ -3163,10 +3391,16 @@
     },
     "dos": {
         "launchbox": "MS-DOS",
-        "screenscraper": "",
-        "igdb": "",
-        "mobygames": "",
-        "extensions": []
+        "screenscraper": 135,
+        "igdb": 13,
+        "mobygames": "DOS",
+        "emumovies": "Microsoft_DOS",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
     },
     "vsmile": {
         "launchbox": "",
@@ -3187,25 +3421,1661 @@
         ]
     },
     "scummvm": {
-        "launchbox": "ScummVM",
-        "screenscraper": "",
-        "igdb": 6,
-        "mobygames": "Windows",
-        "emumovies": "",
+        "launchbox": "Apple II",
+        "screenscraper": 86,
+        "igdb": 75,
+        "mobygames": "Apple_II",
+        "emumovies": "Microsoft_DOS",
         "dat_file": "",
         "custom": "ags",
-        "extensions": []
+        "custom2": "lemon64",
+        "extensions": [
+            ".squashfs"
+        ]
     },
     "daphne": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 49,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Daphne",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".daphne",
+            ".7z",
+            ".rar",
+            ".squashfs"
+        ]
+    },
+    "singe": {
+        "launchbox": "",
+        "screenscraper": "",
         "igdb": "",
         "mobygames": "",
         "emumovies": "",
         "dat_file": "",
         "custom": "",
+        "myrient": "",
+        "extensions": [
+            ".hypseus"
+        ]
+    },
+    "snes-msu1": {
+        "launchbox": "Super Nintendo Entertainment System",
+        "screenscraper": 210,
+        "igdb": 131,
+        "mobygames": "SNES",
+        "emumovies": "Nintendo_MSU_1",
+        "dat_file": "snes.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".smc",
+            ".sfc",
+            ".m3u",
+            ".squashfs"
+        ]
+    },
+    "amiga1200_ransom": {
+        "launchbox": "Commodore Amiga",
+        "screenscraper": 64,
+        "igdb": 16,
+        "mobygames": "Amiga",
+        "emumovies": "Commodore_Amiga",
+        "dat_file": "",
+        "custom": "lemonamiga",
+        "custom2": "amigahol",
+        "extensions": [
+            ".uae"
+        ]
+    },
+    "amiga500": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "lemonamiga",
+        "myrient": "",
+        "extensions": []
+    },
+    "amiga4000_spirit": {
+        "launchbox": "Commodore Amiga",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "amigahol",
+        "custom2": "amigahol",
+        "extensions": []
+    },
+    "plugnplay": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "MAME 0.281 ROMs (non-merged).xml",
+        "custom": "",
+        "custom2": "",
         "extensions": [
             ".zip"
+        ]
+    },
+    "mz2200": {
+        "launchbox": "Sharp MZ-2500",
+        "screenscraper": "",
+        "igdb": 374,
+        "mobygames": "Sharp_MZ-80B_2000_2500",
+        "emumovies": "",
+        "dat_file": "mz2000_cass.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "ps3h": {
+        "launchbox": "Sony Playstation 3",
+        "screenscraper": 59,
+        "igdb": 9,
+        "mobygames": "PlayStation_3",
+        "emumovies": "Sony_PlayStation_3",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".m3u",
+            ".ps3"
+        ]
+    },
+    "openbor": {
+        "launchbox": "OpenBOR",
+        "screenscraper": 214,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "OpenBOR",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".pak"
+        ]
+    },
+    "gx4000": {
+        "launchbox": "Amstrad CPC",
+        "screenscraper": 65,
+        "igdb": 25,
+        "mobygames": "Amstrad_CPC",
+        "emumovies": "Amstrad_CPC",
+        "dat_file": "",
+        "custom": "cpcpower",
+        "custom2": "",
+        "extensions": [
+            ".cpr"
+        ]
+    },
+    "sufami": {
+        "launchbox": "Super Nintendo Entertainment System",
+        "screenscraper": 108,
+        "igdb": 58,
+        "mobygames": "SNES",
+        "emumovies": "Nintendo_Super_Famicom",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "vpinball": {
+        "launchbox": "Pinball",
+        "screenscraper": 198,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "Visual_Pinball",
+        "dat_file": "",
+        "custom": "vpinball",
+        "custom2": "",
+        "extensions": [
+            ".vpx"
+        ]
+    },
+    "arcadepc_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "ngage2": {
+        "launchbox": "Nokia N-Gage",
+        "screenscraper": 30,
+        "igdb": 42,
+        "mobygames": "Symbian",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".n-gage"
+        ]
+    },
+    "fm7": {
+        "launchbox": "Fujitsu FM-7",
+        "screenscraper": 97,
+        "igdb": 152,
+        "mobygames": "FM-7",
+        "emumovies": "Fujitsu_FM_7",
+        "dat_file": "fm7_disk.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "wswanc": {
+        "launchbox": "WonderSwan Color",
+        "screenscraper": 46,
+        "igdb": 123,
+        "mobygames": "WonderSwan_Color",
+        "emumovies": "Bandai_WonderSwan_Color",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsc"
+        ]
+    },
+    "gamecube": {
+        "launchbox": "Nintendo GameCube",
+        "screenscraper": 13,
+        "igdb": 21,
+        "mobygames": "GameCube",
+        "emumovies": "Nintendo_GameCube",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            "rvz",
+            "m3u",
+            "iso"
+        ]
+    },
+    "wswan": {
+        "launchbox": "WonderSwan",
+        "screenscraper": 45,
+        "igdb": 57,
+        "mobygames": "WonderSwan",
+        "emumovies": "Bandai_WonderSwan",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".ws"
+        ]
+    },
+    "vis": {
+        "launchbox": "",
+        "screenscraper": 75,
+        "igdb": 440,
+        "mobygames": "VIS",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".chd"
+        ]
+    },
+    "nuon": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": 122,
+        "mobygames": "Nuon",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".bat"
+        ]
+    },
+    "enterprise64_128": {
+        "launchbox": "Enterprise",
+        "screenscraper": 92,
+        "igdb": 102,
+        "mobygames": "Enterprise",
+        "emumovies": "Entex_Adventure_Vision",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "enterprise": {
+        "launchbox": "Enterprise",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "Enterprise",
+        "emumovies": "",
+        "dat_file": "ep64_flop.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "megaduck": {
+        "launchbox": "Mega Duck",
+        "screenscraper": 90,
+        "igdb": 408,
+        "mobygames": "",
+        "emumovies": "Mega_Duck",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".bin"
+        ]
+    },
+    "supervision": {
+        "launchbox": "Watara Supervision",
+        "screenscraper": 207,
+        "igdb": 415,
+        "mobygames": "Supervision",
+        "emumovies": "Watara_Supervision",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "supracan": {
+        "launchbox": "Funtech Super Acan",
+        "screenscraper": 100,
+        "igdb": 480,
+        "mobygames": "Super_Acan",
+        "emumovies": "Funtech_Super_Acan",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "lynx": {
+        "launchbox": "Atari Lynx",
+        "screenscraper": 28,
+        "igdb": 61,
+        "mobygames": "Lynx",
+        "emumovies": "Atari_Lynx",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".lnx"
+        ]
+    },
+    "naomi": {
+        "launchbox": "Arcade",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "Arcade",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "camplynx": {
+        "launchbox": "Camputers Lynx",
+        "screenscraper": 88,
+        "igdb": "",
+        "mobygames": "Camputers_Lynx",
+        "emumovies": "Camputers_Lynx",
+        "dat_file": "camplynx_cass.xml",
+        "custom": "arcadedb",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "markiii": {
+        "launchbox": "Sega Master System",
+        "screenscraper": 2,
+        "igdb": 64,
+        "mobygames": "SEGA_Master_System",
+        "emumovies": "Sega_Master_System",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".sms"
+        ]
+    },
+    "gc-jp": {
+        "launchbox": "Nintendo Game Boy Color",
+        "screenscraper": 10,
+        "igdb": 22,
+        "mobygames": "Game_Boy_Color",
+        "emumovies": "Nintendo_Game_Boy_Color",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip",
+            ".rvz"
+        ]
+    },
+    "gb-jp": {
+        "launchbox": "Nintendo Game Boy",
+        "screenscraper": 9,
+        "igdb": 33,
+        "mobygames": "Game_Boy",
+        "emumovies": "Nintendo_Game_Boy",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "gbc-jp": {
+        "launchbox": "Nintendo Game Boy Color",
+        "screenscraper": 10,
+        "igdb": 22,
+        "mobygames": "Game_Boy_Color",
+        "emumovies": "Nintendo_Game_Boy_Color",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "sgb": {
+        "launchbox": "Nintendo Game Boy",
+        "screenscraper": 9,
+        "igdb": 33,
+        "mobygames": "Game_Boy",
+        "emumovies": "Nintendo_Game_Boy",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "zxspectrum": {
+        "launchbox": "Sinclair ZX Spectrum",
+        "screenscraper": 76,
+        "igdb": 26,
+        "mobygames": "ZX_Spectrum",
+        "emumovies": "Sinclair_ZX_Spectrum",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "n64dd": {
+        "launchbox": "Nintendo 64DD",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "pokemini": {
+        "launchbox": "Nintendo Pokemon Mini",
+        "screenscraper": 211,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".min"
+        ]
+    },
+    "gamegear-jp": {
+        "launchbox": "Sega Game Gear",
+        "screenscraper": 21,
+        "igdb": 35,
+        "mobygames": "Game_Gear",
+        "emumovies": "Sega_Game_Gear",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "gba-jp": {
+        "launchbox": "Nintendo Game Boy Advance",
+        "screenscraper": 12,
+        "igdb": 24,
+        "mobygames": "Game_Boy_Advance",
+        "emumovies": "Nintendo_Game_Boy_Advance",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "3ds_spirit": {
+        "launchbox": "Nintendo 3DS",
+        "screenscraper": 17,
+        "igdb": 37,
+        "mobygames": "Nintendo_3DS",
+        "emumovies": "Nintendo_3DS",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zcci"
+        ]
+    },
+    "nds": {
+        "launchbox": "Nintendo DS",
+        "screenscraper": 15,
+        "igdb": 20,
+        "mobygames": "Nintendo_DS",
+        "emumovies": "Nintendo_DS",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "nds-jp": {
+        "launchbox": "Nintendo DS",
+        "screenscraper": 15,
+        "igdb": 20,
+        "mobygames": "Nintendo_DS",
+        "emumovies": "Nintendo_DS",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "adrenaline_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "atomiswave": {
+        "launchbox": "Arcade",
+        "screenscraper": 53,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Sammy_Atomiswave",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".dat",
+            ".lst",
+            ".zip",
+            ".7z",
+            ".bin",
+            ".chd"
+        ]
+    },
+    "3ds": {
+        "launchbox": "Nintendo 3DS",
+        "screenscraper": 17,
+        "igdb": 20,
+        "mobygames": "Nintendo_3DS",
+        "emumovies": "Nintendo_3DS",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zcci"
+        ]
+    },
+    "c20": {
+        "launchbox": "Commodore VIC-20",
+        "screenscraper": 73,
+        "igdb": 71,
+        "mobygames": "VIC-20",
+        "emumovies": "Commodore_VIC_20",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "konamipc_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "mz2000": {
+        "launchbox": "Sharp MZ-2500",
+        "screenscraper": "",
+        "igdb": 374,
+        "mobygames": "Sharp_MZ-80B_2000_2500",
+        "emumovies": "Sharp_MZ_2500",
+        "dat_file": "mz2000_cass.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "cassettevision": {
+        "launchbox": "",
+        "screenscraper": 300,
+        "igdb": 375,
+        "mobygames": "Epoch_Cassette_Vision",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "sordm5": {
+        "launchbox": "Sord M5",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "Sord_M5",
+        "emumovies": "Sord_M5",
+        "dat_file": "m5_cass.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "nes_aladdin": {
+        "launchbox": "Nintendo Entertainment System",
+        "screenscraper": 3,
+        "igdb": 18,
+        "mobygames": "NES",
+        "emumovies": "Nintendo_NES",
+        "dat_file": "nes.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "x68000": {
+        "launchbox": "Sharp X68000",
+        "screenscraper": 79,
+        "igdb": 121,
+        "mobygames": "Sharp_X68000",
+        "emumovies": "Sharp_X68000",
+        "dat_file": "x68k_flop.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip",
+            ".m3u",
+            ".dimm",
+            ".dim",
+            ".hdf"
+        ]
+    },
+    "x1": {
+        "launchbox": "Sharp X1",
+        "screenscraper": 220,
+        "igdb": 77,
+        "mobygames": "Sharp_X1",
+        "emumovies": "Sharp_X1",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "msx1": {
+        "launchbox": "Microsoft MSX",
+        "screenscraper": 113,
+        "igdb": 27,
+        "mobygames": "MSX",
+        "emumovies": "MSX",
+        "dat_file": "msx1_cass.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "msxturbor": {
+        "launchbox": "Microsoft MSX",
+        "screenscraper": 118,
+        "igdb": 27,
+        "mobygames": "MSX",
+        "emumovies": "MSX",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "unis_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "pinballarcade": {
+        "launchbox": "Pinball",
+        "screenscraper": 200,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "vpinball",
+        "custom2": "",
+        "extensions": [
+            ".bat"
+        ]
+    },
+    "seganu_retrobat": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Arcade",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".teknoparrot"
+        ]
+    },
+    "fury": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".grp"
+        ]
+    },
+    "bk": {
+        "launchbox": "Elektronika BK",
+        "screenscraper": 93,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "Elektronika_BK_0011",
+        "dat_file": "bk0010.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "mtx512": {
+        "launchbox": "Memotech MTX512",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "Memotech_MTX",
+        "emumovies": "Memotech_MTX",
+        "dat_file": "mtx_cart.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "seganu_batocera": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "segare_batocera": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "segarw_batocera": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "segaer_batocera": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "namcoes3_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "typex_batocera": {
+        "launchbox": "Taito Type X",
+        "screenscraper": 112,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "typex2_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "3ds-jp_spirit": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zcci"
+        ]
+    },
+    "supergrafx": {
+        "launchbox": "PC Engine SuperGrafx",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "SuperGrafx",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "raze": {
+        "launchbox": "MS-DOS",
+        "screenscraper": 135,
+        "igdb": "",
+        "mobygames": "DOS",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".raze"
+        ]
+    },
+    "xash3d_fwgs": {
+        "launchbox": "Windows",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".game",
+            ".cmd"
+        ]
+    },
+    "ngpc": {
+        "launchbox": "SNK Neo Geo Pocket Color",
+        "screenscraper": 82,
+        "igdb": 120,
+        "mobygames": "Neo_Geo_Pocket_Color",
+        "emumovies": "SNK_Neo_Geo_Pocket_Color",
+        "dat_file": "ngpc.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".ngc",
+            ".zip"
+        ]
+    },
+    "dice": {
+        "launchbox": "Arcade",
+        "screenscraper": 75,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "DICE",
+        "dat_file": "MAME 0.281 ROMs (non-merged).xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip",
+            ".dmy"
+        ]
+    },
+    "samcoupe": {
+        "launchbox": "SAM Coup\u00e9",
+        "screenscraper": 213,
+        "igdb": "",
+        "mobygames": "SAM_Coupe",
+        "emumovies": "MGT_Sam_Coupe",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "ecwolf": {
+        "launchbox": "MS-DOS",
+        "screenscraper": 135,
+        "igdb": 13,
+        "mobygames": "DOS",
+        "emumovies": "Microsoft_DOS",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".ecwolf",
+            ".pk3",
+            ".squashfs"
+        ]
+    },
+    "namcoes3_retrobat": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".teknoparrot"
+        ]
+    },
+    "amigacdtv": {
+        "launchbox": "Commodore CDTV",
+        "screenscraper": 129,
+        "igdb": 158,
+        "mobygames": "CDTV",
+        "emumovies": "Commodore_CDTV",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "psp-jp": {
+        "launchbox": "Sony PSP",
+        "screenscraper": 61,
+        "igdb": 38,
+        "mobygames": "PSP",
+        "emumovies": "Sony_PSP",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".chd"
+        ]
+    },
+    "megadrive-jp": {
+        "launchbox": "Sega Genesis",
+        "screenscraper": 1,
+        "igdb": 29,
+        "mobygames": "Genesis",
+        "emumovies": "Sega_Genesis",
+        "dat_file": "megadriv.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".bin",
+            ".gen",
+            ".md",
+            ".sg",
+            ".smd",
+            ".zip",
+            ".7z"
+        ]
+    },
+    "model2": {
+        "launchbox": "Sega Model 2",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "naomi2": {
+        "launchbox": "Arcade",
+        "screenscraper": 75,
+        "igdb": "",
+        "mobygames": "Arcade",
+        "emumovies": "Arcade",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "apple2gs": {
+        "launchbox": "Apple IIGS",
+        "screenscraper": 217,
+        "igdb": 115,
+        "mobygames": "Apple_IIgs",
+        "emumovies": "Apple_IIGS",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".2mg"
+        ]
+    },
+    "pc88": {
+        "launchbox": "NEC PC-8801",
+        "screenscraper": 221,
+        "igdb": 125,
+        "mobygames": "PC-88",
+        "emumovies": "NEC_PC_8801",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "pc98": {
+        "launchbox": "NEC PC-9801",
+        "screenscraper": 208,
+        "igdb": 149,
+        "mobygames": "PC-98",
+        "emumovies": "NEC_PC_9801",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "mame_lite": {
+        "launchbox": "Arcade",
+        "screenscraper": 75,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Arcade",
+        "dat_file": "MAME 0.281 ROMs (non-merged).xml",
+        "custom": "arcadedb",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "amiga-demos": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "mame-aknf": {
+        "launchbox": "Arcade",
+        "screenscraper": 75,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Arcade",
+        "dat_file": "",
+        "custom": "arcadedb",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "psn": {
+        "launchbox": "Sony Playstation 3",
+        "screenscraper": 59,
+        "igdb": 9,
+        "mobygames": "PlayStation_3",
+        "emumovies": "Sony_PlayStation_3",
+        "dat_file": "",
+        "custom": "playstation_store",
+        "custom2": "",
+        "extensions": [
+            ".psn",
+            ".m3u",
+            ".squashfs"
+        ]
+    },
+    "nesicax_batocera": {
+        "launchbox": "Taito Type X",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "rawthrills_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "globalvr_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Arcade",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
+        ]
+    },
+    "sonic3-air": {
+        "launchbox": "Windows",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".s3air",
+            ".bin"
+        ]
+    },
+    "sonic-mania": {
+        "launchbox": "Windows",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".rsdk",
+            ".sman"
+        ]
+    },
+    "sonicretro": {
+        "launchbox": "Windows",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".rsdk",
+            ".son",
+            ".scd"
+        ]
+    },
+    "globalvr_retrobat": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Arcade",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".teknoparrot"
+        ]
+    },
+    "hbmame": {
+        "launchbox": "Arcade",
+        "screenscraper": 75,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "HBMAME",
+        "dat_file": "hbmame-game-full.xml",
+        "custom": "arcadedb",
+        "custom2": "arcadedb",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "namco3xx_retrobat": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "Arcade",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".game"
+        ]
+    },
+    "namco3xx_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".squashfs"
+        ]
+    },
+    "nes-msu": {
+        "launchbox": "Nintendo Entertainment System",
+        "screenscraper": 3,
+        "igdb": 18,
+        "mobygames": "NES",
+        "emumovies": "Nintendo_MSU_1",
+        "dat_file": "nes.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".smc",
+            ".sfc",
+            ".zip",
+            ".7z"
+        ]
+    },
+    "coco": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "megadrive-msu": {
+        "launchbox": "Sega Genesis",
+        "screenscraper": 1,
+        "igdb": 29,
+        "mobygames": "Genesis",
+        "emumovies": "Sega_Genesis",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".md"
+        ]
+    },
+    "soh": {
+        "launchbox": "Nintendo 64",
+        "screenscraper": 14,
+        "igdb": 4,
+        "mobygames": "Nintendo_64",
+        "emumovies": "Nintendo_N64",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".z64"
+        ]
+    },
+    "jaguar": {
+        "launchbox": "Atari Jaguar",
+        "screenscraper": 27,
+        "igdb": 62,
+        "mobygames": "Jaguar",
+        "emumovies": "Atari_Jaguar",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".j64"
+        ]
+    },
+    "namco2x6_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "ArcadePC",
+        "dat_file": "",
+        "custom": "arcadedb",
+        "custom2": "",
+        "extensions": [
+            ".acgame",
+            ".squashfs",
+            ".zip"
+        ]
+    },
+    "gp32": {
+        "launchbox": "GamePark GP32",
+        "screenscraper": 101,
+        "igdb": "",
+        "mobygames": "GP32",
+        "emumovies": "Gamepark_GP32",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "dreamcast-jp": {
+        "launchbox": "Sega Dreamcast",
+        "screenscraper": 23,
+        "igdb": 23,
+        "mobygames": "Dreamcast",
+        "emumovies": "Sega_Dreamcast",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".chd",
+            ".cdi"
+        ]
+    },
+    "saturn-jp": {
+        "launchbox": "Sega Saturn",
+        "screenscraper": 22,
+        "igdb": 32,
+        "mobygames": "SEGA_Saturn",
+        "emumovies": "Sega_Saturn",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".chd",
+            ".m3u"
+        ]
+    },
+    "segachannel": {
+        "launchbox": "Sega Genesis",
+        "screenscraper": 1,
+        "igdb": 29,
+        "mobygames": "Genesis",
+        "emumovies": "Sega_Genesis",
+        "dat_file": "megadriv.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".68k",
+            ".sgd",
+            ".smd",
+            ".bin",
+            ".gen",
+            ".md",
+            ".sg",
+            ".wad",
+            ".zip",
+            ".7z"
+        ]
+    },
+    "chihiro_batocera": {
+        "launchbox": "Arcade",
+        "screenscraper": 269,
+        "igdb": 52,
+        "mobygames": "Arcade",
+        "emumovies": "MAME",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".squashfs"
+        ]
+    },
+    "videopacplus": {
+        "launchbox": "Philips Videopac+",
+        "screenscraper": 104,
+        "igdb": "",
+        "mobygames": "Odyssey_2",
+        "emumovies": "Philips_Videopac_",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "namco1xx": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "fmtowns": {
+        "launchbox": "Fujitsu FM Towns Marty",
+        "screenscraper": 253,
+        "igdb": 118,
+        "mobygames": "FM_Towns",
+        "emumovies": "Fujitsu_FM_Towns",
+        "dat_file": "fmtowns_cd.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".chd"
+        ]
+    },
+    "jaguarcd": {
+        "launchbox": "Atari Jaguar CD",
+        "screenscraper": 171,
+        "igdb": 410,
+        "mobygames": "Jaguar",
+        "emumovies": "Atari_Jaguar_CD",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".cue",
+            ".bigpimg"
+        ]
+    },
+    "advision": {
+        "launchbox": "Entex Adventure Vision",
+        "screenscraper": 78,
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "Entex_Adventure_Vision",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": []
+    },
+    "jaguarcd_gspawn": {
+        "launchbox": "Atari Jaguar CD",
+        "screenscraper": 171,
+        "igdb": 410,
+        "mobygames": "Jaguar",
+        "emumovies": "Atari_Jaguar_CD",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".cue",
+            ".cdi",
+            ".bigpimg"
+        ]
+    },
+    "ikemen": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".squashfs",
+            ".ikemen"
+        ]
+    },
+    "mugen": {
+        "launchbox": "MUGEN",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "MUGEN",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".pc",
+            ".squashfs"
+        ]
+    },
+    "ps2-jp": {
+        "launchbox": "Sony Playstation 2",
+        "screenscraper": 58,
+        "igdb": 8,
+        "mobygames": "PlayStation_2",
+        "emumovies": "Sony_Playstation_2",
+        "dat_file": "",
+        "custom": "playstation_store",
+        "custom2": "",
+        "extensions": [
+            ".chd"
+        ]
+    },
+    "psx-jp": {
+        "launchbox": "Sony Playstation",
+        "screenscraper": 57,
+        "igdb": 7,
+        "mobygames": "PlayStation",
+        "emumovies": "Sony_Playstation",
+        "dat_file": "",
+        "custom": "playstation_store",
+        "custom2": "",
+        "extensions": [
+            ".7z",
+            ".bin",
+            ".cbn",
+            ".ccd",
+            ".chd",
+            ".cue",
+            ".img",
+            ".iso",
+            ".m3u",
+            ".mdf",
+            ".mds",
+            ".pbp",
+            ".zip"
+        ]
+    },
+    "pc6001": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "pc6001_cart.xml",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip"
+        ]
+    },
+    "oricatmos": {
+        "launchbox": "Oric Atmos",
+        "screenscraper": 131,
+        "igdb": "",
+        "mobygames": "Oric",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".zip",
+            ".tap"
+        ]
+    },
+    "nesicax2_batocera": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "",
+        "custom2": "",
+        "extensions": [
+            ".wsquashfs"
         ]
     }
 }

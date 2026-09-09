@@ -47,8 +47,7 @@
             ],
             "spine": [
                 "Box - Spine"
-            ],
-            "bezel": []
+            ]
         },
         "region": {
             "priority": [
@@ -133,8 +132,20 @@
             "themehb": [
                 "themehb"
             ],
-            "bezel": []
-        }
+            "bezel": [
+                "bezel-16-9",
+                "bezel-16-9-v",
+                "bezel-16-9-cocktail"
+            ]
+        },
+        "language_priority": [
+            "en"
+        ],
+        "selected_fields": [
+            "description"
+        ],
+        "overwrite_text_fields": true,
+        "overwrite_media_fields": false
     },
     "steamgriddb": {
         "image_type_mappings": {
@@ -177,9 +188,6 @@
             ],
             "image": [
                 "Gameplay"
-            ],
-            "spine": [
-                "Spine"
             ]
         },
         "description": "MobyGames local database scrapper. Maps game data from local JSON databases to gamelist.xml fields."
@@ -202,7 +210,8 @@
             ],
             "cartridge": [
                 "Cart",
-                "CD"
+                "CD",
+                "Cabinet"
             ],
             "manual": [
                 "Manual"
@@ -225,10 +234,11 @@
             "titleshot": [
                 "Title"
             ],
+            "spine": [
+                "Box_Spine"
+            ],
             "fanart": [
-                "Artwork_Preview",
-                "Background",
-                "Banner"
+                "Background"
             ]
         }
     },
@@ -245,11 +255,9 @@
             "boxfront": "boxart",
             "boxback": "boxback",
             "screenshot": "image",
-            "video": "video",
+            "manual": "manual",
             "cartridge": "cartridge",
-            "map": "map",
-            "cheats": "magazine",
-            "manual": "manual"
+            "video": "video"
         }
     }
 }
