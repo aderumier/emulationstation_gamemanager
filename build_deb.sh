@@ -5,6 +5,48 @@
 
 set -e  # Exit on any error
 
+# ---------------------------------------------------------------------------
+# Build inside Debian 13
+#
+# The package targets Debian 13, so it is built there rather than on whatever
+# the developer machine happens to run: the vendored modules and the Depends
+# line are only meaningful against the distribution that will install them.
+# This block re-executes the script inside the container; the build itself is
+# unchanged and still runs from /src, the bind-mounted working tree.
+#
+#   DEB_BUILD_DOCKER=0   build natively instead (no container)
+#   DEB_BUILD_IMAGE=...   build against a different image
+# ---------------------------------------------------------------------------
+DEB_BUILD_IMAGE="${DEB_BUILD_IMAGE:-debian:13}"
+
+if [ "${GAMEMANAGER_DEB_IN_DOCKER:-0}" != "1" ] && [ "${DEB_BUILD_DOCKER:-1}" != "0" ]; then
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "❌ docker not found. Install docker, or run DEB_BUILD_DOCKER=0 ./build_deb.sh to build natively."
+        exit 1
+    fi
+
+    echo "🐳 Building in $DEB_BUILD_IMAGE (set DEB_BUILD_DOCKER=0 to build natively)..."
+    exec docker run --rm \
+        -v "$PWD":/src -w /src \
+        -e GAMEMANAGER_DEB_IN_DOCKER=1 \
+        -e BUILD_UID="$(id -u)" -e BUILD_GID="$(id -g)" \
+        "$DEB_BUILD_IMAGE" \
+        bash -euc '
+            # Artifacts are written as root inside the container; hand them back
+            # to the invoking user however the build ends.
+            trap "chown -R \"$BUILD_UID:$BUILD_GID\" /src/debian /src/*.deb 2>/dev/null || true" EXIT
+
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null
+
+            # The tree is bind-mounted from another uid, which git refuses to read
+            git config --global --add safe.directory /src
+
+            ./build_deb.sh
+        '
+fi
+
 echo "🔨 Building GameManager Debian Package..."
 
 # Get version from latest git tag
@@ -411,10 +453,28 @@ if [ $? -eq 0 ]; then
     echo "📊 Package information:"
     dpkg-deb --info "$PACKAGE_NAME" | head -10
     
-    # Show package contents (first 20 files)
+    # Show package contents (first 20 files). Buffered first, because piping
+    # dpkg-deb straight into head closes the pipe under it and it reports a
+    # broken-pipe failure for what is really a successful build.
     echo "📁 Package contents (first 20 files):"
-    dpkg-deb --contents "$PACKAGE_NAME" | head -20
+    PACKAGE_CONTENTS=$(dpkg-deb --contents "$PACKAGE_NAME")
+    echo "$PACKAGE_CONTENTS" | head -20
+    echo "   ... $(echo "$PACKAGE_CONTENTS" | wc -l) entries total"
     
+    # When building in the target distribution, confirm the Depends line can
+    # actually be satisfied there. A dependency that has been renamed or dropped
+    # between releases otherwise only surfaces on a user's machine at install time.
+    if [ "${GAMEMANAGER_DEB_IN_DOCKER:-0}" = "1" ]; then
+        echo "🔍 Checking dependencies resolve on $(. /etc/os-release && echo "$PRETTY_NAME")..."
+        if apt-get install --simulate --no-install-recommends "./$PACKAGE_NAME" >/tmp/depcheck.log 2>&1; then
+            echo "✅ All dependencies resolve"
+        else
+            echo "❌ ERROR: dependencies cannot be satisfied on the target distribution:"
+            grep -iE "unmet|not installable|no installation candidate|E:" /tmp/depcheck.log | head -20
+            exit 1
+        fi
+    fi
+
     echo ""
     echo "🎉 Build completed successfully!"
     echo "📦 Package: $PACKAGE_NAME"
