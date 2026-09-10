@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-PlayStation Store Web Scraper
-Scrapes game data from https://store.playstation.com/en-ca/pages/browse/
-Creates a JSON database with game information
+PlayStation Store Scraper
+Builds a JSON database of games from the PlayStation Store.
+
+The store browse pages are rendered client-side, so the game listing is pulled
+from the same GraphQL endpoint the website itself calls. Individual game pages
+are still server-rendered, so details are parsed from their HTML.
 """
 
 import requests
@@ -10,78 +13,87 @@ from bs4 import BeautifulSoup
 import json
 import time
 import re
-from urllib.parse import urljoin, urlparse, parse_qs
+from urllib.parse import urlparse
 import sys
 import random
 import os
-from typing import Dict, List, Optional, Tuple
+import argparse
+from typing import Dict, List, Optional
 from datetime import datetime
 
+# GraphQL endpoint used by store.playstation.com (see appProps.service.gqlBrowser.host)
+GRAPHQL_URL = "https://web.np.playstation.com/api/graphql/v1/op"
+
+# The endpoint only accepts registered "persisted query" operations: the query
+# text itself is rejected, and requests must reference an operation by the
+# sha256 hash of the document the web client sends. These are lifted from the
+# store's own network traffic and must be refreshed if the site changes them.
+PERSISTED_QUERIES = {
+    "categoryGridRetrieve": "88c0b9a1273c6d320c51cd73e390924e21ae28bf09f01cde8b84b1034b16cd03",
+    "getExperience": "b5078800ed1bdebee9800979f9306abeadc5169030263f7095fe573b12e52270",
+}
+
+# Identifies the web storefront when resolving the "Browse" experience.
+EMS_CLIENT_ID = "b6de8d4d-bf9b-11ee-ad2a-aea73dc1ea43"
+
+# "All Games" grid. Resolved dynamically at runtime; this is the fallback.
+DEFAULT_CATEGORY_ID = "28c9c2b2-cecc-415c-9a08-482a605cb104"
+
+# The backend refuses offset + size beyond this, so the catalogue is only
+# reachable 10k concepts deep no matter what totalCount reports.
+MAX_CATALOGUE_DEPTH = 10000
+
+# Concepts per GraphQL call. The API accepts up to 500.
+PAGE_SIZE = 100
+
+
 class PlayStationStoreScraper:
-    def __init__(self):
+    def __init__(self, locale: str = "en-ca", page_size: int = PAGE_SIZE,
+                 save_every: int = 25, delay: float = 1.0):
         self.base_url = "https://store.playstation.com"
-        self.locale = "en-ca"
+        self.locale = locale
+        self.page_size = max(1, min(page_size, 500))
+        self.save_every = max(1, save_every)
+        self.delay = delay
         self.games_db = {}
         self.session = requests.Session()
-        
-        # Progress tracking
-        self.progress_file = "scraper_progress.json"
-        self.db_file = "playstation_store_db.json"
+        self.category_id = DEFAULT_CATEGORY_ID
+        self._dirty = 0
+
+        # Keep data files next to this script so the scraper works from any cwd.
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.progress_file = os.path.join(script_dir, "scraper_progress.json")
+        self.db_file = os.path.join(script_dir, "playstation_store_db.json")
+
         self.progress_data = {
-            "current_page": 1,
-            "max_page": 417,  # Default, will be detected dynamically
+            "offset": 0,
+            "total_count": 0,
             "processed_games": set(),
             "total_games_collected": 0,
             "last_run_timestamp": None,
-            "status": "not_started"  # not_started, running, completed, interrupted
+            "status": "not_started",  # not_started, running, completed, interrupted
         }
-        
-        # Realistic browser user agents
+
         self.user_agents = [
-            # Chrome on Windows
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            
-            # Chrome on macOS
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-            
-            # Chrome on Linux
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-            
-            # Firefox on Windows
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0',
-            
-            # Firefox on macOS
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:132.0) Gecko/20100101 Firefox/132.0',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0',
-            
-            # Firefox on Linux
             'Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0',
-            'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0',
-            
-            # Safari on macOS
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:132.0) Gecko/20100101 Firefox/132.0',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
-            
-            # Edge on Windows
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
         ]
-        
         self.current_user_agent_index = 0
         self._setup_browser_headers()
-    
+
+    # ------------------------------------------------------------------
+    # HTTP plumbing
+    # ------------------------------------------------------------------
+
     def _setup_browser_headers(self):
         """Set up realistic browser headers"""
-        # Rotate user agent
-        user_agent = self.user_agents[self.current_user_agent_index]
-        self.current_user_agent_index = (self.current_user_agent_index + 1) % len(self.user_agents)
-        
         self.session.headers.update({
-            'User-Agent': user_agent,
+            'User-Agent': self.user_agents[self.current_user_agent_index],
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -92,410 +104,383 @@ class PlayStationStoreScraper:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0',
         })
-        self.session.timeout = 30
-    
+
     def _rotate_user_agent(self):
         """Rotate to the next user agent"""
-        user_agent = self.user_agents[self.current_user_agent_index]
         self.current_user_agent_index = (self.current_user_agent_index + 1) % len(self.user_agents)
+        user_agent = self.user_agents[self.current_user_agent_index]
         self.session.headers.update({'User-Agent': user_agent})
         return user_agent
-    
+
+    def graphql(self, operation: str, variables: Dict, retries: int = 4) -> Optional[Dict]:
+        """Call a persisted GraphQL operation and return its `data` payload."""
+        sha256_hash = PERSISTED_QUERIES.get(operation)
+        if not sha256_hash:
+            print(f"❌ Unknown GraphQL operation: {operation}")
+            return None
+
+        params = {
+            'operationName': operation,
+            'variables': json.dumps(variables, separators=(',', ':')),
+            'extensions': json.dumps(
+                {"persistedQuery": {"version": 1, "sha256Hash": sha256_hash}},
+                separators=(',', ':')),
+        }
+        headers = {
+            # Without an explicit content-type the gateway rejects the call as CSRF.
+            'content-type': 'application/json',
+            'Accept': 'application/json',
+            'Origin': self.base_url,
+            'Referer': f"{self.base_url}/{self.locale}/pages/browse",
+            'x-psn-store-locale-override': self.locale,
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-site',
+        }
+
+        for attempt in range(retries):
+            try:
+                self._rotate_user_agent()
+                response = self.session.get(GRAPHQL_URL, params=params,
+                                            headers=headers, timeout=30)
+
+                if response.status_code in (429, 500, 502, 503, 504):
+                    wait = min(60, (2 ** attempt) * 3) + random.uniform(0, 2)
+                    print(f"⚠️  {operation} HTTP {response.status_code}, retrying in {wait:.1f}s")
+                    time.sleep(wait)
+                    continue
+
+                payload = response.json()
+
+                if payload.get('errors'):
+                    message = payload['errors'][0].get('message', 'unknown error')
+                    code = payload['errors'][0].get('extensions', {}).get('code')
+                    if code in ('PERSISTED_QUERY_NOT_FOUND', 'PERSISTED_QUERY_ID_REQUIRED'):
+                        print(f"❌ The stored query hash for '{operation}' is no longer accepted "
+                              f"by the store. It needs to be re-captured from store.playstation.com.")
+                        return None
+                    print(f"⚠️  {operation} returned an error: {message}")
+                    return None
+
+                return payload.get('data')
+
+            except (requests.exceptions.RequestException, ValueError) as e:
+                wait = min(60, (2 ** attempt) * 3) + random.uniform(0, 2)
+                print(f"❌ {operation} request failed ({e}), retrying in {wait:.1f}s")
+                time.sleep(wait)
+
+        print(f"❌ {operation} failed after {retries} attempts")
+        return None
+
+    # ------------------------------------------------------------------
+    # Progress / database persistence
+    # ------------------------------------------------------------------
+
     def load_progress(self) -> bool:
         """Load progress from file"""
-        if os.path.exists(self.progress_file):
-            try:
-                with open(self.progress_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.progress_data.update(data)
-                    # Convert processed_games list back to set
-                    if isinstance(self.progress_data.get('processed_games'), list):
-                        self.progress_data['processed_games'] = set(self.progress_data['processed_games'])
-                    print(f"✅ Loaded progress: {len(self.progress_data['processed_games'])} games already processed")
-                    if self.progress_data.get('max_page'):
-                        print(f"✅ Max page detected: {self.progress_data['max_page']}")
-                    return True
-            except Exception as e:
-                print(f"⚠️  Error loading progress: {e}")
-                return False
-        return False
-    
+        if not os.path.exists(self.progress_file):
+            return False
+        try:
+            with open(self.progress_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # Older progress files tracked browse pages instead of an offset.
+            if 'offset' not in data and 'current_page' in data:
+                data['offset'] = max(0, (int(data.get('current_page', 1)) - 1) * 24)
+                print(f"ℹ️  Migrated legacy page {data.get('current_page')} to offset {data['offset']}")
+            data.pop('current_page', None)
+            data.pop('max_page', None)
+
+            self.progress_data.update(data)
+            if isinstance(self.progress_data.get('processed_games'), list):
+                self.progress_data['processed_games'] = set(self.progress_data['processed_games'])
+
+            print(f"✅ Loaded progress: {len(self.progress_data['processed_games'])} games already processed "
+                  f"(resuming at offset {self.progress_data.get('offset', 0)})")
+            return True
+        except Exception as e:
+            print(f"⚠️  Error loading progress: {e}")
+            return False
+
+    def _atomic_write(self, path: str, payload) -> bool:
+        """Write JSON via a temp file so an interrupted run can't truncate the target."""
+        tmp_path = f"{path}.tmp"
+        try:
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, path)
+            return True
+        except Exception as e:
+            print(f"⚠️  Error writing {os.path.basename(path)}: {e}")
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+            return False
+
     def save_progress(self):
         """Save progress to file"""
-        try:
-            # Convert set to list for JSON serialization
-            progress_to_save = self.progress_data.copy()
-            progress_to_save['processed_games'] = list(self.progress_data['processed_games'])
-            progress_to_save['last_run_timestamp'] = time.time()
-            
-            with open(self.progress_file, 'w', encoding='utf-8') as f:
-                json.dump(progress_to_save, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"⚠️  Error saving progress: {e}")
-    
-    def load_database(self):
-        """Load existing database"""
-        if os.path.exists(self.db_file):
-            try:
-                with open(self.db_file, 'r', encoding='utf-8') as f:
-                    self.games_db = json.load(f)
-                    print(f"✅ Loaded database: {len(self.games_db)} games")
-            except Exception as e:
-                print(f"⚠️  Error loading database: {e}")
-                self.games_db = {}
-        else:
+        progress_to_save = dict(self.progress_data)
+        progress_to_save['processed_games'] = sorted(self.progress_data['processed_games'])
+        progress_to_save['last_run_timestamp'] = time.time()
+        self._atomic_write(self.progress_file, progress_to_save)
+
+    def load_database(self) -> bool:
+        """Load existing database. Returns False if an existing file is unreadable."""
+        if not os.path.exists(self.db_file):
             self.games_db = {}
-    
+            return True
+        try:
+            with open(self.db_file, 'r', encoding='utf-8') as f:
+                self.games_db = json.load(f)
+            print(f"✅ Loaded database: {len(self.games_db)} games")
+            return True
+        except Exception as e:
+            # Refuse to continue rather than overwrite a corrupt-but-present database.
+            print(f"❌ Existing database at {self.db_file} could not be read: {e}")
+            print("   Move or repair the file before running again so it isn't overwritten.")
+            self.games_db = {}
+            return False
+
     def save_database(self):
         """Save database to file"""
-        try:
-            with open(self.db_file, 'w', encoding='utf-8') as f:
-                json.dump(self.games_db, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"⚠️  Error saving database: {e}")
-    
+        if self._atomic_write(self.db_file, self.games_db):
+            self._dirty = 0
+
+    def _maybe_save(self):
+        """Flush to disk every `save_every` games instead of on every single one."""
+        self._dirty += 1
+        if self._dirty >= self.save_every:
+            self.save_database()
+            self.save_progress()
+
+    # ------------------------------------------------------------------
+    # Normalisation helpers
+    # ------------------------------------------------------------------
+
     def clean_image_url(self, url: str) -> Optional[str]:
         """Remove query parameters from image URLs"""
         if not url:
             return None
         try:
-            # Parse URL and remove query parameters
             parsed = urlparse(url)
-            # Reconstruct URL without query parameters
-            clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-            return clean_url
+            return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
         except Exception as e:
             print(f"⚠️  Error cleaning image URL '{url}': {e}")
-            return url  # Return original if cleaning fails
-    
+            return url
+
     def normalize_date(self, date_string: str) -> Optional[str]:
         """Convert '9/6/2024' to '06-09-2024' (dd-mm-yyyy)"""
         if not date_string:
             return None
-        try:
-            # Try M/D/YYYY format
-            dt = datetime.strptime(date_string.strip(), "%m/%d/%Y")
-            # Format as dd-mm-yyyy
-            return dt.strftime("%d-%m-%Y")
-        except ValueError:
+        for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
             try:
-                # Try D/M/YYYY format
-                dt = datetime.strptime(date_string.strip(), "%d/%m/%Y")
-                return dt.strftime("%d-%m-%Y")
+                return datetime.strptime(date_string.strip(), fmt).strftime("%d-%m-%Y")
             except ValueError:
-                try:
-                    # Try YYYY-MM-DD format
-                    dt = datetime.strptime(date_string.strip(), "%Y-%m-%d")
-                    return dt.strftime("%d-%m-%Y")
-                except ValueError:
-                    print(f"⚠️  Could not parse date '{date_string}'")
-                    return None
-        except Exception as e:
-            print(f"⚠️  Error normalizing date '{date_string}': {e}")
-            return None
-    
+                continue
+        print(f"⚠️  Could not parse date '{date_string}'")
+        return None
+
     def normalize_rating(self, rating) -> Optional[float]:
         """Convert 0-5 rating to 0-1 scale (divide by 5). Returns None if negative."""
         if rating is None:
             return None
         try:
             rating_float = float(rating)
-            # Return None if rating is negative
             if rating_float < 0:
                 return None
-            # Normalize from 0-5 to 0-1
-            normalized = rating_float / 5.0
-            return round(normalized, 2)
+            return round(rating_float / 5.0, 2)
         except Exception as e:
             print(f"⚠️  Error normalizing rating '{rating}': {e}")
             return None
-    
-    def find_max_page(self) -> int:
-        """Dynamically find the maximum page number"""
-        print("🔍 Detecting maximum page number...")
-        
-        # Start from a known high page and work backwards, or start from 1 and go up
-        # Strategy: Check pagination links on first page, or try pages until 404/empty
-        
-        # First, try to find pagination on page 1
-        browse_url = f"{self.base_url}/{self.locale}/pages/browse/1"
-        soup = self.get_browse_page(1)
-        if soup:
-            # Look for pagination links
-            pagination_links = soup.find_all('a', href=re.compile(r'/pages/browse/\d+'))
-            max_page_found = 1
-            
-            for link in pagination_links:
-                href = link.get('href', '')
-                match = re.search(r'/pages/browse/(\d+)', href)
-                if match:
-                    page_num = int(match.group(1))
-                    if page_num > max_page_found:
-                        max_page_found = page_num
-            
-            if max_page_found > 1:
-                print(f"✅ Found max page from pagination: {max_page_found}")
-                return max_page_found
-        
-        # Fallback: Try pages incrementally until we get 404 or empty page
-        print("🔍 Pagination not found, trying pages incrementally...")
-        test_page = 400  # Start from a reasonable high number
-        last_valid = 1
-        
-        while test_page <= 500:  # Reasonable upper limit
-            browse_url = f"{self.base_url}/{self.locale}/pages/browse/{test_page}"
-            soup = self.get_browse_page(test_page)
-            if soup:
-                # Check if page has game cards
-                game_cards = self.extract_game_cards(soup)
-                if game_cards and len(game_cards) > 0:
-                    last_valid = test_page
-                    test_page += 50  # Jump by 50
-                else:
-                    # Empty page, go back and search more carefully
-                    break
-            else:
-                # 404 or error, go back
-                break
-        
-        # Binary search between last_valid and test_page
-        if test_page > last_valid + 1:
-            low = last_valid
-            high = test_page
-            while low < high - 1:
-                mid = (low + high) // 2
-                soup = self.get_browse_page(mid)
-                if soup:
-                    game_cards = self.extract_game_cards(soup)
-                    if game_cards and len(game_cards) > 0:
-                        low = mid
-                    else:
-                        high = mid
-                else:
-                    high = mid
-            last_valid = low
-        
-        print(f"✅ Detected max page: {last_valid}")
-        return last_valid
-    
-    def get_browse_page(self, page_number: int) -> Optional[BeautifulSoup]:
-        """Fetch and parse browse page HTML"""
-        browse_url = f"{self.base_url}/{self.locale}/pages/browse/{page_number}"
-        
-        try:
-            # Rotate user agent
-            self._rotate_user_agent()
-            
-            print(f"📄 Fetching browse page {page_number}...")
-            response = self.session.get(browse_url, timeout=30)
-            
-            if response.status_code == 404:
-                return None
-            
-            response.raise_for_status()
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
-                return soup
-            else:
-                print(f"⚠️  Unexpected status code: {response.status_code}")
-                return None
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Error fetching browse page {page_number}: {e}")
-            # Rotate user agent on error
-            self._rotate_user_agent()
+
+    # ------------------------------------------------------------------
+    # Catalogue listing (GraphQL)
+    # ------------------------------------------------------------------
+
+    def discover_category_id(self) -> str:
+        """Resolve the 'All Games' grid id from the Browse experience."""
+        data = self.graphql("getExperience", {"clientId": EMS_CLIENT_ID, "alias": "browse"})
+        if not data:
+            print(f"⚠️  Could not resolve the browse category, using default {DEFAULT_CATEGORY_ID}")
+            return DEFAULT_CATEGORY_ID
+
+        # Walk the view tree for the first GRID component and take its category.
+        stack = [data]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                if node.get('componentType') == 'GRID' and node.get('categoryId'):
+                    print(f"✅ Resolved browse category: {node['categoryId']} ({node.get('name', 'unnamed')})")
+                    return node['categoryId']
+                stack.extend(node.values())
+            elif isinstance(node, list):
+                stack.extend(node)
+
+        print(f"⚠️  No grid component found, using default category {DEFAULT_CATEGORY_ID}")
+        return DEFAULT_CATEGORY_ID
+
+    def fetch_catalogue_page(self, offset: int) -> Optional[Dict]:
+        """Fetch one page of the catalogue. Returns {'concepts': [...], 'total': int}."""
+        size = min(self.page_size, MAX_CATALOGUE_DEPTH - offset)
+        if size <= 0:
+            return {'concepts': [], 'total': self.progress_data.get('total_count', 0)}
+
+        data = self.graphql("categoryGridRetrieve", {
+            "id": self.category_id,
+            "pageArgs": {"size": size, "offset": offset},
+            "sortBy": None,
+            "filterBy": [],
+            "facetOptions": [],
+            "maxResults": None,
+        })
+        if not data:
             return None
-    
-    def extract_game_cards(self, soup: BeautifulSoup) -> List[Dict]:
-        """Extract game cards from browse page"""
-        game_cards = []
-        
-        try:
-            # Find all <li> elements that contain game cards
-            # Cards have class containing psw-l-w-1/
-            card_elements = soup.find_all('li', class_=re.compile(r'psw-l-w-1/'))
-            
-            for card in card_elements:
-                game_data = {}
-                
-                # Extract game name
-                name_elem = card.find('span', id='product-name')
-                if not name_elem:
-                    name_elem = card.find('span', attrs={'data-qa': re.compile(r'product-name')})
-                if name_elem:
-                    game_data['name'] = name_elem.get_text(strip=True)
-                
-                # Extract game ID and URL from <a> tag
-                link_elem = card.find('a', href=re.compile(r'/concept/\d+'))
-                if link_elem:
-                    href = link_elem.get('href', '')
-                    # Extract ID from href like /en-ca/concept/231761
-                    match = re.search(r'/concept/(\d+)', href)
-                    if match:
-                        game_data['id'] = match.group(1)
-                        # Build full URL
-                        if href.startswith('/'):
-                            game_data['url'] = f"{self.base_url}{href}"
-                        else:
-                            game_data['url'] = href
-                
-                # Extract boxfront image
-                img_elem = card.find('img', attrs={'data-qa': re.compile(r'game-art.*image#image')})
-                if img_elem:
-                    img_src = img_elem.get('src', '')
-                    if img_src:
-                        game_data['boxfront'] = self.clean_image_url(img_src)
-                
-                # Only add if we have at least ID and name
-                if game_data.get('id') and game_data.get('name'):
-                    game_cards.append(game_data)
-            
-            return game_cards
-        except Exception as e:
-            print(f"⚠️  Error extracting game cards: {e}")
-            return []
-    
-    def get_game_details(self, game_id: str) -> Optional[BeautifulSoup]:
+
+        grid = data.get('categoryGridRetrieve') or {}
+        page_info = grid.get('pageInfo') or {}
+        concepts = grid.get('concepts') or []
+
+        games = []
+        for concept in concepts:
+            concept_id = concept.get('id')
+            name = concept.get('name')
+            if not concept_id or not name:
+                continue
+            games.append({
+                'id': str(concept_id),
+                'name': name,
+                'url': f"{self.base_url}/{self.locale}/concept/{concept_id}",
+                'boxfront': self._pick_media(concept.get('media'), 'MASTER'),
+            })
+
+        return {'concepts': games, 'total': page_info.get('totalCount', 0)}
+
+    def _pick_media(self, media: Optional[List[Dict]], role: str) -> Optional[str]:
+        """Pick an image URL for the given media role."""
+        for item in media or []:
+            if item.get('role') == role and item.get('type') == 'IMAGE' and item.get('url'):
+                return self.clean_image_url(item['url'])
+        return None
+
+    # ------------------------------------------------------------------
+    # Game detail pages (HTML)
+    # ------------------------------------------------------------------
+
+    def get_game_details(self, game_id: str, retries: int = 3) -> Optional[BeautifulSoup]:
         """Fetch and parse game detail page HTML"""
         game_url = f"{self.base_url}/{self.locale}/concept/{game_id}"
-        
-        try:
-            # Rotate user agent
-            self._rotate_user_agent()
-            
-            print(f"📄 Fetching game details: {game_url}")
-            response = self.session.get(game_url, timeout=30)
-            response.raise_for_status()
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
-                return soup
-            else:
-                print(f"⚠️  Unexpected status code: {response.status_code}")
-                return None
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Error fetching game details: {e}")
-            # Rotate user agent on error
-            self._rotate_user_agent()
-            return None
-    
+
+        for attempt in range(retries):
+            try:
+                self._rotate_user_agent()
+                response = self.session.get(game_url, timeout=30)
+
+                if response.status_code == 404:
+                    print(f"⚠️  Game {game_id} not found (404)")
+                    return None
+
+                if response.status_code in (429, 500, 502, 503, 504):
+                    wait = min(60, (2 ** attempt) * 3) + random.uniform(0, 2)
+                    print(f"⚠️  HTTP {response.status_code} for {game_id}, retrying in {wait:.1f}s")
+                    time.sleep(wait)
+                    continue
+
+                response.raise_for_status()
+                return BeautifulSoup(response.content, 'html.parser')
+
+            except requests.exceptions.RequestException as e:
+                wait = min(60, (2 ** attempt) * 3) + random.uniform(0, 2)
+                print(f"❌ Error fetching game {game_id} ({e}), retrying in {wait:.1f}s")
+                time.sleep(wait)
+
+        return None
+
     def extract_fanart(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract fanart from hero image"""
+        """Extract fanart from the hero background image"""
         try:
-            # Try multiple selectors for the hero image
-            # First: exact data-qa match
-            img_elem = soup.find('img', attrs={'data-qa': 'gameBackgroundImage#heroImage#image'})
-            
-            # Second: try with regex for partial match
-            if not img_elem:
-                img_elem = soup.find('img', attrs={'data-qa': re.compile(r'gameBackgroundImage.*heroImage.*image', re.I)})
-            
-            # Third: try finding by class or other attributes
-            if not img_elem:
-                # Look for images with "hero" or "background" in class or data attributes
-                all_imgs = soup.find_all('img')
-                for img in all_imgs:
-                    data_qa = img.get('data-qa', '')
-                    if 'hero' in data_qa.lower() or 'background' in data_qa.lower():
-                        img_elem = img
-                        break
-            
+            # The store ships a no-JS <img> with the full-size URL, plus a tiny
+            # blurred placeholder; both point at the same asset once the query
+            # string is stripped.
+            for data_qa in ('gameBackgroundImage#heroImage#image-no-js',
+                            'gameBackgroundImage#heroImage#image',
+                            'gameBackgroundImage#heroImage#preview'):
+                img_elem = soup.find('img', attrs={'data-qa': data_qa})
+                if img_elem and img_elem.get('src'):
+                    return self.clean_image_url(img_elem['src'])
+
+            # Fall back to any hero/background image, then to the OpenGraph tag.
+            img_elem = soup.find('img', attrs={'data-qa': re.compile(r'gameBackgroundImage.*heroImage', re.I)})
             if img_elem:
-                # Try src first
-                img_src = img_elem.get('src', '')
-                # If no src, try srcset
-                if not img_src:
-                    srcset = img_elem.get('srcset', '')
-                    if srcset:
-                        # Extract first URL from srcset
-                        # Format: "url1 1x, url2 2x" or "url1, url2 2x"
-                        first_url = srcset.split(',')[0].strip().split()[0]
-                        img_src = first_url
-                
-                if img_src:
-                    return self.clean_image_url(img_src)
-                else:
-                    print(f"🔧 DEBUG: Found fanart img element but no src/srcset")
-            else:
-                # Debug: check what images are available
-                all_imgs = soup.find_all('img')
-                hero_imgs = [img for img in all_imgs if 'hero' in img.get('data-qa', '').lower() or 'background' in img.get('data-qa', '').lower()]
-                if hero_imgs:
-                    print(f"🔧 DEBUG: Found {len(hero_imgs)} potential hero images but selector didn't match")
-                    for img in hero_imgs[:3]:  # Show first 3
-                        print(f"🔧 DEBUG:   data-qa: {img.get('data-qa', 'N/A')}, src: {img.get('src', 'N/A')[:80]}")
-            
+                src = img_elem.get('src') or ''
+                if not src and img_elem.get('srcset'):
+                    src = img_elem['srcset'].split(',')[0].strip().split()[0]
+                if src:
+                    return self.clean_image_url(src)
+
+            og_image = soup.find('meta', attrs={'property': 'og:image'})
+            if og_image and og_image.get('content'):
+                return self.clean_image_url(og_image['content'])
+
             return None
         except Exception as e:
             print(f"⚠️  Error extracting fanart: {e}")
-            import traceback
-            traceback.print_exc()
             return None
-    
+
     def extract_rating(self, soup: BeautifulSoup) -> Optional[float]:
-        """Extract and normalize rating (3.73/5 -> 0.746)"""
+        """Extract and normalize rating (3.73/5 -> 0.75)"""
         try:
-            # Find span with class="psw-sr-only" containing rating text
-            rating_spans = soup.find_all('span', class_='psw-sr-only')
-            for span in rating_spans:
-                text = span.get_text(strip=True)
-                # Look for pattern like "Average rating 3.73 stars out of 5 stars"
-                match = re.search(r'Average rating\s+([\d.]+)\s+stars out of 5', text, re.I)
+            for span in soup.find_all('span', class_='psw-sr-only'):
+                match = re.search(r'Average rating\s+([\d.]+)\s+stars out of 5',
+                                  span.get_text(strip=True), re.I)
                 if match:
-                    rating_value = float(match.group(1))
-                    return self.normalize_rating(rating_value)
+                    return self.normalize_rating(float(match.group(1)))
             return None
         except Exception as e:
             print(f"⚠️  Error extracting rating: {e}")
             return None
-    
+
     def extract_publisher(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract publisher from multiple possible locations"""
         try:
-            # Try first location: <div data-qa="mfe-game-title#publisher">
-            publisher_elem = soup.find('div', attrs={'data-qa': 'mfe-game-title#publisher'})
-            if publisher_elem:
-                publisher = publisher_elem.get_text(strip=True)
-                if publisher:
-                    return publisher
-            
-            # Try second location: <dd data-qa="gameInfo#releaseInformation#publisher-value">
-            publisher_elem = soup.find('dd', attrs={'data-qa': 'gameInfo#releaseInformation#publisher-value'})
-            if publisher_elem:
-                publisher = publisher_elem.get_text(strip=True)
-                if publisher:
-                    return publisher
-            
+            for tag, data_qa in (('div', 'mfe-game-title#publisher'),
+                                 ('dd', 'gameInfo#releaseInformation#publisher-value')):
+                elem = soup.find(tag, attrs={'data-qa': data_qa})
+                if elem:
+                    publisher = elem.get_text(strip=True)
+                    if publisher:
+                        return publisher
             return None
         except Exception as e:
             print(f"⚠️  Error extracting publisher: {e}")
             return None
-    
+
     def extract_nbplayers(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract number of players (e.g., '1-2')"""
         try:
-            # Find span with data-qa="mfe-compatibility-notices#notices#notice3#compatText"
-            player_elem = soup.find('span', attrs={'data-qa': 'mfe-compatibility-notices#notices#notice3#compatText'})
-            if player_elem:
-                text = player_elem.get_text(strip=True)
-                # Extract player count pattern like "1 - 2 players" or "1 players"
+            # The player-count notice isn't always in the same slot, so scan them all.
+            elems = soup.find_all('span', attrs={
+                'data-qa': re.compile(r'mfe-compatibility-notices#notices#notice\d+#compatText')})
+            for elem in elems:
+                text = elem.get_text(strip=True)
                 match = re.search(r'(\d+)\s*-\s*(\d+)\s*players', text, re.I)
                 if match:
                     return f"{match.group(1)}-{match.group(2)}"
-                match = re.search(r'(\d+)\s*players?', text, re.I)
+                match = re.search(r'(\d+)\s*players?\b', text, re.I)
                 if match:
                     return match.group(1)
             return None
         except Exception as e:
             print(f"⚠️  Error extracting nbplayers: {e}")
             return None
-    
+
     def extract_release_date(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract and normalize release date"""
         try:
-            # Find <dd data-qa="gameInfo#releaseInformation#releaseDate-value">
             date_elem = soup.find('dd', attrs={'data-qa': 'gameInfo#releaseInformation#releaseDate-value'})
             if date_elem:
                 date_text = date_elem.get_text(strip=True)
@@ -505,49 +490,33 @@ class PlayStationStoreScraper:
         except Exception as e:
             print(f"⚠️  Error extracting release date: {e}")
             return None
-    
+
     def extract_description(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract description and convert HTML to text with newlines"""
         try:
-            # Find <p data-qa="mfe-game-overview#description">
             desc_elem = soup.find('p', attrs={'data-qa': 'mfe-game-overview#description'})
-            if desc_elem:
-                # Convert <br> tags to newlines before getting text
-                for br in desc_elem.find_all('br'):
-                    br.replace_with('\n')
-                
-                # Get text with preserved newlines
-                description = desc_elem.get_text(separator='\n', strip=True)
-                
-                # Clean up multiple consecutive newlines
-                description = re.sub(r'\n{3,}', '\n\n', description)
-                description = description.strip()
-                
-                return description if description else None
-            return None
+            if not desc_elem:
+                return None
+            for br in desc_elem.find_all('br'):
+                br.replace_with('\n')
+            description = desc_elem.get_text(separator='\n', strip=True)
+            description = re.sub(r'\n{3,}', '\n\n', description).strip()
+            return description or None
         except Exception as e:
             print(f"⚠️  Error extracting description: {e}")
             return None
-    
+
     def scrape_game(self, game_data: Dict) -> Optional[Dict]:
         """Scrape a single game's details"""
         game_id = game_data.get('id')
         if not game_id:
             return None
-        
-        # Skip if already processed
-        if game_id in self.progress_data['processed_games']:
-            print(f"⏭️  Skipping game {game_id} (already processed)")
-            return None
-        
-        # Fetch game details page
+
         soup = self.get_game_details(game_id)
         if not soup:
-            print(f"❌ Failed to fetch game details for {game_id}")
             return None
-        
-        # Extract game information
-        game_info = {
+
+        return {
             'url': game_data.get('url', f"{self.base_url}/{self.locale}/concept/{game_id}"),
             'name': game_data.get('name', ''),
             'boxfront': game_data.get('boxfront'),
@@ -556,143 +525,149 @@ class PlayStationStoreScraper:
             'publisher': self.extract_publisher(soup),
             'nbplayers': self.extract_nbplayers(soup),
             'release_date': self.extract_release_date(soup),
-            'description': self.extract_description(soup)
+            'description': self.extract_description(soup),
         }
-        
-        # Mark as processed
-        self.progress_data['processed_games'].add(game_id)
-        
-        return game_info
-    
+
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
+
     def run_scraper(self, resume: bool = True):
         """Main scraping loop"""
         try:
-            # Load existing data
             if resume:
                 self.load_progress()
-            self.load_database()
-            
-            # Detect max page if not already set or if starting fresh
-            if not self.progress_data.get('max_page') or not resume:
-                self.progress_data['max_page'] = self.find_max_page()
-                self.save_progress()
-            
-            max_page = self.progress_data['max_page']
-            
+            if not self.load_database():
+                return 1
+
+            self.category_id = self.discover_category_id()
+
+            offset = self.progress_data.get('offset', 0) if resume else 0
             self.progress_data['status'] = 'running'
-            total_games = 0
-            
-            # Determine starting page
-            start_page = 1
-            if resume and self.progress_data['current_page']:
-                start_page = self.progress_data['current_page']
-            
-            # Process each page
-            for page_num in range(start_page, max_page + 1):
+            new_games = 0
+
+            while offset < MAX_CATALOGUE_DEPTH:
                 print(f"\n{'='*60}")
-                print(f"📌 Processing page: {page_num}/{max_page}")
+                print(f"📌 Catalogue offset {offset} (+{self.page_size})")
                 print(f"{'='*60}")
-                
-                self.progress_data['current_page'] = page_num
-                self.save_progress()
-                
-                # Get browse page
-                soup = self.get_browse_page(page_num)
-                if not soup:
-                    print(f"⚠️  Failed to fetch page {page_num}, skipping")
-                    time.sleep(2)  # Rate limiting
-                    continue
-                
-                # Extract game cards
-                game_cards = self.extract_game_cards(soup)
-                if not game_cards:
-                    print(f"⚠️  No games found on page {page_num}, skipping")
-                    time.sleep(2)  # Rate limiting
-                    continue
-                
-                print(f"✅ Found {len(game_cards)} games on page {page_num}")
-                
-                # Process each game
-                for game_card in game_cards:
-                    game_id = game_card.get('id')
-                    if not game_id:
-                        continue
-                    
-                    # Skip if already in database
+
+                page = self.fetch_catalogue_page(offset)
+                if page is None:
+                    print("❌ Could not fetch the catalogue page; stopping so progress isn't lost.")
+                    self.progress_data['status'] = 'interrupted'
+                    break
+
+                concepts = page['concepts']
+                total = page['total'] or 0
+                if total:
+                    self.progress_data['total_count'] = total
+
+                if not concepts:
+                    print("✅ Reached the end of the catalogue")
+                    self.progress_data['status'] = 'completed'
+                    offset = MAX_CATALOGUE_DEPTH
+                    break
+
+                reachable = min(total, MAX_CATALOGUE_DEPTH) if total else MAX_CATALOGUE_DEPTH
+                print(f"✅ {len(concepts)} games in this page ({offset}/{reachable} of catalogue)")
+
+                for game_card in concepts:
+                    game_id = game_card['id']
+
                     if game_id in self.games_db:
-                        print(f"⏭️  Skipping game {game_id} (already in database)")
                         self.progress_data['processed_games'].add(game_id)
                         continue
-                    
-                    # Scrape game details
+
                     game_info = self.scrape_game(game_card)
                     if game_info:
                         self.games_db[game_id] = game_info
-                        total_games += 1
+                        self.progress_data['processed_games'].add(game_id)
                         self.progress_data['total_games_collected'] = len(self.games_db)
-                        
-                        # Save after each game
-                        self.save_database()
-                        self.save_progress()
-                        
-                        print(f"✅ Scraped game {game_id}: {game_info.get('name', 'Unknown')}")
+                        new_games += 1
+                        print(f"✅ [{len(self.games_db)}] {game_info.get('name', 'Unknown')} ({game_id})")
+                        self._maybe_save()
                     else:
                         print(f"❌ Failed to scrape game {game_id}")
-                    
-                    # Rate limiting between games
-                    time.sleep(1)
-                
-                # Rate limiting between pages
-                time.sleep(2)
-            
-            self.progress_data['status'] = 'completed'
-            print(f"\n🎉 Scraping completed! Total games: {total_games}")
-            
+
+                    time.sleep(self.delay + random.uniform(0, 0.5))
+
+                offset += self.page_size
+                self.progress_data['offset'] = offset
+                self.save_database()
+                self.save_progress()
+
+                if total and offset >= min(total, MAX_CATALOGUE_DEPTH):
+                    print("\n✅ Reached the end of the catalogue")
+                    self.progress_data['status'] = 'completed'
+                    break
+
+                time.sleep(1)
+
+            self.progress_data['offset'] = min(offset, MAX_CATALOGUE_DEPTH)
+            if self.progress_data['status'] == 'running':
+                self.progress_data['status'] = 'completed'
+
+            print(f"\n🎉 Done. {new_games} new games this run, {len(self.games_db)} in the database.")
+            if self.progress_data.get('total_count', 0) > MAX_CATALOGUE_DEPTH:
+                print(f"ℹ️  The store reports {self.progress_data['total_count']} games but only serves "
+                      f"the first {MAX_CATALOGUE_DEPTH}; the rest are reachable only via filters.")
+            return 0
+
         except KeyboardInterrupt:
             print("\n⚠️  Scraping interrupted by user")
             self.progress_data['status'] = 'interrupted'
-            self.save_progress()
-            print(f"💾 Progress saved. Resume with: python {sys.argv[0]} --resume")
+            print(f"💾 Progress saved. Resume with: python {os.path.basename(sys.argv[0])}")
+            return 130
         except Exception as e:
             print(f"\n❌ Error during scraping: {e}")
             import traceback
             traceback.print_exc()
             self.progress_data['status'] = 'interrupted'
-            self.save_progress()
-            raise
+            return 1
         finally:
             self.save_database()
             self.save_progress()
 
+
 def main():
-    scraper = PlayStationStoreScraper()
-    
-    # Parse command line arguments
-    resume = True
-    if len(sys.argv) > 1:
-        if sys.argv[1] == '--fresh':
-            resume = False
-            print("🆕 Starting fresh (clearing progress)")
-            if os.path.exists(scraper.progress_file):
-                os.remove(scraper.progress_file)
-        elif sys.argv[1] == '--resume':
-            resume = True
-        elif sys.argv[1] == '--status':
-            scraper.load_progress()
-            scraper.load_database()
-            print("\n📊 Scraper Status:")
-            print(f"   Status: {scraper.progress_data['status']}")
-            print(f"   Current page: {scraper.progress_data.get('current_page', 1)}")
-            print(f"   Max page: {scraper.progress_data.get('max_page', 'Not detected')}")
-            print(f"   Games processed: {len(scraper.progress_data.get('processed_games', []))}")
-            print(f"   Total games in DB: {len(scraper.games_db)}")
-            if scraper.progress_data.get('last_run_timestamp'):
-                last_run = datetime.fromtimestamp(scraper.progress_data['last_run_timestamp'])
-                print(f"   Last run: {last_run}")
-            return
-    
-    scraper.run_scraper(resume=resume)
+    parser = argparse.ArgumentParser(description="Scrape the PlayStation Store into a JSON database.")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--resume', action='store_true', default=True,
+                       help="Resume from saved progress (default)")
+    group.add_argument('--fresh', action='store_true',
+                       help="Restart the catalogue walk from the beginning "
+                            "(keeps the existing database and skips games already in it)")
+    group.add_argument('--status', action='store_true', help="Show progress and exit")
+    parser.add_argument('--locale', default='en-ca', help="Store locale (default: en-ca)")
+    parser.add_argument('--page-size', type=int, default=PAGE_SIZE,
+                        help=f"Games fetched per catalogue call, max 500 (default: {PAGE_SIZE})")
+    parser.add_argument('--save-every', type=int, default=25,
+                        help="Write the database after this many new games (default: 25)")
+    parser.add_argument('--delay', type=float, default=1.0,
+                        help="Base delay in seconds between game pages (default: 1.0)")
+    args = parser.parse_args()
+
+    scraper = PlayStationStoreScraper(locale=args.locale, page_size=args.page_size,
+                                      save_every=args.save_every, delay=args.delay)
+
+    if args.status:
+        scraper.load_progress()
+        scraper.load_database()
+        print("\n📊 Scraper Status:")
+        print(f"   Status: {scraper.progress_data['status']}")
+        print(f"   Catalogue offset: {scraper.progress_data.get('offset', 0)}")
+        print(f"   Catalogue size: {scraper.progress_data.get('total_count') or 'unknown'}")
+        print(f"   Games processed: {len(scraper.progress_data.get('processed_games', []))}")
+        print(f"   Total games in DB: {len(scraper.games_db)}")
+        if scraper.progress_data.get('last_run_timestamp'):
+            print(f"   Last run: {datetime.fromtimestamp(scraper.progress_data['last_run_timestamp'])}")
+        return 0
+
+    if args.fresh:
+        print("🆕 Restarting the catalogue walk from offset 0")
+
+    return scraper.run_scraper(resume=not args.fresh)
+
 
 if __name__ == "__main__":
-    main()
-
+    sys.exit(main())

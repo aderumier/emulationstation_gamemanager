@@ -4,14 +4,14 @@ A Python web scraper that scrapes game data from the PlayStation Store website (
 
 ## Features
 
-- 🕷️ **Systematic crawling**: Automatically processes all game list pages (dynamically detects max page)
+- 🕷️ **Systematic crawling**: Walks the whole "All Games" catalogue through the store's own GraphQL API
 - 🌐 **Realistic browser simulation**: Uses rotating user agents and browser headers
-- ⏱️ **Rate limiting**: Respectful delays between requests
+- ⏱️ **Rate limiting**: Respectful delays plus exponential backoff on errors
 - 🎮 **Complete data extraction**: Game name, publisher, release date, rating, number of players, description, boxfront, fanart
-- 💾 **Continuous JSON saving**: Saves database after each individual game is processed
+- 💾 **Crash-safe saving**: Writes atomically so an interrupted run can't truncate the database
 - 🔄 **Resume capability**: Can resume from existing database and progress tracking
-- 📊 **Progress tracking**: Tracks current page, max page, and processed games
-- 🔍 **Dynamic page detection**: Automatically detects maximum page number
+- 📊 **Progress tracking**: Tracks catalogue offset and processed games
+- 🔍 **Dynamic category detection**: Resolves the "All Games" category id at runtime
 
 ## Installation
 
@@ -28,7 +28,8 @@ pip install -r requirements.txt
 # Run the scraper (resumes from last position if available)
 python scrapper.py
 
-# Start fresh (clears progress)
+# Restart the catalogue walk from the beginning
+# (keeps the database and skips games already in it)
 python scrapper.py --fresh
 
 # Resume from last position
@@ -37,6 +38,15 @@ python scrapper.py --resume
 # Check current status
 python scrapper.py --status
 ```
+
+### Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--locale` | `en-ca` | Store locale to scrape |
+| `--page-size` | `100` | Games fetched per catalogue call (max 500) |
+| `--save-every` | `25` | Write the database after this many new games |
+| `--delay` | `1.0` | Base delay in seconds between game detail pages |
 
 ### Output Files
 
@@ -54,7 +64,7 @@ Each game entry in the JSON database contains:
     "name": "Diablo® IV",
     "publisher": "Blizzard Entertainment, Inc.",
     "release_date": "06-09-2024",
-    "rating": 0.746,
+    "rating": 0.75,
     "nbplayers": "1-2",
     "boxfront": "https://image.api.playstation.com/vulcan/ap/rnd/202512/0923/4c56e76c73b8ffd76ab14074565ecd3e2d3848a70ece9c26.png",
     "fanart": "https://image.api.playstation.com/vulcan/ap/rnd/202405/3123/4168ef9b8695981a2e53f4a548319c27a32e320535a938ec.jpg",
@@ -77,7 +87,7 @@ Each game entry in the JSON database contains:
 
 ## Resume Functionality
 
-The scraper automatically saves progress after each game. If interrupted (Ctrl+C), you can resume by running:
+The scraper saves progress periodically (every `--save-every` games and after each catalogue page). If interrupted (Ctrl+C), you can resume by running:
 
 ```bash
 python scrapper.py --resume
@@ -85,37 +95,51 @@ python scrapper.py --resume
 
 The scraper will:
 - Load existing database entries
-- Skip games that have already been processed
-- Continue from the last page number
-- Use the previously detected max page (or re-detect if starting fresh)
+- Skip games that are already in the database (no detail request is made for them)
+- Continue from the last catalogue offset
+
+Data files are always read from and written to the directory containing `scrapper.py`, so the scraper can be run from any working directory.
 
 ## How It Works
 
-1. **Browse Pages**: The scraper fetches browse pages from `/en-ca/pages/browse/{page_number}`
-2. **Max Page Detection**: On first run, automatically detects the maximum page number by checking pagination or trying pages incrementally
-3. **Game Cards**: Each browse page contains game cards in `<li>` elements, from which basic info is extracted:
+1. **Catalogue Listing**: The `/pages/browse/` HTML is rendered client-side and contains no games, so the listing is read from the same GraphQL endpoint the website calls (`categoryGridRetrieve` on `web.np.playstation.com`). Each call returns a page of "concepts":
    - Game name
-   - Game ID (from concept URL)
-   - Boxfront image URL
-4. **Game Details**: For each game, the scraper fetches the detail page using the concept URL
-5. **HTML Parsing**: The detail page is parsed to extract:
+   - Game ID
+   - Boxfront image URL (the `MASTER` media role)
+2. **Category Detection**: The "All Games" category id is resolved at runtime from the Browse experience, falling back to a known id
+3. **Game Details**: For each game not already in the database, the scraper fetches the detail page at `/{locale}/concept/{id}`, which is still server-rendered
+4. **HTML Parsing**: The detail page is parsed to extract:
    - Fanart (from hero image)
    - Rating (from screen reader text, normalized to 0-1)
    - Publisher (from multiple possible locations)
    - Number of players (from compatibility notices)
    - Release date (normalized to dd-mm-yyyy format)
    - Description (from overview section, HTML converted to text with preserved line breaks)
-6. **Data Normalization**:
+5. **Data Normalization**:
    - Release dates are converted from "9/6/2024" to "06-09-2024"
    - Ratings are normalized from 0-5 scale to 0-1 scale (None if negative)
    - Image URLs have query parameters removed
-7. **Database Storage**: Each game is stored with its `id` as the key
+6. **Database Storage**: Each game is stored with its `id` as the key
 
 ## Notes
 
 - The scraper uses realistic browser headers and rotates user agents to avoid detection
-- Rate limiting is implemented with delays between requests (1 second between games, 2 seconds between pages)
+- Rate limiting is implemented with delays between requests, plus exponential backoff on 429/5xx responses
 - Image URLs are automatically cleaned by removing query parameters (`?w=...&thumb=...`)
 - The description field preserves line breaks from the original HTML
-- Max page detection happens automatically on first run or when starting fresh
+
+### Catalogue depth limit
+
+The store reports ~10,000 games in the "All Games" category and refuses any request past
+`offset + size > 10000`, so a full walk yields roughly 10k titles. Reaching anything beyond
+that requires narrowing the query with facet filters (by genre, platform, release date, …).
+
+### If the listing stops working again
+
+The GraphQL endpoint only accepts *persisted queries*: operations are referenced by the
+SHA-256 hash of the document the web client sends, and freeform queries are rejected. Those
+hashes live in `PERSISTED_QUERIES` at the top of `scrapper.py`. If PlayStation changes them,
+the scraper reports that the stored hash is no longer accepted; re-capture it by loading
+`https://store.playstation.com/en-ca/pages/browse/1` in a browser with devtools open and
+reading the `extensions` query parameter of the `categoryGridRetrieve` request.
 
