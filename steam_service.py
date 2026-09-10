@@ -879,6 +879,47 @@ class SteamService:
 
         return urls
 
+    async def filter_available_urls(self, urls: List[str],
+                                    client: Optional[httpx.AsyncClient] = None) -> List[str]:
+        """Drop CDN URLs that do not exist, preserving order.
+
+        Steam's capsule/logo/hero paths are constructed from the app id rather
+        than discovered, and plenty of apps are missing one or more of them --
+        a game with no logo 404s on every known logo path. Offering such a URL
+        puts a broken image in the picker and turns the download into an error,
+        so the candidates are checked before being returned.
+        """
+        if not urls:
+            return []
+
+        async def exists(http_client, url):
+            try:
+                response = await http_client.head(url, follow_redirects=True)
+                if response.status_code == 405:  # HEAD refused; ask for one byte
+                    response = await http_client.get(url, headers={'Range': 'bytes=0-0'},
+                                                     follow_redirects=True)
+                return response.status_code < 400
+            except Exception as e:
+                # A network failure is not proof the media is missing; keep the
+                # candidate rather than silently hiding it.
+                logger.debug(f"Availability check failed for {url}: {e}")
+                return True
+
+        async def run(http_client):
+            return await asyncio.gather(*[exists(http_client, u) for u in urls])
+
+        try:
+            if client is not None:
+                results = await run(client)
+            else:
+                async with httpx.AsyncClient(timeout=15.0) as own:
+                    results = await run(own)
+        except Exception as e:
+            logger.warning(f"Could not check Steam media availability: {e}")
+            return urls
+
+        return [u for u, ok in zip(urls, results) if ok]
+
     async def get_screenshot_urls(self, steam_id: int, client: Optional[httpx.AsyncClient] = None,
                                   limit: Optional[int] = None) -> List[str]:
         """Fetch the Steam Store page for an app and return its screenshot URLs"""

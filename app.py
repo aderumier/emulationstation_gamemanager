@@ -14859,7 +14859,9 @@ def download_multiscraper_media_endpoint():
                 'matched_rom_path': game.get('path', '')
             })
         else:
-            return jsonify({'error': 'Failed to download media'}), 500
+            # The media could not be fetched from the source; that is an upstream
+            # problem, not an internal fault, and 500 misreports it as a crash.
+            return jsonify({'error': 'Failed to download media from the source'}), 502
         
     except Exception as e:
         print(f"Error downloading multiscraper media: {e}")
@@ -15166,13 +15168,28 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                         'region': 'Unknown'
                     })
             elif steam_type in steam_url_patterns:
-                for g in matches:
-                    steam_id = g['appid']
-                    url = steam_url_patterns[steam_type].format(steam_id=steam_id)
+                # These URLs are constructed from the app id, so plenty of them
+                # point at media the app simply does not have. Check before
+                # offering them, or the picker fills with broken images.
+                import asyncio
+
+                candidates = [(g, steam_url_patterns[steam_type].format(steam_id=g['appid']))
+                              for g in matches]
+
+                async def keep_available():
+                    async with httpx.AsyncClient(timeout=15.0) as client:
+                        return await steam_service.filter_available_urls(
+                            [u for _, u in candidates], client=client)
+
+                available = set(run_async_safely(keep_available()) or []) if candidates else set()
+
+                for g, url in candidates:
+                    if url not in available:
+                        continue
                     results.append({
                         'scraper': 'steam',
                         'game_name': g.get('name', ''),
-                        'game_id': steam_id,
+                        'game_id': g['appid'],
                         'similarity_score': g.get('similarity_score', 0.0),
                         f'{media_type}_urls': [url],
                         'region': 'Unknown'
@@ -23253,6 +23270,27 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
                 # Use capsule field for header image as fallback
                 media_fields.setdefault(capsule_field, []).append(steam_data['header_image'])
         
+        # Steam's capsule/logo/hero URLs are constructed from the app id, not
+        # discovered, and many apps are missing one or more of them. Drop the ones
+        # that 404 so the picker never offers an image that cannot be downloaded.
+        # Screenshot URLs come from the store page and are known to exist, so
+        # they are left alone rather than costing one request each.
+        constructed_types = {'capsule', 'logo', 'hero'}
+        for field, urls in list(media_fields.items()):
+            steam_type = steam_image_mapping.get(field)
+            if steam_type not in constructed_types:
+                continue
+            plain = [u for u in urls if isinstance(u, str)]
+            if not plain:
+                continue
+            available = await steam_service.filter_available_urls(plain)
+            dropped = len(plain) - len(available)
+            if dropped:
+                print(f"🔧 DEBUG: Steam {field}: dropped {dropped} unavailable URL(s)")
+            media_fields[field] = available + [u for u in urls if not isinstance(u, str)]
+            if not media_fields[field]:
+                del media_fields[field]
+
         # Debug: Log what we're returning
         print(f"DEBUG: Steam manual scrap returning - text_fields: {text_fields}, media_fields keys: {list(media_fields.keys())}")
         
