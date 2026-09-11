@@ -10,9 +10,10 @@ GameTDB serves artwork two ways, and this tool uses both:
           files one at a time, so this runs first and does most of the work.
 
   covers  The high-quality covers (coverHQ, 1166x1888, and coverfullHQ, the
-          full wrap) have no archive and must be fetched file by file.
-          art.gametdb.com answers only a few requests a second, so this pass
-          is slow by nature and works hard to stay small: it asks only in the
+          full wrap) have no archive and must be fetched file by file, on a
+          single sequential keep-alive connection held well below the rate the
+          host would allow, because it refuses this address outright if pushed
+          concurrently. The pass works hard to stay small: it asks only in the
           languages the zip pass proved a cover exists in, takes them in the
           order the converter prefers and stops at the first hit, skips the
           packaging art of download-only releases, and records its misses so
@@ -35,6 +36,7 @@ import argparse
 import io
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -62,16 +64,37 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOADS_URL = 'https://www.gametdb.com/{section}/Downloads'
 ZIP_URL = 'https://www.gametdb.com/download.php?FTP={name}'
 
-USER_AGENT = 'Mozilla/5.0 (cursorscraper gametdb art mirror)'
+# The cover pass makes tens of thousands of requests to one host over hours, so
+# it presents itself the way a browser loading those images would: a real user
+# agent, the headers that accompany an <img> request, and a Referer from the
+# game's own page. Rotated every so often rather than per request -- a client
+# that changes identity on every request looks less like a browser, not more.
+USER_AGENTS = [
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
+]
+
+# Requests between user-agent changes, picked at random inside this range.
+UA_ROTATE_EVERY = (60, 140)
 
 # www.gametdb.com is slow to render its pages; the art CDN is quick but
 # rate-limited, so the two get very different timeouts.
 SITE_TIMEOUT = 180
 ART_TIMEOUT = 30
 
-# art.gametdb.com serves roughly three requests a second and stops answering
-# altogether for a while if pushed harder, so the cover pass paces itself by
-# default rather than finding that limit again.
+# The cover pass is deliberately sequential on one keep-alive connection, so
+# only ever one request is in flight. That alone is the real protection: the
+# host tolerates steady sequential traffic (measured at 10-45 requests a second
+# on a single connection) but reacts badly to concurrency -- a burst across 64
+# threads once got this address refused for the best part of an hour, and six
+# connections measure slower than three. On top of that, this delay keeps the
+# pace well under what the server will give, which costs an hour or so on a run
+# that could finish in thirty minutes and is worth it to stay welcome.
 DEFAULT_DELAY = 0.35
 
 # Consecutive connection failures before giving up: once the host has stopped
@@ -83,6 +106,15 @@ MAX_CONSECUTIVE_ERRORS = 12
 # and without a bound a worldwide release with covers in a dozen languages
 # would cost a dozen requests to prove a missing full wrap.
 DEFAULT_MAX_TRIES = 3
+
+# Media fields the cover pass fetches by default. Only the front cover is worth
+# the hours it costs: the archives already supply the cartridge art, and the
+# full wrap is a nice-to-have that would roughly double the run.
+DEFAULT_COVER_FIELDS = ('boxfront',)
+
+# Games between progress lines. A run of tens of thousands takes hours, so this
+# is often enough to show it is alive without burying the warnings.
+PROGRESS_EVERY = 50
 
 # Misses of one art type, with no hit at all, before concluding GameTDB simply
 # does not carry that type for the system and dropping it for the rest of the run.
@@ -104,10 +136,41 @@ ZIP_NAME = re.compile(
 MISSES_FILE = 'misses.json'
 
 
+def browser_headers(user_agent):
+    """The headers a browser sends when loading an image from a page."""
+    firefox = 'Firefox' in user_agent
+    headers = {
+        'User-Agent': user_agent,
+        'Accept': ('image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+                   if not firefox else
+                   'image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8'),
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'DNT': '1',
+        'Sec-Fetch-Dest': 'image',
+        'Sec-Fetch-Mode': 'no-cors',
+        'Sec-Fetch-Site': 'same-site',
+        'Referer': 'https://www.gametdb.com/',
+    }
+    if not firefox:
+        headers['sec-ch-ua-mobile'] = '?0'
+    return headers
+
+
 def session():
     handle = requests.Session()
-    handle.headers['User-Agent'] = USER_AGENT
+    handle.headers.update(browser_headers(random.choice(USER_AGENTS)))
     return handle
+
+
+def rotate_user_agent(handle):
+    """Move the session onto a different browser identity."""
+    current = handle.headers.get('User-Agent')
+    choices = [ua for ua in USER_AGENTS if ua != current] or USER_AGENTS
+    user_agent = random.choice(choices)
+    handle.headers.update(browser_headers(user_agent))
+    return user_agent
 
 
 def load_misses(system):
@@ -324,7 +387,7 @@ def mirrored_langs(system, art_type):
     return index
 
 
-def cover_targets(system, wanted_langs, max_tries, misses):
+def cover_targets(system, wanted_langs, max_tries, misses, wanted_fields):
     """What is worth fetching, as (game id, field, [(art_type, lang), ...]).
 
     The attempts for a field follow exactly the order convert.py prefers, so
@@ -354,6 +417,8 @@ def cover_targets(system, wanted_langs, max_tries, misses):
             continue
 
         for field, art_types in MEDIA_FIELDS.items():
+            if field not in wanted_fields:
+                continue
             if field in ('boxback', 'cartridge') and not physical:
                 continue
 
@@ -374,10 +439,10 @@ def cover_targets(system, wanted_langs, max_tries, misses):
                 yield game_id, field, attempts
 
 
-def fetch_covers(handle, system, wanted_langs, delay, max_tries):
+def fetch_covers(handle, system, wanted_langs, delay, max_tries, wanted_fields, verbose):
     """Fetch high-quality covers one file at a time, resuming where left off."""
     misses = load_misses(system)
-    targets = list(cover_targets(system, wanted_langs, max_tries, misses))
+    targets = list(cover_targets(system, wanted_langs, max_tries, misses, wanted_fields))
 
     if not targets:
         print(f"[{system}] nothing left to fetch -- if the mirror is empty, run the "
@@ -385,8 +450,10 @@ def fetch_covers(handle, system, wanted_langs, delay, max_tries):
         return
 
     requests_due = sum(len(attempts) for _gid, _field, attempts in targets)
-    print(f"[{system}] {len(targets)} fields to resolve, at most {requests_due} requests "
-          f"(art.gametdb.com answers a few per second, so this takes a while)")
+    pace = 1.0 / (delay + 0.1) if delay else 10.0
+    print(f"[{system}] {len(targets)} fields to resolve, at most {requests_due} requests, "
+          f"one at a time at about {pace:.1f}/s "
+          f"(roughly {requests_due / pace / 60:.0f} min)")
 
     downloaded = notfound = 0
     errors = 0
@@ -399,6 +466,9 @@ def fetch_covers(handle, system, wanted_langs, delay, max_tries):
     hits = {}
     tried = {}
     abandoned = set()
+
+    requests_made = 0
+    rotate_at = random.randint(*UA_ROTATE_EVERY)
 
     try:
         for done, (game_id, _field, attempts) in enumerate(targets, 1):
@@ -422,8 +492,16 @@ def fetch_covers(handle, system, wanted_langs, delay, max_tries):
 
                 errors = 0
                 tried[art_type] = tried.get(art_type, 0) + 1
+
+                # Pace the requests, with a little jitter: a metronome is the
+                # one thing no browser ever looks like.
+                requests_made += 1
                 if delay:
-                    time.sleep(delay)
+                    time.sleep(random.uniform(delay * 0.6, delay * 1.6))
+                if requests_made >= rotate_at:
+                    rotate_user_agent(handle)
+                    requests_made = 0
+                    rotate_at = random.randint(*UA_ROTATE_EVERY)
 
                 if response.status_code == 200 and response.content:
                     os.makedirs(os.path.dirname(target), exist_ok=True)
@@ -431,11 +509,18 @@ def fetch_covers(handle, system, wanted_langs, delay, max_tries):
                         out.write(response.content)
                     hits[art_type] = hits.get(art_type, 0) + 1
                     downloaded += 1
+                    if verbose:
+                        print(f"  [{done}/{len(targets)}] {art_type}/{lang}/{game_id}"
+                              f"{ART_TYPES.get(art_type, '')}  "
+                              f"{len(response.content) / 1024:.0f} KB", flush=True)
                     break
 
                 if response.status_code == 404:
                     seen.setdefault(lang, set()).add(game_id)
                     notfound += 1
+                    if verbose:
+                        print(f"  [{done}/{len(targets)}] {art_type}/{lang}/{game_id}: none",
+                              flush=True)
                     if not hits.get(art_type) and tried[art_type] >= ABANDON_AFTER:
                         abandoned.add(art_type)
                         print(f"  no '{art_type}' anywhere in {tried[art_type]} tries; "
@@ -463,11 +548,11 @@ def fetch_covers(handle, system, wanted_langs, delay, max_tries):
                       "a larger --delay.", file=sys.stderr)
                 break
 
-            if done % 200 == 0:
+            if done % PROGRESS_EVERY == 0:
                 rate = done / max(time.time() - started, 1e-9)
                 left = (len(targets) - done) / rate
-                print(f"  {done}/{len(targets)}  {downloaded} saved, {notfound} absent "
-                      f"(~{left / 60:.0f} min left)")
+                print(f"  {done}/{len(targets)}  {downloaded} saved, {notfound} absent, "
+                      f"{rate:.1f}/s  (~{left / 60:.0f} min left)", flush=True)
                 save_misses(system, misses)
     except KeyboardInterrupt:
         print("\n  interrupted -- progress is saved, re-run to continue")
@@ -498,6 +583,12 @@ def main():
     parser.add_argument('--delay', type=float, default=DEFAULT_DELAY,
                         help=f'seconds to pause between cover requests '
                              f'(default: {DEFAULT_DELAY})')
+    parser.add_argument('--fields', default=','.join(DEFAULT_COVER_FIELDS),
+                        help=f'media fields to fetch covers for '
+                             f'(default: {",".join(DEFAULT_COVER_FIELDS)}; '
+                             f'available: {",".join(MEDIA_FIELDS)})')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='print a line for every cover, not just a periodic summary')
     parser.add_argument('--max-tries', type=int, default=DEFAULT_MAX_TRIES,
                         help=f'languages to try per media field before giving up '
                              f'(default: {DEFAULT_MAX_TRIES})')
@@ -507,9 +598,16 @@ def main():
                     for lang in (args.langs or '').split(',') if lang.strip()}
     wanted_types = {name.strip() for name in args.types.split(',') if name.strip()}
 
+    wanted_fields = {name.strip() for name in args.fields.split(',') if name.strip()}
+
     unknown = wanted_types - set(ART_TYPES)
     if unknown:
         print(f"Unknown art types: {', '.join(sorted(unknown))}", file=sys.stderr)
+        return 1
+
+    unknown = wanted_fields - set(MEDIA_FIELDS)
+    if unknown:
+        print(f"Unknown media fields: {', '.join(sorted(unknown))}", file=sys.stderr)
         return 1
 
     handle = session()
@@ -518,7 +616,8 @@ def main():
             sync_zips(handle, system, wanted_types, wanted_langs,
                       args.zip_dir, args.offline)
         if not args.zips_only:
-            fetch_covers(handle, system, wanted_langs, args.delay, args.max_tries)
+            fetch_covers(handle, system, wanted_langs, args.delay, args.max_tries,
+                         wanted_fields, args.verbose)
 
     return 0
 

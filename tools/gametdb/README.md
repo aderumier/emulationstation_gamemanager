@@ -16,13 +16,28 @@ from `var/db/custom/`, with the artwork mirrored locally alongside them.
 GameTDB's media URLs are built from the game id, so they cannot be trusted
 sight-unseen — a Switch eShop title generally has no cartridge scan, and most
 games have covers in only one or two languages. Checking them over the network
-is not an option either: **art.gametdb.com answers roughly three requests per
-second and stops answering at all for a while if pushed harder.** Scraping
-directly from it would be painfully slow even once it worked.
+during a scrape is not an option either: **art.gametdb.com refuses this address
+outright for the best part of an hour if it is hit concurrently**, so a scraper
+that fetched from it per game would be a liability.
 
 So the artwork is fetched once into a local mirror, and the JSON database points
 at that mirror. Every link in the database is then a file that demonstrably
 exists, and scraping a whole system is a local file copy.
+
+### What the host actually tolerates
+
+Measured, rather than assumed: the CDN is **HTTP/1.1 only** (it offers no h2 over
+ALPN), and a single `requests.Session` holds one keep-alive connection for the
+whole run — 30 requests opened exactly one socket. On that one connection it
+serves 10–45 requests a second quite happily.
+
+Concurrency is the thing it objects to, not volume. Three connections measure
+about twice as fast as one; six measure *slower* than three; and a 64-thread
+burst is what got this address blocked in the first place. So `fetch_art.py`
+stays strictly sequential — only ever one request in flight — and adds a
+jittered delay on top to sit well under the rate the server would allow. That
+turns a thirty-minute job into an hour or two, which is the right trade for not
+being locked out again.
 
 ## Usage
 
@@ -58,8 +73,8 @@ all:
 
 **High-quality covers** (hours). `coverHQ` (1166x1888) and `coverfullHQ` (the
 full back-spine-front wrap, 2454x1888) have no archive and must be fetched one
-file at a time, against that three-per-second ceiling. Five things keep the
-pass as small as it can be:
+file at a time, at the deliberately restrained pace described above. Six things
+keep the pass as small as it can be:
 
 - it asks only in the languages the archive pass proved a cover exists in,
   rather than guessing across the whole language list;
@@ -67,6 +82,9 @@ pass as small as it can be:
   first hit, so a game that has its cover costs one request;
 - it caps that at `--max-tries` languages per field (3 by default), bounding
   what it costs to prove a game has *no* art of some kind;
+- `--fields` limits which media fields it chases at all, and defaults to
+  `boxfront`: the archives already supply the cartridge art, and the full wrap
+  would roughly double the run for a field few collections display;
 - it skips `boxback` and `cartridge` for download-only releases, which have
   neither a box nor a card — three quarters of the Switch database;
 - it drops an art type entirely once several hundred requests have produced no
@@ -76,9 +94,11 @@ Misses are recorded in `<mirror>/<system>/misses.json`, so a re-run neither
 re-downloads what is there nor re-asks for what is not. Interrupting it with
 Ctrl-C is safe.
 
-Expect a few hours for Switch's 22,000 games and under an hour for the 3DS. If
-the CDN cuts you off the tool says so and stops; wait a while, then re-run,
-optionally with a larger `--delay`.
+The run prints its own estimate on startup from the pace you chose. For Switch
+that is around 17,400 covers at roughly 2 requests a second, so a couple of
+hours; `--delay 0` would finish in about half an hour but gives up the safety
+margin. If the CDN cuts you off the tool says so and stops; wait a while, then
+re-run with a larger `--delay`.
 
 Useful flags:
 
@@ -89,11 +109,12 @@ Useful flags:
 
 ## What ends up in the JSON
 
-Keyed by GameTDB id:
+Keyed by release type and GameTDB id, so an entry says at a glance whether a
+game came on a card or as a download:
 
 ```json
-"A224A": {
-  "id": "A224A",
+"Switch/A224A": {
+  "id": "Switch/A224A",
   "url": "https://www.gametdb.com/Switch/A224A",
   "name": "Ni no Kuni II - Revenant Kingdom Prince's Edition",
   "developer": "...",
@@ -112,6 +133,13 @@ A media value is both the URL the browser loads and the file's path in the
 repository, so the media picker displays it and the scrapper copies it without a
 network request. Fields are omitted rather than written empty, and media fields
 appear only when the file is in the mirror.
+
+The type prefix comes from the XML's `<type>`: `Switch` or `eShop` (4,811 and
+17,267 of them), and on the 3DS `3DS`, `3DSWare`, `New3DS`, `VC-NES`, `VC-GB`
+and the rest. `url` and the artwork paths keep the bare id, which is what
+GameTDB addresses them by. A `customid` therefore reads
+`gametdb_switch/Switch/A224A`; `parse_customid` splits on the first slash only,
+so the type travels with the id as it should.
 
 `name` comes from the game's English locale rather than the `<game name>`
 attribute, which carries a language suffix — "Celeste (EN,FR,DE)" — that would

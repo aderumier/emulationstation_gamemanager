@@ -291,8 +291,14 @@ def convert(xml_path, output_dir):
         region = text_of(element, 'region')
         languages = text_of(element, 'languages')
 
+        # The key carries the release type -- "eShop/A223A", "VC-NES/TAKE" --
+        # which says at a glance whether an entry is a card, a download or a
+        # Virtual Console title. GameTDB's own id stays the bare one: it is
+        # what the artwork and the game's page are addressed by.
+        custom_id = f"{game_type}/{game_id}" if (game_type := text_of(element, 'type')) else game_id
+
         entry = {
-            'id': game_id,
+            'id': custom_id,
             'url': f"https://www.gametdb.com/{section}/{game_id}",
             'name': name,
         }
@@ -316,7 +322,7 @@ def convert(xml_path, output_dir):
 
         # Later entries win: GameTDB lists the same id at most once, so this
         # only matters for malformed input.
-        games[game_id] = entry
+        games[custom_id] = entry
         element.clear()
 
     os.makedirs(output_dir, exist_ok=True)
