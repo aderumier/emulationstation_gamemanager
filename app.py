@@ -36,6 +36,13 @@ VAR_2DBOX_TEMPLATES_DIR = os.path.join(_base_dir, 'var', '2dbox', 'templates')
 VAR_3DBOX_TEMPLATES_DIR = os.path.join(_base_dir, 'var', '3dbox', 'templates')
 VAR_TEMP_DIR = os.path.join(_base_dir, 'var', 'temp')
 
+# Media shipped with the application for custom databases whose source throttles
+# hard enough that scraping from it is impractical (the GameTDB artwork mirror).
+# Such a database stores CUSTOM_MEDIA_URL_PREFIX + path, which is at once the URL
+# the browser loads and the file's location on disk.
+CUSTOM_MEDIA_DIR = os.path.join(_base_dir, 'var', 'db', 'custom', 'medias')
+CUSTOM_MEDIA_URL_PREFIX = '/var/db/custom/medias/'
+
 # Default ROMs directory: appdir + "/roms" on Windows, /opt/gamemanager/roms as fallback on Linux
 if sys.platform == 'win32' or getattr(sys, 'frozen', False):
     DEFAULT_ROMS_DIRECTORY = os.path.join(_base_dir, 'roms')
@@ -8108,6 +8115,12 @@ def serve_media_thumbnail(system_name, media_path):
         # Fall back to the original file rather than breaking the grid
         return _with_revalidation(send_file(source_path))
 
+@app.route('/var/db/custom/medias/<path:filename>')
+@login_required
+def serve_custom_media(filename):
+    """Serve media bundled with a custom database (e.g. the GameTDB artwork mirror)"""
+    return send_from_directory(CUSTOM_MEDIA_DIR, filename.replace('\\', '/'))
+
 @app.route('/var/temp/<path:filename>')
 @login_required
 def serve_temp_file(filename):
@@ -15512,7 +15525,8 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                         continue
                     
                     # Get media URLs from custom database (may be single or array)
-                    media_urls = service.get_media_urls(custom_database, game_id, custom_field)
+                    media_urls = _drop_missing_local_media(
+                        service.get_media_urls(custom_database, game_id, custom_field))
                     if media_urls:
                         result_item = {
                             'scraper': 'custom',
@@ -16099,7 +16113,16 @@ def download_and_save_media(media_url, game, media_type, system_name):
         
         # Use special downloaders for protected sites (Selenium or Unflare)
         media_content = None
-        if _is_amigahol_url(media_url) or _is_lemon_url(media_url):
+        if _is_local_custom_media_url(media_url):
+            # Media shipped with the application: read it instead of asking the
+            # network for a file we already have.
+            media_content = _read_local_custom_media(media_url)
+            if not media_content:
+                logger.error(f"Custom media missing from {CUSTOM_MEDIA_DIR}: {media_url} "
+                             f"-- the database expects a local media mirror that has not "
+                             f"been built on this machine")
+                return False
+        elif _is_amigahol_url(media_url) or _is_lemon_url(media_url):
             logger.debug(f"Using special downloader for protected URL: {media_url}")
             media_content = download_media_content(media_url, timeout=60 if _is_lemon_url(media_url) else 30)
             if not media_content:
@@ -23788,7 +23811,8 @@ async def scrape_custom_manual(game, system_name, system_config, scraper_type='c
                     })
             else:
                 # Get media URLs (may be single or array)
-                media_urls = service.get_media_urls(custom_database, game_id, custom_field)
+                media_urls = _drop_missing_local_media(
+                    service.get_media_urls(custom_database, game_id, custom_field))
                 
                 if media_urls:
                     # Add to media_fields using the gamelist_field (value) as the key
@@ -39072,6 +39096,61 @@ def _is_lemon_url(url: str) -> bool:
         return False
     return 'lemon64.com' in url.lower() or 'lemonamiga.com' in url.lower()
 
+def _is_local_custom_media_url(url: str) -> bool:
+    """Whether a custom database points at media shipped with the application.
+
+    Dispatch on this rather than on the file being readable, so a mirror that
+    was never built reports that plainly instead of being handed to requests,
+    which rejects a path with no scheme and buries the real cause.
+    """
+    return isinstance(url, str) and url.startswith(CUSTOM_MEDIA_URL_PREFIX)
+
+def _local_custom_media_path(url: str) -> Optional[str]:
+    """Filesystem path behind a locally hosted custom-database media URL.
+
+    Returns None when the URL is a normal remote one, or when it escapes the
+    media directory or names a file that is not there -- callers then fall back
+    to fetching it over the network.
+    """
+    if not url or not isinstance(url, str):
+        return None
+    if not url.startswith(CUSTOM_MEDIA_URL_PREFIX):
+        return None
+
+    from urllib.parse import unquote
+
+    relative = url[len(CUSTOM_MEDIA_URL_PREFIX):].split('?', 1)[0].split('#', 1)[0]
+    relative = unquote(relative).replace('\\', '/')
+    path = os.path.normpath(os.path.join(CUSTOM_MEDIA_DIR, relative))
+
+    if not path.startswith(CUSTOM_MEDIA_DIR + os.sep):
+        return None
+    return path if os.path.isfile(path) else None
+
+def _read_local_custom_media(url: str) -> Optional[bytes]:
+    """Contents of a locally hosted custom-database media file, or None."""
+    path = _local_custom_media_path(url)
+    if not path:
+        return None
+    try:
+        with open(path, 'rb') as handle:
+            return handle.read()
+    except OSError as e:
+        logger.error(f"Failed to read local custom media {path}: {e}")
+        return None
+
+def _drop_missing_local_media(urls: List[str]) -> List[str]:
+    """Drop media the local mirror does not have, leaving remote URLs alone.
+
+    Databases that reference a bundled mirror ship without it -- the GameTDB
+    ones are built by tools/gametdb/fetch_art.py on each machine -- so before
+    the mirror exists every one of their links would fill the picker with
+    images that cannot load. Offering nothing is the better answer, and matches
+    how constructed Steam URLs are treated.
+    """
+    return [url for url in urls
+            if not _is_local_custom_media_url(url) or _local_custom_media_path(url)]
+
 def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) -> bool:
     """
     Download media using Selenium for amigahol URLs (amiga.abime.net) with bot protection.
@@ -40478,15 +40557,35 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                                 media_path = os.path.join(system_path, 'media', media_directory, media_filename)
                                                 os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                                 
+                                                # Media shipped with the application: copy it
+                                                # rather than fetching a file we already have
+                                                is_local = _is_local_custom_media_url(url)
+                                                local_content = _read_local_custom_media(url) if is_local else None
+
                                                 # Use special downloaders for protected sites
-                                                if _is_amigahol_url(url):
+                                                if is_local:
+                                                    download_success = False
+                                                elif _is_amigahol_url(url):
                                                     download_success = download_media_with_selenium(url, media_path, timeout=30)
                                                 elif _is_lemon_url(url):
                                                     download_success = download_media_with_unflare(url, media_path, timeout=60)
                                                 else:
                                                     download_success = False
 
-                                                if _is_amigahol_url(url) or _is_lemon_url(url):
+                                                if is_local:
+                                                    if local_content is None:
+                                                        logger.error(f"Custom media missing from {CUSTOM_MEDIA_DIR} for '{display_name}': {url}")
+                                                    else:
+                                                        ext = os.path.splitext(url)[1] or target_extension
+                                                        media_filename = f"{rom_filename}{ext}"
+                                                        media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                                        with open(media_path, 'wb') as f:
+                                                            f.write(local_content)
+                                                        relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
+                                                        game[field] = relative_path
+                                                        updated_count += 1
+                                                        logger.info(f"✅ Copied {field} for '{display_name}': {relative_path}")
+                                                elif _is_amigahol_url(url) or _is_lemon_url(url):
                                                     if download_success:
                                                         # Determine extension from URL
                                                         ext = os.path.splitext(url)[1] or target_extension
@@ -40538,15 +40637,35 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                                         media_path = os.path.join(system_path, 'media', media_directory, media_filename)
                                         os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                         
+                                        # Media shipped with the application: copy it
+                                        # rather than fetching a file we already have
+                                        is_local = _is_local_custom_media_url(url)
+                                        local_content = _read_local_custom_media(url) if is_local else None
+
                                         # Use special downloaders for protected sites
-                                        if _is_amigahol_url(url):
+                                        if is_local:
+                                            download_success = False
+                                        elif _is_amigahol_url(url):
                                             download_success = download_media_with_selenium(url, media_path, timeout=30)
                                         elif _is_lemon_url(url):
                                             download_success = download_media_with_unflare(url, media_path, timeout=60)
                                         else:
                                             download_success = False
 
-                                        if _is_amigahol_url(url) or _is_lemon_url(url):
+                                        if is_local:
+                                            if local_content is None:
+                                                logger.error(f"Custom media missing from {CUSTOM_MEDIA_DIR} for '{display_name}': {url}")
+                                            else:
+                                                ext = os.path.splitext(url)[1] or target_extension
+                                                media_filename = f"{rom_filename}{ext}"
+                                                media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                                with open(media_path, 'wb') as f:
+                                                    f.write(local_content)
+                                                relative_path = f"./media/{media_directory}/{media_filename}".replace('\\', '/')
+                                                game[field] = relative_path
+                                                updated_count += 1
+                                                logger.info(f"✅ Copied {field} for '{display_name}': {relative_path}")
+                                        elif _is_amigahol_url(url) or _is_lemon_url(url):
                                             if download_success:
                                                 # Determine extension from URL
                                                 ext = os.path.splitext(url)[1] or target_extension
