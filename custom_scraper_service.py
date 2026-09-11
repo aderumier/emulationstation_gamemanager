@@ -37,8 +37,10 @@ ALT_NAME_FIELDS = ('alt_names', 'alternate_names', 'alternative_names', 'alt_nam
 MIN_ALT_NAME_LENGTH = 4
 
 # Bumped whenever the index changes shape or gains entries, so an existing
-# cache is rebuilt rather than silently kept.
-CACHE_VERSION = 2
+# cache is rebuilt rather than silently kept. The file fingerprint cannot catch
+# this on its own: the databases are untouched, only the way they are indexed
+# has changed.
+CACHE_VERSION = 3
 
 class CustomScraperService:
     def __init__(self, config: Dict, scrappers_config: Dict = None, systems_config: Dict = None):
@@ -224,33 +226,67 @@ class CustomScraperService:
                             title_groups[normalized_title].append((game_id, game_data, game_name))
                             
                 # Second pass: Build index
+                def partition_for(key):
+                    first_char = key[0] if key else 'other'
+                    return new_index[db_name].setdefault(first_char, {})
+
+                # Titles are placed before the disambiguated variants below, so
+                # a game's own name always wins the key it deserves and a
+                # variant of some other game can never displace it.
+                variants = []
+
                 for normalized_title, group in title_groups.items():
                     if len(group) == 1:
                         # No duplicates, index normally
                         game_id, _, _ = group[0]
-                        first_char = normalized_title[0] if normalized_title else 'other'
-                        if first_char not in new_index[db_name]:
-                            new_index[db_name][first_char] = {}
-                        new_index[db_name][first_char][normalized_title] = game_id
-                    else:
-                        # Duplicates found, append publisher to the name for each game in the group
-                        for game_id, game_data, game_name in group:
-                            publisher = None
-                            if isinstance(game_data, dict):
-                                publisher = game_data.get('publisher')
-                                
-                            if publisher:
-                                title_pub = normalize_game_name(f"{game_name} ({publisher})", remove_paranthesis=False, remove_articles=False)
-                            else:
-                                # Fallback if no publisher
-                                title_pub = normalize_game_name(f"{game_name} ({game_id})", remove_paranthesis=False, remove_articles=False)
+                        partition_for(normalized_title)[normalized_title] = game_id
+                        continue
 
-                            if title_pub:
-                                title_pub = title_pub.strip()
-                                first_char = title_pub[0] if title_pub else 'other'
-                                if first_char not in new_index[db_name]:
-                                    new_index[db_name][first_char] = {}
-                                new_index[db_name][first_char][title_pub] = game_id
+                    # Several games share this title -- different regions or
+                    # releases of the same game, mostly. Each gets a key of its
+                    # own below, but the plain title must stay indexed too or an
+                    # exact lookup for it finds nothing at all and automatic
+                    # scraping cannot identify the game. It points at the
+                    # fullest entry of the group, which is the one worth
+                    # scraping; ties break on id so the choice is stable.
+                    best = min(group, key=lambda entry: (
+                        -sum(1 for value in entry[1].values() if value) if isinstance(entry[1], dict) else 0,
+                        str(entry[0])))
+                    partition_for(normalized_title)[normalized_title] = best[0]
+
+                    # Duplicates found, append publisher to the name for each game in the group
+                    for game_id, game_data, game_name in group:
+                        publisher = None
+                        if isinstance(game_data, dict):
+                            publisher = game_data.get('publisher')
+
+                        if publisher:
+                            title_pub = normalize_game_name(f"{game_name} ({publisher})", remove_paranthesis=False, remove_articles=False)
+                        else:
+                            # Fallback if no publisher
+                            title_pub = normalize_game_name(f"{game_name} ({game_id})", remove_paranthesis=False, remove_articles=False)
+
+                        if title_pub and title_pub.strip():
+                            variants.append((title_pub.strip(), game_id, game_name, publisher))
+
+                for title_pub, game_id, game_name, publisher in variants:
+                    # Region variants usually share a publisher as well as a
+                    # title, so this key collides and one of them used to
+                    # overwrite the other, leaving it unreachable. Normalizing
+                    # also strips non-Latin text, which collapses a Japanese
+                    # publisher to empty parentheses and can collide with an
+                    # unrelated game's title. The id always tells them apart.
+                    partition = partition_for(title_pub)
+                    if partition.get(title_pub, game_id) != game_id:
+                        unique = normalize_game_name(f"{game_name} ({publisher} {game_id})", remove_paranthesis=False, remove_articles=False)
+                        if not (unique and unique.strip()):
+                            continue
+                        title_pub = unique.strip()
+                        partition = partition_for(title_pub)
+                        if partition.get(title_pub, game_id) != game_id:
+                            continue
+
+                    partition[title_pub] = game_id
 
                 # Third pass: alternative titles, for databases that carry them
                 # (GameTDB ships each game's localized names, so a French dump
