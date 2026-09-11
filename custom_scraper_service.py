@@ -27,6 +27,19 @@ from typing import Dict, List, Optional, Any
 from difflib import SequenceMatcher
 from game_utils import normalize_game_name, calculate_similarity
 
+# Fields a custom database may use to offer extra titles for one game, such as
+# localized names. Either a list of names or a single one.
+ALT_NAME_FIELDS = ('alt_names', 'alternate_names', 'alternative_names', 'alt_name')
+
+# Normalized alternative titles shorter than this are refused: names are
+# stripped to ASCII letters and digits, so a title in a non-Latin script can
+# come out as a bare "7", which would match almost every ROM.
+MIN_ALT_NAME_LENGTH = 4
+
+# Bumped whenever the index changes shape or gains entries, so an existing
+# cache is rebuilt rather than silently kept.
+CACHE_VERSION = 2
+
 class CustomScraperService:
     def __init__(self, config: Dict, scrappers_config: Dict = None, systems_config: Dict = None):
         self.config = config
@@ -47,17 +60,13 @@ class CustomScraperService:
         # Load all custom databases
         self._load_databases()
         
-        # Try to load partitioned indexes from cache
-        cache_file = os.path.join('var/cache', 'custom_partitioned_index.pkl')
-        cache_exists = os.path.exists(cache_file)
-        
-        if cache_exists:
-            # Cache exists, load it
-            self._load_partitioned_indexes_from_cache()
-        else:
-            # Cache doesn't exist, rebuild in background thread
-            print("🔍 Custom partitioned index cache not found, rebuilding in background thread...")
-            self.logger.info("🔍 Custom partitioned index cache not found, rebuilding in background thread...")
+        # Try to load partitioned indexes from cache. A cache that is missing,
+        # stale or written by an older version is rebuilt in the background --
+        # a stale one used to be trusted, leaving any database added since
+        # unindexed and matching nothing at all in it.
+        if not self._load_partitioned_indexes_from_cache():
+            print("🔍 Custom partitioned index cache unusable, rebuilding in background thread...")
+            self.logger.info("🔍 Custom partitioned index cache unusable, rebuilding in background thread...")
             import threading
             rebuild_thread = threading.Thread(target=self._rebuild_index_in_background, daemon=True)
             rebuild_thread.start()
@@ -146,6 +155,21 @@ class CustomScraperService:
             import traceback
             traceback.print_exc()
     
+    @staticmethod
+    def _alternative_names(game_data):
+        """Extra titles a game can also be matched by, as a list of strings."""
+        names = []
+        for field in ALT_NAME_FIELDS:
+            value = game_data.get(field)
+            if isinstance(value, str):
+                value = [value]
+            if not isinstance(value, (list, tuple)):
+                continue
+            for name in value:
+                if isinstance(name, str) and name.strip():
+                    names.append(name.strip())
+        return names
+
     def _build_all_partitioned_indexes(self):
         """Build partitioned similarity indexes for all loaded databases during startup"""
         try:
@@ -169,6 +193,10 @@ class CustomScraperService:
                 # First pass: Group games by their normalized base title
                 title_groups = {}
                 
+                # Alternative titles, indexed after the primary ones so they can
+                # never displace them: {normalized_alt: game_id}
+                alt_titles = {}
+
                 for game_id, game_data in games_dict.items():
                     # Try to find game name field (common variations)
                     game_name = None
@@ -178,7 +206,14 @@ class CustomScraperService:
                             if name_field in game_data and game_data[name_field]:
                                 game_name = str(game_data[name_field])
                                 break
-                    
+
+                        for alt in self._alternative_names(game_data):
+                            normalized_alt = normalize_game_name(alt, remove_paranthesis=False, remove_articles=False)
+                            normalized_alt = normalized_alt.strip() if normalized_alt else ''
+                            # Very short keys match far too much to be useful
+                            if len(normalized_alt) >= MIN_ALT_NAME_LENGTH:
+                                alt_titles.setdefault(normalized_alt, game_id)
+
                     if game_name:
                         # Don't remove parentheses to preserve version info (e.g., "Game (ECS)" vs "Game (AGA)")
                         normalized_title = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
@@ -216,7 +251,22 @@ class CustomScraperService:
                                 if first_char not in new_index[db_name]:
                                     new_index[db_name][first_char] = {}
                                 new_index[db_name][first_char][title_pub] = game_id
-                
+
+                # Third pass: alternative titles, for databases that carry them
+                # (GameTDB ships each game's localized names, so a French dump
+                # can match a French title). Only free keys are taken, so a
+                # primary title is never shadowed by another game's alias.
+                alts_added = 0
+                for normalized_alt, game_id in alt_titles.items():
+                    first_char = normalized_alt[0] if normalized_alt else 'other'
+                    partition = new_index[db_name].setdefault(first_char, {})
+                    if normalized_alt not in partition:
+                        partition[normalized_alt] = game_id
+                        alts_added += 1
+                if alts_added:
+                    print(f"🔧 Indexed {alts_added} alternative titles for {db_name}")
+                    self.logger.info(f"🔧 Indexed {alts_added} alternative titles for {db_name}")
+
                 processed_databases += 1
                 partition_count = len(new_index[db_name])
                 print(f"✅ Partitioned index built for {db_name} ({partition_count} partitions)")
@@ -235,23 +285,48 @@ class CustomScraperService:
             print(f"❌ Error building partitioned indexes: {e}")
             self.logger.error(f"Error building partitioned indexes: {e}")
     
+    def _databases_signature(self):
+        """Fingerprint of the JSON databases on disk: name, size and mtime.
+
+        The cache is only valid for the databases it was built from. Without
+        this, dropping a new JSON into var/db/custom leaves it unindexed and
+        matching silently finds nothing in it until the cache is deleted.
+        """
+        signature = []
+        try:
+            for filename in sorted(os.listdir(self.db_path)):
+                if not filename.endswith('.json'):
+                    continue
+                stat = os.stat(os.path.join(self.db_path, filename))
+                signature.append((filename, stat.st_size, int(stat.st_mtime)))
+        except OSError as e:
+            self.logger.warning(f"Could not fingerprint custom databases: {e}")
+            return None
+        return signature
+
     def _save_partitioned_indexes_to_cache(self):
         """Save partitioned indexes to cache file for faster startup"""
         try:
             import pickle
             import os
-            
+
             cache_dir = 'var/cache'
             os.makedirs(cache_dir, exist_ok=True)
             cache_file = os.path.join(cache_dir, 'custom_partitioned_index.pkl')
-            
+
             # Convert index to dictionaries for pickling
             cache_data = {}
             for db_name, db_index in self._global_similarity_index.items():
                 cache_data[db_name] = {}
                 for letter, normalized_dict in db_index.items():
                     cache_data[db_name][letter] = normalized_dict
-            
+
+            cache_data = {
+                'version': CACHE_VERSION,
+                'signature': self._databases_signature(),
+                'databases': cache_data,
+            }
+
             with open(cache_file, 'wb') as f:
                 pickle.dump(cache_data, f)
             
@@ -276,7 +351,22 @@ class CustomScraperService:
             
             with open(cache_file, 'rb') as f:
                 cache_data = pickle.load(f)
-            
+
+            # A cache written before the index carried a signature cannot be
+            # checked against the databases, so it is discarded rather than
+            # trusted -- it also predates alternative-title indexing.
+            if not (isinstance(cache_data, dict) and cache_data.get('version') == CACHE_VERSION):
+                print("🔍 Custom partitioned index cache is from an older format, rebuilding")
+                self.logger.info("🔍 Custom partitioned index cache is from an older format, rebuilding")
+                return False
+
+            if cache_data.get('signature') != self._databases_signature():
+                print("🔍 Custom databases changed since the index was cached, rebuilding")
+                self.logger.info("🔍 Custom databases changed since the index was cached, rebuilding")
+                return False
+
+            cache_data = cache_data.get('databases', {})
+
             # Convert dictionaries back to index structure
             # Handle both old format (list of items) and new format (dict)
             self._global_similarity_index = {}
@@ -397,23 +487,28 @@ class CustomScraperService:
             for partition_dict in self._global_similarity_index[db_name].values():
                 candidates.extend([(norm_name, game_id) for norm_name, game_id in partition_dict.items()])
         
-        # Calculate similarity for each candidate
-        matches = []
+        # Calculate similarity for each candidate, keeping the best score per
+        # game: one game can be indexed under several titles (its primary name
+        # and its localized ones), and the caller wants distinct games.
+        best = {}
         for normalized_name, game_id in candidates:
             similarity = calculate_similarity(normalized_search, normalized_name)
-            if similarity >= min_similarity:
-                game_data = self.databases[db_name].get(game_id, {})
-                # Get original game name from game_data
-                game_name = game_data.get('name', normalized_name)
-                matches.append({
-                    'game_id': game_id,
-                    'name': game_name,
-                    'similarity': similarity,
-                    'game_data': game_data
-                })
-        
+            if similarity < min_similarity:
+                continue
+            if game_id in best and best[game_id]['similarity'] >= similarity:
+                continue
+            game_data = self.databases[db_name].get(game_id, {})
+            # Get original game name from game_data
+            game_name = game_data.get('name', normalized_name)
+            best[game_id] = {
+                'game_id': game_id,
+                'name': game_name,
+                'similarity': similarity,
+                'game_data': game_data
+            }
+
         # Sort by similarity (descending) and return top results
-        matches.sort(key=lambda x: x['similarity'], reverse=True)
+        matches = sorted(best.values(), key=lambda x: x['similarity'], reverse=True)
         return matches[:max_results]
     
     def get_media_url(self, db_name: str, game_id: str, media_field: str) -> Optional[str]:

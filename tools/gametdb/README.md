@@ -117,6 +117,27 @@ appear only when the file is in the mirror.
 attribute, which carries a language suffix — "Celeste (EN,FR,DE)" — that would
 only get in the way of name matching.
 
+### Localized names
+
+`alt_names` carries the game's titles in the other languages GameTDB knows, and
+the custom scrapper indexes them alongside the primary name, so a localized ROM
+matches without being renamed:
+
+    Pokémon Ultra Soleil          -> A2AP  Pokémon Ultra Sun
+    PJ MASKS: HELDEN DER NACHT    -> A22EA PJ MASKS: HEROES OF THE NIGHT
+    Horse Tales : La Vallée d'Emeraude -> A22VA Horse Tales: Emerald Valley Ranch
+
+Only titles that survive matching intact are kept — 945 for Switch, 1,678 for
+the 3DS, mostly French, Spanish, German, Italian and Portuguese. Matching
+reduces a name to ASCII letters and digits, so a Japanese or Korean title comes
+out as whatever Latin text it happened to contain: 짱구는 못말려…7일간의 여행
+becomes a bare `7`, which would match almost any ROM. Titles that lose more than
+half their characters that way are dropped.
+
+Adding artwork or names means the index must be rebuilt. It now notices by
+itself — it fingerprints the JSON files and rebuilds when they change — but
+Settings → Cache → *Refresh Custom Scraper cache* forces it.
+
 ### Media fields
 
 | field | art types tried, best first |

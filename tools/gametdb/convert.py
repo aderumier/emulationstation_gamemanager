@@ -21,7 +21,9 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
+import unicodedata
 from xml.etree import ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -107,6 +109,43 @@ def game_name(game, available):
         if title:
             return title
     return (game.get('name') or '').strip()
+
+
+def worth_indexing(title):
+    """Whether a localized title survives name matching intact enough to help.
+
+    Matching strips names down to ASCII letters and digits, so a Japanese or
+    Korean title comes out as whatever Latin text it happened to contain -- a
+    bare "7" or "DX" -- which would match far too much. Keep only titles that
+    were mostly Latin to begin with, which is where the value is anyway: the
+    French, German, Spanish and Italian names that localized ROMs are named
+    after.
+    """
+    folded = unicodedata.normalize('NFD', title)
+    folded = ''.join(c for c in folded if not unicodedata.combining(c))
+    latin = re.sub(r'[^A-Za-z0-9]', '', folded)
+    alnum = ''.join(c for c in title if c.isalnum())
+
+    if not alnum or len(latin) < 4:
+        return False
+    if sum(c.isalpha() for c in latin) < 3:
+        return False
+    return len(latin) / len(alnum) >= 0.5
+
+
+def alt_names(available, primary):
+    """Other locales' titles for this game, for matching localized ROM names.
+
+    A French dump named "Pokemon Ultra Soleil" cannot match the English title
+    on its own, so every distinct localized title is offered alongside it.
+    """
+    names = []
+    for _lang, (title, _synopsis) in sorted(available.items()):
+        if not title or title == primary or title in names:
+            continue
+        if worth_indexing(title):
+            names.append(title)
+    return names
 
 
 def game_description(game, available):
@@ -258,6 +297,10 @@ def convert(xml_path, output_dir):
             'name': name,
         }
 
+        alternatives = alt_names(available, name)
+        if alternatives:
+            entry['alt_names'] = alternatives
+
         for key, value in (
             ('developer', text_of(element, 'developer')),
             ('publisher', text_of(element, 'publisher')),
@@ -282,8 +325,10 @@ def convert(xml_path, output_dir):
         json.dump(games, handle, ensure_ascii=False, indent=2)
 
     with_media = sum(1 for g in games.values() if any(f in g for f in MEDIA_FIELDS))
+    with_alts = sum(len(g.get('alt_names', ())) for g in games.values())
     print(f"  {len(games)} games -> {output_path}")
-    print(f"  {with_media} with artwork" + (f", {skipped} skipped (no id or title)" if skipped else ''))
+    print(f"  {with_media} with artwork, {with_alts} localized names"
+          + (f", {skipped} skipped (no id or title)" if skipped else ''))
     return games
 
 
