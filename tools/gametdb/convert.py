@@ -29,6 +29,7 @@ from xml.etree import ElementTree as ET
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from gametdb import (
+    BASE_DIR,
     CUSTOM_DB_DIR,
     MEDIA_FIELDS,
     MEDIA_ROOT,
@@ -38,7 +39,22 @@ from gametdb import (
     system_from_xml,
 )
 
+# Group duplicates exactly as the scrapper's index does, so what looks like one
+# game here is one game there too.
+sys.path.insert(0, BASE_DIR)
+from game_utils import normalize_game_name
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Trailing "(EN,FR,DE)" or "(USA)" on the <game name> attribute: a tag, not part
+# of the title. GameTDB also carries placeholder entries whose whole attribute is
+# such a tag and which have no locale at all -- 69 of them on the Switch -- and
+# those are not games.
+LANGUAGE_TAG = re.compile(
+    r'\s*\((?:[A-Z]{2}(?:CN|TW)?)(?:\s*,\s*(?:[A-Z]{2}(?:CN|TW)?))*\)\s*$')
+REGION_TAG = re.compile(
+    r'\s*\((?:USA|Europe|Japan|Korea|Australia|World|Taiwan|China|'
+    r'NTSC-[UJKT]|PAL(?:-R)?)\)\s*$', re.IGNORECASE)
 
 # Genre names GameTDB writes in lower case that should not simply be
 # title-cased ("action rpg" must not become "Action Rpg").
@@ -108,7 +124,17 @@ def game_name(game, available):
         title = available.get(lang, ('', ''))[0]
         if title:
             return title
-    return (game.get('name') or '').strip()
+    return strip_tags((game.get('name') or ''))
+
+
+def strip_tags(name):
+    """Drop the language and region tags GameTDB appends to <game name>."""
+    name = name.strip()
+    while True:
+        stripped = REGION_TAG.sub('', LANGUAGE_TAG.sub('', name)).strip()
+        if stripped == name:
+            return name
+        name = stripped
 
 
 def worth_indexing(title):
@@ -259,7 +285,42 @@ def index_mirror(system):
     return index
 
 
-def convert(xml_path, output_dir):
+def collapse_duplicates(games):
+    """Keep one entry per title where GameTDB lists a game several times.
+
+    Most games appear once per region -- "Calamity Angels: Special Delivery" is
+    there three times -- and every copy matches a ROM equally well, so the
+    picker fills with rows that cannot be told apart and automatic matching has
+    no way to choose. They really are the same game: the regional entries differ
+    only in which publisher distributed it and which language its cover is in.
+
+    The survivor is the one carrying the most artwork, since that is the whole
+    point of the entry, then the one with the fullest text. Ties break on id so
+    a rebuild does not shuffle the choice around.
+    """
+    groups = {}
+    for custom_id, entry in games.items():
+        key = normalize_game_name(entry['name'], remove_paranthesis=False,
+                                  remove_articles=False)
+        key = key.strip() if key else ''
+        groups.setdefault(key or custom_id, []).append(custom_id)
+
+    kept, dropped = {}, 0
+    for _key, members in groups.items():
+        if len(members) > 1:
+            members = sorted(members, key=lambda cid: (
+                -sum(1 for field in MEDIA_FIELDS if field in games[cid]),
+                -sum(1 for value in games[cid].values() if value),
+                cid))
+            dropped += len(members) - 1
+        kept[members[0]] = games[members[0]]
+
+    # Restore the original order, which follows the XML.
+    ordered = {cid: entry for cid, entry in games.items() if cid in kept}
+    return ordered, dropped
+
+
+def convert(xml_path, output_dir, keep_duplicates=False):
     """Convert one GameTDB XML database and write the JSON it produces."""
     system = system_from_xml(xml_path)
     mirror = index_mirror(system)
@@ -325,6 +386,10 @@ def convert(xml_path, output_dir):
         games[custom_id] = entry
         element.clear()
 
+    dropped = 0
+    if not keep_duplicates:
+        games, dropped = collapse_duplicates(games)
+
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f"gametdb_{system}.json")
     with open(output_path, 'w', encoding='utf-8') as handle:
@@ -334,6 +399,7 @@ def convert(xml_path, output_dir):
     with_alts = sum(len(g.get('alt_names', ())) for g in games.values())
     print(f"  {len(games)} games -> {output_path}")
     print(f"  {with_media} with artwork, {with_alts} localized names"
+          + (f", {dropped} duplicate releases collapsed" if dropped else '')
           + (f", {skipped} skipped (no id or title)" if skipped else ''))
     return games
 
@@ -345,6 +411,8 @@ def main():
                         help='GameTDB XML files (default: every *tdb.xml beside this script)')
     parser.add_argument('--output-dir', default=CUSTOM_DB_DIR,
                         help='where to write the JSON databases (default: var/db/custom)')
+    parser.add_argument('--keep-duplicates', action='store_true',
+                        help='keep every regional release rather than one entry per title')
     args = parser.parse_args()
 
     paths = args.xml
@@ -362,7 +430,7 @@ def main():
             print(f"Not found: {path}", file=sys.stderr)
             return 1
         print(f"{os.path.basename(path)}:")
-        convert(path, args.output_dir)
+        convert(path, args.output_dir, args.keep_duplicates)
 
     return 0
 
