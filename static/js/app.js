@@ -1019,7 +1019,7 @@ class GameCollectionManager {
             {
                 headerName: 'Actions',
                 field: 'actions',
-                width: 80,
+                width: 100,
                 sortable: false,
                 cellRenderer: (params) => {
                     const status = params.data.status;
@@ -1038,6 +1038,10 @@ class GameCollectionManager {
                     } else if (status === 'waiting_confirmation' && taskType === 'rom_scan') {
                         buttons = `<button class="btn btn-outline-danger btn-sm" onclick="window.gameManager.stopTask('${taskId}')">
                             <i class="bi bi-x-circle"></i> Cancel
+                        </button>`;
+                    } else if (status === 'error' && params.data.retryable) {
+                        buttons = `<button class="btn btn-outline-primary btn-sm" title="Run this task again with the same parameters" onclick="window.gameManager.retryTask('${taskId}')">
+                            <i class="bi bi-arrow-clockwise"></i> Retry
                         </button>`;
                     }
 
@@ -1666,6 +1670,27 @@ class GameCollectionManager {
             }
         } catch (error) {
             this.showToast('Error stopping task', 'error');
+        }
+    }
+
+    async retryTask(taskId) {
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/retry`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.showToast(result.message || 'Task queued again', 'success');
+
+                // Show the new queued task straight away
+                this.refreshTasks();
+            } else {
+                const errorData = await response.json();
+                this.showToast(errorData.error || 'Failed to retry task', 'error');
+            }
+        } catch (error) {
+            this.showToast('Error retrying task', 'error');
         }
     }
 

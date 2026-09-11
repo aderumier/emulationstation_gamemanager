@@ -2825,7 +2825,8 @@ class Task:
             'total_steps': self.total_steps,
             'current_step': self.current_step,
             'grid_refresh_needed': getattr(self, 'grid_refresh_needed', False),
-            'duration': self.end_time - self.start_time if self.end_time and self.start_time else None
+            'duration': self.end_time - self.start_time if self.end_time and self.start_time else None,
+            'retryable': task_can_be_retried(self)
         }
 
     def to_dict_lightweight(self):
@@ -2844,6 +2845,7 @@ class Task:
             'current_step': self.current_step,
             'grid_refresh_needed': getattr(self, 'grid_refresh_needed', False),
             'duration': self.end_time - self.start_time if self.end_time and self.start_time else None,
+            'retryable': task_can_be_retried(self),
             # Include essential data fields needed for grid refresh
             'data': {
                 'system_name': self.data.get('system_name') if self.data else None
@@ -3221,6 +3223,33 @@ def add_task_to_queue(task_type, task_data, username=None):
         print(f"DEBUG: Task already running for system '{system_name}', queued task will wait")
     
     return task
+
+# Task types process_next_queued_task() knows how to dispatch. Re-queueing
+# anything else would create a task that sits in the queue for ever, so only
+# these can be retried. Keep in step with the dispatcher below.
+RETRYABLE_TASK_TYPES = {
+    '3dbox_generation', 'clean_missing_medias', 'custom2_scrapper', 'custom_scrapper',
+    'datscrapper', 'delete_similar_images', 'emumovies_scraping', 'fanart_scrapper',
+    'igdb_scraping', 'image_download', 'import_medias', 'import_roms',
+    'launchbox_scraping', 'logo_generation', 'media_scan', 'mobygames',
+    'reencode_medias', 'resize_medias', 'rom_scan', 'screenscraper_scraping',
+    'search_image_similarity', 'steamgriddb_scraping', 'steam_scraping',
+    'template_box_generation', 'upload_media', 'youtube_download',
+    'youtube_download_batch',
+}
+
+
+def task_can_be_retried(task):
+    """Whether a finished task can be run again exactly as it was.
+
+    Needs a type the queue can dispatch and the parameters it was given; a task
+    that failed before either was recorded has nothing to repeat.
+    """
+    return (task is not None
+            and task.status == TASK_STATUS_ERROR
+            and task.type in RETRYABLE_TASK_TYPES
+            and bool(task.data))
+
 
 def process_next_queued_task():
     """Process the next available task in the queue (allows parallel execution for different systems)"""
@@ -24724,6 +24753,50 @@ def stop_task_endpoint(task_id):
         })
     except Exception as e:
         return jsonify({'error': f'Failed to stop task: {str(e)}'}), 500
+
+@app.route('/api/tasks/<task_id>/retry', methods=['POST'])
+@login_required
+def retry_task_endpoint(task_id):
+    """Run a failed task again with the parameters it was given"""
+    try:
+        task = get_task(task_id)
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+
+        if task.status != TASK_STATUS_ERROR:
+            return jsonify({'error': 'Only a task that ended in error can be retried'}), 400
+
+        if task.type not in RETRYABLE_TASK_TYPES:
+            return jsonify({'error': f"'{task.type}' tasks cannot be retried automatically"}), 400
+
+        if not task.data:
+            return jsonify({'error': 'The original parameters of this task were not recorded'}), 400
+
+        username = task.username
+        try:
+            from flask_login import current_user
+            if current_user and current_user.is_authenticated:
+                username = current_user.username
+        except Exception:
+            pass
+
+        # A fresh task rather than a reset of the old one, so the failure stays
+        # in the list with its log intact. Queueing it also keeps the one-task-
+        # per-system rule that starting it directly would bypass. The parameters
+        # are copied so the retry cannot mutate the record of the original.
+        import copy
+        new_task = add_task_to_queue(task.type, copy.deepcopy(task.data), username)
+        logger.info(f"Retrying {task.type} task {task_id} as {new_task.id}")
+
+        return jsonify({
+            'success': True,
+            'task_id': new_task.id,
+            'message': f'{task.type} task queued again'
+        })
+
+    except Exception as e:
+        logger.error(f"Error retrying task {task_id}: {e}")
+        return jsonify({'error': f'Failed to retry task: {str(e)}'}), 500
 
 @app.route('/api/tasks/<task_id>/delete', methods=['DELETE'])
 @login_required
