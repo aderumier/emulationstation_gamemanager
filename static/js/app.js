@@ -9704,8 +9704,10 @@ class GameCollectionManager {
                 this.setTextFieldSelection(row, 'current');
             });
 
-            // Source columns (IGDB, ScreenScraper, LaunchBox, MobyGames, Steam, Custom)
-            const sources = ['igdb', 'screenscraper', 'launchbox', 'mobygames', 'steam', 'custom'];
+            // Source columns, in the order the table header declares them. The
+            // media table below builds its own list; keep the two in step when a
+            // scraper that contributes text fields is added.
+            const sources = ['igdb', 'screenscraper', 'launchbox', 'mobygames', 'steam', 'custom', 'custom2'];
             sources.forEach(source => {
                 const sourceCell = document.createElement('td');
                 let sourceValue = fieldData.sources[source] || '';
@@ -11427,7 +11429,7 @@ class GameCollectionManager {
 
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = true;
+                this.setDropdownToggleDisabled(button, true);
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
             }
 
@@ -11482,7 +11484,7 @@ class GameCollectionManager {
             // Reset button state
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = false;
+                this.setDropdownToggleDisabled(button, false);
                 button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
             }
         }
@@ -11501,7 +11503,7 @@ class GameCollectionManager {
 
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = true;
+                this.setDropdownToggleDisabled(button, true);
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
             }
 
@@ -11556,7 +11558,7 @@ class GameCollectionManager {
             // Reset button state
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = false;
+                this.setDropdownToggleDisabled(button, false);
                 button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
             }
         }
@@ -11575,7 +11577,7 @@ class GameCollectionManager {
 
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = true;
+                this.setDropdownToggleDisabled(button, true);
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
             }
 
@@ -11649,7 +11651,7 @@ class GameCollectionManager {
             // Reset button state
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = false;
+                this.setDropdownToggleDisabled(button, false);
                 button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
             }
         }
@@ -11672,7 +11674,7 @@ class GameCollectionManager {
 
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = true;
+                this.setDropdownToggleDisabled(button, true);
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
             }
 
@@ -11727,7 +11729,7 @@ class GameCollectionManager {
             // Reset button state
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = false;
+                this.setDropdownToggleDisabled(button, false);
                 button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
             }
         }
@@ -11746,7 +11748,7 @@ class GameCollectionManager {
 
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = true;
+                this.setDropdownToggleDisabled(button, true);
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
             }
 
@@ -11801,7 +11803,7 @@ class GameCollectionManager {
             // Reset button state
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = false;
+                this.setDropdownToggleDisabled(button, false);
                 button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
             }
         }
@@ -11820,7 +11822,7 @@ class GameCollectionManager {
 
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = true;
+                this.setDropdownToggleDisabled(button, true);
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
             }
 
@@ -11875,7 +11877,7 @@ class GameCollectionManager {
             // Reset button state
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = false;
+                this.setDropdownToggleDisabled(button, false);
                 button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
             }
         }
@@ -11890,7 +11892,7 @@ class GameCollectionManager {
 
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = true;
+                this.setDropdownToggleDisabled(button, true);
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
             }
 
@@ -11952,7 +11954,7 @@ class GameCollectionManager {
             // Reset button state
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
-                button.disabled = false;
+                this.setDropdownToggleDisabled(button, false);
                 button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
             }
         }
@@ -15872,7 +15874,7 @@ class GameCollectionManager {
             // Update button state
             const button = document.getElementById('globalGeneratorBtn');
             if (button) {
-                button.disabled = true;
+                this.setDropdownToggleDisabled(button, true);
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating...';
             }
 
@@ -15917,7 +15919,7 @@ class GameCollectionManager {
             // Reset button state
             const button = document.getElementById('globalGeneratorBtn');
             if (button) {
-                button.disabled = false;
+                this.setDropdownToggleDisabled(button, false);
                 button.innerHTML = '<i class="bi bi-magic"></i> Generator';
             }
         }
@@ -35967,18 +35969,36 @@ class GameCollectionManager {
         }
     }
 
+    // Disabling a dropdown toggle needs care. Bootstrap refuses to hide a
+    // dropdown whose toggle is disabled, and a disabled <button> swallows the
+    // click that would otherwise dismiss it, so a menu open at that moment stays
+    // flagged as shown. Once the button is enabled again its state says "open"
+    // while nothing is visible, and the user's next click silently closes it
+    // instead of showing the submenu -- the button looks stuck until clicked
+    // twice. Selection changes arrive from background scraping tasks, so this
+    // happens at unpredictable moments.
+    setDropdownToggleDisabled(button, disabled) {
+        if (!button) return;
+
+        const Dropdown = window.bootstrap && window.bootstrap.Dropdown;
+        const instance = Dropdown ? Dropdown.getInstance(button) : null;
+
+        // Close it while the toggle is still enabled, or Bootstrap will not.
+        if (instance && disabled) instance.hide();
+        button.disabled = disabled;
+        // Re-enabling clears any state an earlier disable left stuck; hiding an
+        // already-hidden dropdown is a no-op.
+        if (instance && !disabled) instance.hide();
+    }
+
     updateFindBestMatchButtonState() {
         const findBestMatchBtn = document.getElementById('globalFindBestMatchBtn');
-        if (findBestMatchBtn) {
-            findBestMatchBtn.disabled = this.selectedGames.length === 0;
-        }
+        this.setDropdownToggleDisabled(findBestMatchBtn, this.selectedGames.length === 0);
     }
 
     updateGeneratorButtonState() {
         const generatorBtn = document.getElementById('globalGeneratorBtn');
-        if (generatorBtn) {
-            generatorBtn.disabled = this.selectedGames.length === 0;
-        }
+        this.setDropdownToggleDisabled(generatorBtn, this.selectedGames.length === 0);
     }
 
     updateYoutubeDownloadButtonState() {
