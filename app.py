@@ -30408,6 +30408,10 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                 
                 processed += 1
                 task.update_progress(f"✅ Generated: {game_name}")
+                # Tell the clients, or a preview already open keeps showing the
+                # old picture: the file is replaced in place, so its path does
+                # not change and nothing else would invalidate the cached image.
+                notify_game_updated(system_name, game_path, [target_field])
                 
             except Exception as e:
                 print(f"❌ Error processing {game_path}: {e}")
@@ -30738,6 +30742,10 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 
                 processed += 1
                 task.update_progress(f"✅ Generated: {game_name}")
+                # Tell the clients, or a preview already open keeps showing the
+                # old picture: the file is replaced in place, so its path does
+                # not change and nothing else would invalidate the cached image.
+                notify_game_updated(system_name, game_path, [target_field])
                 
             except Exception as e:
                 print(f"❌ Error processing {game_path}: {e}")
@@ -31037,6 +31045,8 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 
                 task.update_progress(f"✅ Generated logo for {game_name}")
                 processed += 1
+                # As above: the marquee is written over its previous version.
+                notify_game_updated(system_name, game_path, ['marquee'])
                 
             except subprocess.TimeoutExpired:
                 error_msg = f"Timeout generating logo for {game_name}"

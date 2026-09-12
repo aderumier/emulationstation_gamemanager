@@ -579,6 +579,18 @@ class GameCollectionManager {
                     // Refresh the grid for this system
                     await this.loadRomSystem(task.data.system_name);
 
+                    // loadRomSystem refreshes the grid but not the open media
+                    // preview, so a task that generated media for the selected
+                    // game left it showing the previous state until the user
+                    // clicked elsewhere and back.
+                    if (this.currentMediaPreviewGame) {
+                        const previewedGame = this.games.find(
+                            g => g.path === this.currentMediaPreviewGame.path);
+                        if (previewedGame) {
+                            await this.showMediaPreview(previewedGame);
+                        }
+                    }
+
                     // No need for additional refresh since loadRomSystem now uses efficient updates
                     // Acknowledge refresh so future sessions don't re-trigger
                     try {
@@ -2902,11 +2914,11 @@ class GameCollectionManager {
     async updateSingleGameFromWebSocket(romPath) {
         if (!this.currentSystem || !this.gridApi || !romPath) return;
 
-        // Skip if this is the game currently being edited in the right panel
-        // The user's local changes should take precedence
-        if (this.editingGamePath === romPath) {
-            return;
-        }
+        // The game open in the editor keeps its local text edits -- those must
+        // not be overwritten from the server. Its media is another matter: a
+        // task replacing files on disk has nothing to do with what the user is
+        // typing, and skipping that left the preview showing the old picture.
+        const isBeingEdited = this.editingGamePath === romPath;
 
         try {
             // Find the game in our local games array
@@ -2931,19 +2943,24 @@ class GameCollectionManager {
                 return;
             }
 
-            // Update the game in our local array
-            this.games[gameIndex] = result.game;
+            if (!isBeingEdited) {
+                // Update the game in our local array
+                this.games[gameIndex] = result.game;
 
-            // Use AG Grid's applyTransaction for efficient single-row update
-            const rowNode = this.gridApi.getRowNode(romPath);
-            if (rowNode) {
-                rowNode.setData(result.game);
+                // Use AG Grid's applyTransaction for efficient single-row update
+                const rowNode = this.gridApi.getRowNode(romPath);
+                if (rowNode) {
+                    rowNode.setData(result.game);
+                }
             }
 
             // Refresh the media preview if it's showing this game so another
-            // user's (or task's) media change is visible without re-clicking
+            // user's (or task's) media change is visible without re-clicking.
+            // This runs even for the game being edited: a field that did not
+            // exist before appears only if the preview is rebuilt from the
+            // fetched data, since nothing else would know the field is there.
             if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === romPath) {
-                this.showMediaPreview(result.game);
+                await this.showMediaPreview(result.game);
             }
         } catch (error) {
             // Silent fail - the save was successful, just the UI update failed
@@ -19725,8 +19742,11 @@ class GameCollectionManager {
             return;
         }
 
-        // Prevent multiple simultaneous calls
+        // A render already running must not swallow this one: dropping it loses
+        // the update entirely, and the caller has no way to know. Remember the
+        // latest game asked for and render it when the current pass finishes.
         if (this.showingMediaPreview) {
+            this.pendingMediaPreviewGame = game;
             return;
         }
         this.showingMediaPreview = true;
@@ -19736,6 +19756,12 @@ class GameCollectionManager {
             // Always reset the flag, even if rendering throws, so the
             // media preview doesn't get permanently stuck disabled
             this.showingMediaPreview = false;
+        }
+
+        const pending = this.pendingMediaPreviewGame;
+        if (pending) {
+            this.pendingMediaPreviewGame = null;
+            await this.showMediaPreview(pending);
         }
     }
 
