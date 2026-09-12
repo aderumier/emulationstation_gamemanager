@@ -39505,10 +39505,63 @@ def download_media_with_selenium(url: str, output_path: str, timeout: int = 30) 
             logger.debug(f"Traceback: {traceback.format_exc()}")
             return False
 
+# Markers of a Cloudflare interstitial rather than the file that was asked for.
+CLOUDFLARE_CHALLENGE_MARKERS = (
+    b'cf-browser-verification', b'cf_chl_opt', b'challenge-platform',
+    b'Just a moment', b'Checking your browser',
+)
+
+
+def _fetch_media_directly(url: str, timeout: int = 30) -> Optional[bytes]:
+    """Fetch media with an ordinary request, or None if something intercepts it.
+
+    Returns the bytes only when the answer really is the file: a challenge page
+    arrives as HTML with a 200, so the content type and body are checked rather
+    than the status alone.
+    """
+    import requests
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                      '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+
+    try:
+        # Redirects matter here: lemon64 moved its media from /assets to /uploads
+        # and answers the old paths with a 301.
+        response = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+    except requests.RequestException as e:
+        logger.debug(f"Direct media fetch failed for {url}: {e}")
+        return None
+
+    if response.status_code != 200 or not response.content:
+        logger.debug(f"Direct media fetch for {url} returned HTTP {response.status_code}")
+        return None
+
+    content_type = response.headers.get('Content-Type', '').lower()
+    if 'text/html' in content_type:
+        logger.debug(f"Direct media fetch for {url} returned HTML, not media")
+        return None
+
+    head = response.content[:4096]
+    if any(marker in head for marker in CLOUDFLARE_CHALLENGE_MARKERS):
+        logger.debug(f"Direct media fetch for {url} hit a Cloudflare challenge")
+        return None
+
+    return response.content
+
+
 def download_media_with_unflare(url: str, output_path: str, timeout: int = 60) -> bool:
     """
-    Download media using Unflare API for URLs protected by Cloudflare (like lemon64.com).
-    
+    Download media from a host that may sit behind Cloudflare (like lemon64.com).
+
+    An ordinary request is tried first. Unflare is a separate service that is not
+    always running -- when it is not, every download through here used to fail
+    outright even though the file was being served perfectly well. It is now only
+    consulted when the direct fetch is actually intercepted.
+
     Args:
         url: URL to download
         output_path: Path where file should be saved
@@ -39517,6 +39570,15 @@ def download_media_with_unflare(url: str, output_path: str, timeout: int = 60) -
     Returns:
         True if successful, False otherwise
     """
+    content = _fetch_media_directly(url, timeout=min(timeout, 30))
+    if content:
+        with open(output_path, 'wb') as f:
+            f.write(content)
+        logger.debug(f"Downloaded {url} directly, no bypass needed")
+        return True
+
+    import requests
+
     unflare_url = "http://localhost:5002/scrape"
     
     payload = {
@@ -39526,7 +39588,6 @@ def download_media_with_unflare(url: str, output_path: str, timeout: int = 60) -
     }
     
     try:
-        import requests
         logger.debug(f"Requesting Cloudflare bypass from Unflare for: {url}")
         response = requests.post(unflare_url, json=payload, timeout=timeout + 10)
         
@@ -39580,6 +39641,12 @@ def download_media_with_unflare(url: str, output_path: str, timeout: int = 60) -
             logger.error(f"Final download failed via Unflare for {url}. Status: {img_response.status_code}")
             return False
                 
+    except requests.RequestException as e:
+        logger.error(
+            f"{url} could not be fetched directly and the Unflare bypass at "
+            f"{unflare_url} is unreachable ({e}). Start Unflare, or check whether "
+            f"the host is simply down.")
+        return False
     except Exception as e:
         logger.error(f"Error in download_media_with_unflare for {url}: {e}")
         return False
