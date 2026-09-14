@@ -36030,6 +36030,12 @@ class GameCollectionManager {
     // happens at unpredictable moments.
     setDropdownToggleDisabled(button, disabled) {
         if (!button) return;
+        // Only act on a real transition. The selection updaters run on every
+        // selectionChanged, and AG Grid fires that whenever row data is
+        // refreshed (websocket updates from background tasks) even though the
+        // selection itself is kept. Hiding on those calls would close a menu the
+        // user has just opened, which looks exactly like the button not working.
+        if (button.disabled === disabled) return;
 
         const Dropdown = window.bootstrap && window.bootstrap.Dropdown;
         const instance = Dropdown ? Dropdown.getInstance(button) : null;
@@ -36037,8 +36043,8 @@ class GameCollectionManager {
         // Close it while the toggle is still enabled, or Bootstrap will not.
         if (instance && disabled) instance.hide();
         button.disabled = disabled;
-        // Re-enabling clears any state an earlier disable left stuck; hiding an
-        // already-hidden dropdown is a no-op.
+        // Re-enabling clears any state an earlier disable left stuck. The menu
+        // cannot legitimately be open while the toggle was disabled.
         if (instance && !disabled) instance.hide();
     }
 
