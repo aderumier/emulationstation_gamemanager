@@ -11627,6 +11627,41 @@ def auto_fill_sortname(game_data, overwrite=False):
             break
     game_data['sortname'] = sortname_val
 
+# "Rookie Thief, The" is how a lot of sets write a title whose article was moved
+# to the end for sorting. Matching against a scraper database expects the title
+# as it reads, so this puts the article back in front.
+#
+# The article only counts as trailing when it ends the name, or ends it but for
+# a suffix that clearly starts something else: a parenthesised or bracketed tag
+# such as "(Europe)" or "[EasyFlash]", or a subtitle behind a " - " or " : "
+# separator. Anywhere else the "The" belongs to what follows it and the name
+# must be left alone, as in "Buffy, The Vampire Slayer" or "Adventurers, The
+# Collection". A separator has to carry a space, so a hyphen inside a word such
+# as "Foo, The-Bar" is not mistaken for one.
+TRAILING_THE_PATTERN = re.compile(r'^(?P<title>.+?),\s*The(?P<gap>\s*)(?P<rest>[(\[].*|[-:]\s+\S.*)?$', re.IGNORECASE)
+
+def move_trailing_the_to_front(name):
+    """Turn "Rookie Thief, The (Europe)" into "The Rookie Thief (Europe)".
+
+    Returns the name unchanged when it carries no trailing "The".
+    """
+    if not name:
+        return name
+    matched = TRAILING_THE_PATTERN.match(name.strip())
+    if not matched:
+        return name
+    title = matched.group('title').strip()
+    rest = matched.group('rest') or ''
+    if not title:
+        return name
+    if not rest:
+        return f"The {title}"
+    # A tag is always set off by a single space, while a subtitle separator
+    # keeps the spacing the name already used: "Foo, The: Bar" reads
+    # "The Foo: Bar", not "The Foo : Bar".
+    gap = ' ' if rest[0] in '([' else matched.group('gap')
+    return f"The {title}{gap}{rest}".rstrip()
+
 @app.route('/api/rom-system/<system_name>/gamelist/batch', methods=['PUT'])
 @login_required
 def rom_system_gamelist_batch(system_name):
@@ -21828,6 +21863,70 @@ def fill_sortname_games(system_name):
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Failed to fill sortnames: {str(e)}'}), 500
+
+@app.route('/api/rom-system/<system_name>/games/fix-article-name', methods=['POST'])
+@login_required
+def fix_article_name_games(system_name):
+    """Move a trailing ", The" back to the front of the name for multiple games"""
+    resp = require_system_access(system_name)
+    if resp:
+        return resp
+
+    try:
+        data = request.get_json()
+        if not data or 'rom_paths' not in data:
+            return jsonify({'error': 'No ROM paths provided'}), 400
+
+        rom_paths = data['rom_paths']
+        if not isinstance(rom_paths, list):
+            return jsonify({'error': 'ROM paths must be a list'}), 400
+
+        if not rom_paths:
+            return jsonify({'error': 'ROM paths list is empty'}), 400
+
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+
+        games = parse_gamelist_xml(gamelist_path)
+        rom_paths_set = set(p.lower().replace('\\', '/') for p in rom_paths)
+
+        updated_count = 0
+
+        for game in games:
+            game_path = game.get('path', '')
+            if not (game_path and game_path.lower().replace('\\', '/') in rom_paths_set):
+                continue
+            old_name = game.get('name', '')
+            new_name = move_trailing_the_to_front(old_name)
+            if new_name != old_name:
+                game['name'] = new_name
+                updated_count += 1
+
+        if updated_count > 0:
+            write_gamelist_xml(games, gamelist_path)
+
+            # Sync to actual roms folder
+            save_gamelist_to_roms(system_name)
+
+            # One gamelist_updated event refreshes the whole grid, as the other
+            # batch endpoints do, rather than one fetch per game.
+            notify_gamelist_updated(system_name, len(games), 0, updated_count)
+
+            return jsonify({
+                'success': True,
+                'message': f'Moved "The" to the front of {updated_count} game name(s)'
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'message': 'No changes made. No selected game name ends with ", The".'
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to fix game names: {str(e)}'}), 500
 
 @app.route('/api/rom-system/<system_name>/games/update-hidden', methods=['POST'])
 @login_required

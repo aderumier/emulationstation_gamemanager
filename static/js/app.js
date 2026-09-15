@@ -4441,6 +4441,9 @@ class GameCollectionManager {
                 <a class="dropdown-item" href="#" data-action="fill-sortname">
                     <i class="bi bi-sort-alpha-down"></i> Fill SortName
                 </a>
+                <a class="dropdown-item" href="#" data-action="fix-article-name">
+                    <i class="bi bi-type"></i> Fix ", The" &rarr; "The ..."
+                </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item text-danger" href="#" data-action="delete-game">
                     <i class="bi bi-trash"></i> Delete
@@ -4473,6 +4476,9 @@ class GameCollectionManager {
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.fillSortnameForSelected()">
                     <i class="bi bi-sort-alpha-down"></i> Fill SortName
+                </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.fixArticleNameForSelected()">
+                    <i class="bi bi-type"></i> Fix ", The" &rarr; "The ..."
                 </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" data-action="delete-selected-games">
@@ -4513,6 +4519,9 @@ class GameCollectionManager {
                     break;
                 case 'fill-sortname':
                     this.fillSortnameForSingleGame(game);
+                    break;
+                case 'fix-article-name':
+                    this.fixArticleNameForSingleGame(game);
                     break;
                 case 'delete-game':
                     this.deleteGame(game);
@@ -4890,6 +4899,62 @@ class GameCollectionManager {
 
         const romPaths = selectedGames.map(game => game.path);
         await this.updateSortnameForGames(romPaths);
+    }
+
+    async fixArticleNameForSingleGame(game) {
+        if (!game || !game.path) return;
+        await this.fixArticleNameForGames([game.path]);
+    }
+
+    async fixArticleNameForSelected() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        if (selectedGames.length === 0) {
+            this.showAlert('No games selected', 'warning');
+            return;
+        }
+
+        const romPaths = selectedGames.map(game => game.path);
+        await this.fixArticleNameForGames(romPaths);
+    }
+
+    // Moves a trailing ", The" back to the front of the name, so the title
+    // reads the way a scraper database spells it.
+    async fixArticleNameForGames(romPaths) {
+        if (!romPaths || romPaths.length === 0) return;
+
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/games/fix-article-name`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ rom_paths: romPaths })
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                this.showAlert(result.message || `Successfully updated ${romPaths.length} game name(s)`, 'success');
+
+                // Reload the gamelist from the server to get the new names
+                const gamelistResponse = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`);
+                if (gamelistResponse.ok) {
+                    const gamelistData = await gamelistResponse.json();
+                    if (gamelistData.games) {
+                        this.games = gamelistData.games;
+                        const currentFilterModel = this.gridApi.getFilterModel();
+                        this.setGridDataPreservingSort([...this.games]);
+                        if (currentFilterModel && Object.keys(currentFilterModel).length > 0) {
+                            this.gridApi.setFilterModel(currentFilterModel);
+                        }
+                    }
+                }
+            } else {
+                this.showAlert(result.error || 'Failed to update game names', 'error');
+            }
+        } catch (error) {
+            console.error('Error fixing game names:', error);
+            this.showAlert('An error occurred while communicating with the server.', 'error');
+        }
     }
 
     async updateSortnameForGames(romPaths) {
