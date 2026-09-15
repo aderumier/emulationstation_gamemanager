@@ -40,7 +40,7 @@ MIN_ALT_NAME_LENGTH = 4
 # cache is rebuilt rather than silently kept. The file fingerprint cannot catch
 # this on its own: the databases are untouched, only the way they are indexed
 # has changed.
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 
 class CustomScraperService:
     def __init__(self, config: Dict, scrappers_config: Dict = None, systems_config: Dict = None):
@@ -172,6 +172,24 @@ class CustomScraperService:
                     names.append(name.strip())
         return names
 
+    @staticmethod
+    def _article_free_key(name):
+        """Index key for a title with its leading or trailing article dropped.
+
+        Titles are indexed article included ("The Rookie Thief"), but
+        similarity search normalizes the name it looks for with the article
+        removed ("Rookie Thief") -- and it only scans the partition of the
+        first letter, so such a game sat in partition "t" while every search
+        for it looked in "r", and no ROM could ever match it. Indexing the
+        article-free form too puts the game within reach of both lookups,
+        including an exact one for a ROM named without the article.
+
+        Returns '' when the key is too short to be worth indexing.
+        """
+        key = normalize_game_name(name, remove_paranthesis=False, remove_articles=True)
+        key = key.strip() if key else ''
+        return key if len(key) >= MIN_ALT_NAME_LENGTH else ''
+
     def _build_all_partitioned_indexes(self):
         """Build partitioned similarity indexes for all loaded databases during startup"""
         try:
@@ -199,6 +217,25 @@ class CustomScraperService:
                 # never displace them: {normalized_alt: game_id}
                 alt_titles = {}
 
+                # Article-free forms of the titles above, indexed last and, like
+                # the alternatives, only where they take no key from a game that
+                # owns it: {article_free_title: game_id}
+                article_free = {}
+
+                # Article-free forms two different games lay claim to, such as a
+                # database holding both "The Voleur" and "Le Voleur" but no
+                # plain "Voleur". Dropping the article would make them the same
+                # game, so the key goes to neither: automatic scraping would
+                # otherwise attach one game's media to the other on a coin flip.
+                article_free_conflicts = set()
+
+                def claim_article_free(name, game_id):
+                    key = self._article_free_key(name)
+                    if not key:
+                        return
+                    if article_free.setdefault(key, game_id) != game_id:
+                        article_free_conflicts.add(key)
+
                 for game_id, game_data in games_dict.items():
                     # Try to find game name field (common variations)
                     game_name = None
@@ -215,6 +252,7 @@ class CustomScraperService:
                             # Very short keys match far too much to be useful
                             if len(normalized_alt) >= MIN_ALT_NAME_LENGTH:
                                 alt_titles.setdefault(normalized_alt, game_id)
+                                claim_article_free(alt, game_id)
 
                     if game_name:
                         # Don't remove parentheses to preserve version info (e.g., "Game (ECS)" vs "Game (AGA)")
@@ -238,8 +276,9 @@ class CustomScraperService:
                 for normalized_title, group in title_groups.items():
                     if len(group) == 1:
                         # No duplicates, index normally
-                        game_id, _, _ = group[0]
+                        game_id, _, game_name = group[0]
                         partition_for(normalized_title)[normalized_title] = game_id
+                        claim_article_free(game_name, game_id)
                         continue
 
                     # Several games share this title -- different regions or
@@ -253,6 +292,7 @@ class CustomScraperService:
                         -sum(1 for value in entry[1].values() if value) if isinstance(entry[1], dict) else 0,
                         str(entry[0])))
                     partition_for(normalized_title)[normalized_title] = best[0]
+                    claim_article_free(best[2], best[0])
 
                     # Duplicates found, append publisher to the name for each game in the group
                     for game_id, game_data, game_name in group:
@@ -302,6 +342,22 @@ class CustomScraperService:
                 if alts_added:
                     print(f"🔧 Indexed {alts_added} alternative titles for {db_name}")
                     self.logger.info(f"🔧 Indexed {alts_added} alternative titles for {db_name}")
+
+                # Fourth pass: the same titles without their article. Taken
+                # last and only where the key is free, so a game actually named
+                # "Rookie Thief" keeps that key and "The Rookie Thief" merely
+                # becomes reachable by it when nothing else claims it.
+                article_free_added = 0
+                for article_free_title, game_id in article_free.items():
+                    if article_free_title in article_free_conflicts:
+                        continue
+                    partition = partition_for(article_free_title)
+                    if article_free_title not in partition:
+                        partition[article_free_title] = game_id
+                        article_free_added += 1
+                if article_free_added:
+                    print(f"🔧 Indexed {article_free_added} article-free titles for {db_name}")
+                    self.logger.info(f"🔧 Indexed {article_free_added} article-free titles for {db_name}")
 
                 processed_databases += 1
                 partition_count = len(new_index[db_name])
@@ -470,17 +526,23 @@ class CustomScraperService:
             self.logger.debug(f"Normalized search is empty for '{game_name}'")
             return None
         
-        # Get partition based on first character
-        first_char = normalized_search[0] if normalized_search else 'other'
-        
-        # Search in the appropriate partition for exact match
-        if first_char in self._global_similarity_index[db_name]:
-            partition_dict = self._global_similarity_index[db_name][first_char]
-            if normalized_search in partition_dict:
-                game_id = partition_dict[normalized_search]
+        # Search in the appropriate partition for exact match, then for the
+        # same title without its article: a ROM named "The Immortal" has to
+        # find a database entry named "Immortal" just as the index makes the
+        # opposite case work. Articles are decoration on a title, not part of
+        # what identifies the game.
+        keys = [normalized_search]
+        article_free_search = self._article_free_key(game_name)
+        if article_free_search and article_free_search != normalized_search:
+            keys.append(article_free_search)
+
+        for key in keys:
+            partition_dict = self._global_similarity_index[db_name].get(key[0] if key else 'other')
+            if partition_dict and key in partition_dict:
+                game_id = partition_dict[key]
                 game_data = self.databases[db_name].get(game_id, {})
                 return (game_id, game_data)
-        
+
         return None
     
     def find_best_matches(self, db_name: str, game_name: str, max_results: int = 10, min_similarity: float = 0.0) -> List[Dict]:
